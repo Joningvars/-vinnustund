@@ -7,6 +7,7 @@ import 'package:time_clock/models/job.dart';
 import 'package:time_clock/screens/home_screen.dart';
 import 'package:time_clock/screens/add_time_screen.dart';
 import 'package:time_clock/screens/history_screen.dart';
+import 'package:time_clock/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 
@@ -21,44 +22,57 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TimeClockProvider(),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Time Clock',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blueGrey,
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          scaffoldBackgroundColor: Colors.white,
-          cardTheme: CardTheme(
-            elevation: 0,
-            color: Colors.grey.shade50,
-            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      child: Consumer<TimeClockProvider>(
+        builder: (context, provider, _) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Time Clock',
+            theme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.blueGrey,
+                brightness: Brightness.light,
+              ),
+              useMaterial3: true,
+              scaffoldBackgroundColor: Colors.white,
+              cardTheme: CardTheme(
+                elevation: 0,
+                color: Colors.grey.shade50,
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              appBarTheme: const AppBarTheme(
+                centerTitle: false,
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                titleTextStyle: TextStyle(
+                  color: Colors.black,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-          ),
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            titleTextStyle: TextStyle(
-              color: Colors.black,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.blueGrey,
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
+              scaffoldBackgroundColor: Colors.grey.shade900,
+              cardTheme: CardTheme(
+                elevation: 0,
+                color: Colors.grey.shade800,
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
             ),
-          ),
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.orange,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
-        themeMode: ThemeMode.system,
-        home: const TimeClockScreen(),
+            themeMode: provider.themeMode,
+            home: const TimeClockScreen(),
+          );
+        },
       ),
     );
   }
@@ -597,7 +611,12 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [HomeScreen(), AddTimeScreen(), HistoryScreen()],
+        children: const [
+          HomeScreen(),
+          AddTimeScreen(),
+          HistoryScreen(),
+          SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -621,6 +640,11 @@ class _TimeClockScreenState extends State<TimeClockScreen>
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
             label: 'History',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

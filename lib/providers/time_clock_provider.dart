@@ -29,8 +29,10 @@ class TimeClockProvider extends ChangeNotifier {
   Job? selectedJob;
   List<TimeEntry> timeEntries = [];
   int hoursWorkedThisWeek = 0;
-  final int targetHours = 173;
+  int targetHours = 173;
   String selectedPeriod = "Day";
+
+  ThemeMode themeMode = ThemeMode.system;
 
   TimeClockProvider() {
     loadData();
@@ -484,6 +486,10 @@ class TimeClockProvider extends ChangeNotifier {
     // Save jobs
     final jobsJson = jobs.map((job) => job.toJson()).toList();
     await prefs.setString('jobs', jsonEncode(jobsJson));
+
+    // Save theme settings
+    prefs.setString('themeMode', themeMode.toString());
+    prefs.setInt('targetHours', targetHours);
   }
 
   Future<void> loadData() async {
@@ -514,6 +520,21 @@ class TimeClockProvider extends ChangeNotifier {
 
     selectedJob = jobs.isNotEmpty ? jobs.first : null;
     calculateHoursWorkedThisWeek();
+
+    // Load theme settings
+    final themeModeStr = prefs.getString('themeMode');
+    if (themeModeStr != null) {
+      if (themeModeStr.contains('dark')) {
+        themeMode = ThemeMode.dark;
+      } else if (themeModeStr.contains('light')) {
+        themeMode = ThemeMode.light;
+      } else {
+        themeMode = ThemeMode.system;
+      }
+    }
+
+    targetHours = prefs.getInt('targetHours') ?? 173;
+
     notifyListeners();
   }
 
@@ -582,5 +603,17 @@ class TimeClockProvider extends ChangeNotifier {
     }
 
     return jobHours;
+  }
+
+  void setThemeMode(ThemeMode mode) {
+    themeMode = mode;
+    notifyListeners();
+    saveData();
+  }
+
+  void setTargetHours(int hours) {
+    targetHours = hours;
+    notifyListeners();
+    saveData();
   }
 }
