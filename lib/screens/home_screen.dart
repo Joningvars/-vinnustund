@@ -78,30 +78,14 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Clock in/out section with break button
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClockButton(
-                    isClockedIn: provider.isClockedIn,
-                    selectedJob: provider.selectedJob,
-                    onPressed:
-                        provider.isClockedIn
-                            ? provider.clockOut
-                            : provider.clockIn,
-                  ),
-
-                  // Break button (only visible when clocked in)
-                  if (provider.isClockedIn)
-                    Positioned(
-                      right: 0,
-                      bottom: -10,
-                      child: BreakButton(
-                        isOnBreak: provider.isOnBreak,
-                        onPressed: provider.toggleBreak,
-                      ),
-                    ),
-                ],
+              // Clock in/out section with integrated break button
+              ClockButton(
+                isClockedIn: provider.isClockedIn,
+                isOnBreak: provider.isOnBreak,
+                selectedJob: provider.selectedJob,
+                onPressed:
+                    provider.isClockedIn ? provider.clockOut : provider.clockIn,
+                onBreakPressed: provider.toggleBreak,
               ),
 
               const SizedBox(height: 24),
@@ -200,7 +184,7 @@ class HomeScreen extends StatelessWidget {
                     width: MediaQuery.of(context).size.width / 2 - 21,
                     padding: const EdgeInsets.symmetric(
                       vertical: 12,
-                      horizontal: 8,
+                      horizontal: 16,
                     ),
                     decoration: BoxDecoration(
                       color:
@@ -212,13 +196,13 @@ class HomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       border:
                           isSelected
-                              ? Border.all(color: job.color, width: 2)
+                              ? Border.all(color: job.color, width: 1)
                               : null,
                       boxShadow:
                           isSelected
                               ? [
                                 BoxShadow(
-                                  color: job.color.withOpacity(0.3),
+                                  color: job.color.withOpacity(0.2),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -228,26 +212,34 @@ class HomeScreen extends StatelessWidget {
                     child: Opacity(
                       opacity: isDisabled && !isSelected ? 0.6 : 1.0,
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            child: CircleAvatar(
-                              backgroundColor: job.color,
-                              radius: isSelected ? 14 : 12,
-                              child:
-                                  isSelected
-                                      ? const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                        size: 14,
-                                      )
-                                      : null,
+                          // Color circle with more space
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: job.color,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: job.color.withOpacity(0.4),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
                             ),
+                            child:
+                                isSelected
+                                    ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 16,
+                                    )
+                                    : null,
                           ),
-                          const SizedBox(width: 8),
-                          Flexible(
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: Text(
                               job.name,
                               style: TextStyle(

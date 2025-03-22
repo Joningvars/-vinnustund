@@ -22,10 +22,11 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => TimeClockProvider(),
       child: MaterialApp(
+        debugShowCheckedModeBanner: false,
         title: 'Time Clock',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.orange,
+            seedColor: Colors.blueGrey,
             brightness: Brightness.light,
           ),
           useMaterial3: true,
