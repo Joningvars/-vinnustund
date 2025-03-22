@@ -69,6 +69,11 @@ class TimeClockProvider extends ChangeNotifier {
       'workDescriptionHint':
           'Please provide a brief description of the work completed',
       'cancel': 'Cancel',
+      'createJob': 'Create Job',
+      'jobName': 'Job Name',
+      'selectColor': 'Select Color',
+      'create': 'Create',
+      'jobAdded': 'Job added successfully',
     },
     'is': {
       'home': 'Heim',
@@ -102,6 +107,11 @@ class TimeClockProvider extends ChangeNotifier {
       'workDescription': 'Verklýsing',
       'workDescriptionHint': 'Sláðu inn verklýsingu',
       'cancel': 'Hætta við',
+      'createJob': 'Búa til verk',
+      'jobName': 'Heiti verks',
+      'selectColor': 'Veldu lit',
+      'create': 'Búa til',
+      'jobAdded': 'Verki bætt við',
     },
   };
 
@@ -686,5 +696,32 @@ class TimeClockProvider extends ChangeNotifier {
 
   String translate(String key) {
     return translations[locale.languageCode]?[key] ?? key;
+  }
+
+  void addJob(String name, Color color) {
+    final newJob = Job(name: name, color: color);
+    jobs.add(newJob);
+
+    // If this is the first job, select it
+    if (jobs.length == 1) {
+      selectedJob = newJob;
+    }
+
+    notifyListeners();
+    saveData();
+
+    if (context != null) {
+      ScaffoldMessenger.of(context!).showSnackBar(
+        SnackBar(
+          content: Text(translate('jobAdded')),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.green,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
   }
 }
