@@ -51,9 +51,9 @@ class ClockButton extends StatelessWidget {
                 Text(
                   isClockedIn
                       ? isOnBreak
-                          ? 'On Break'
-                          : 'Clock Out'
-                      : 'Clock In',
+                          ? provider.translate('onBreak')
+                          : provider.translate('clockOut')
+                      : provider.translate('clockIn'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

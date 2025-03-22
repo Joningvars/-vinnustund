@@ -34,6 +34,77 @@ class TimeClockProvider extends ChangeNotifier {
 
   ThemeMode themeMode = ThemeMode.system;
 
+  Locale locale = const Locale('en', '');
+
+  Map<String, Map<String, String>> translations = {
+    'en': {
+      'home': 'Home',
+      'addTime': 'Add Time',
+      'history': 'History',
+      'settings': 'Settings',
+      'hoursWorked': 'Hours Worked',
+      'totalHours': 'Total Hours',
+      'clockIn': 'Clock In',
+      'clockOut': 'Clock Out',
+      'onBreak': 'On Break',
+      'day': 'Day',
+      'week': 'Week',
+      'month': 'Month',
+      'selectJob': 'Select Job',
+      'recentEntries': 'Recent Entries',
+      'viewAll': 'View All',
+      'cannotChangeJob': 'Cannot change job while clocked in',
+      'startTime': 'Start Time',
+      'endTime': 'End Time',
+      'description': 'Description',
+      'enterWorkDescription': 'Enter work description',
+      'submit': 'Submit',
+      'timeEntryAdded': 'Time entry added successfully',
+      'of': 'of',
+      'hours': 'hours',
+      'this': 'This',
+      'hoursbyJob': 'Hours by Job',
+      'today': 'Today',
+      'workDescription': 'Work Description',
+      'workDescriptionHint':
+          'Please provide a brief description of the work completed',
+      'cancel': 'Cancel',
+    },
+    'is': {
+      'home': 'Heim',
+      'addTime': 'Bæta við tíma',
+      'history': 'Saga',
+      'settings': 'Stillingar',
+      'hoursWorked': 'Unnir tímar',
+      'totalHours': 'Heildar tímar',
+      'clockIn': 'Stimpla inn',
+      'clockOut': 'Stimpla út',
+      'onBreak': 'Í pásu',
+      'day': 'Dagur',
+      'week': 'Vika',
+      'month': 'Mánuður',
+      'selectJob': 'Veldu verkefni',
+      'recentEntries': 'Nýlegar færslur',
+      'viewAll': 'Sjá allt',
+      'cannotChangeJob':
+          'Ekki hægt að breyta verkefni á meðan þú ert stimplaður inn',
+      'startTime': 'Upphafstími',
+      'endTime': 'Lokatími',
+      'description': 'Lýsing',
+      'enterWorkDescription': 'Sláðu inn verklýsingu',
+      'submit': 'Staðfesta',
+      'timeEntryAdded': 'Tímafærslu bætt við',
+      'of': 'af',
+      'hours': 'klst',
+      'this': 'Þessi',
+      'today': 'Í dag',
+      'hoursbyJob': 'Eftir verkum',
+      'workDescription': 'Verklýsing',
+      'workDescriptionHint': 'Sláðu inn verklýsingu',
+      'cancel': 'Hætta við',
+    },
+  };
+
   TimeClockProvider() {
     loadData();
   }
@@ -122,16 +193,19 @@ class TimeClockProvider extends ChangeNotifier {
                 const SizedBox(height: 16),
 
                 // Title
-                const Text(
-                  'Work Description',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                Text(
+                  translate('workDescription'),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
 
                 // Subtitle
                 Text(
-                  'Please provide a brief description of the work completed',
+                  translate('workDescriptionHint'),
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   textAlign: TextAlign.center,
                 ),
@@ -141,75 +215,53 @@ class TimeClockProvider extends ChangeNotifier {
                 TextField(
                   controller: descriptionController,
                   decoration: InputDecoration(
-                    hintText: 'Enter work description',
-                    hintStyle: TextStyle(color: Colors.grey.shade400),
+                    hintText: translate('enterWorkDescription'),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: Colors.grey.shade100,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: Colors.green.shade300,
-                        width: 1,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
+                    contentPadding: const EdgeInsets.all(16),
                   ),
                   maxLines: 3,
-                  style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 24),
 
                 // Buttons
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        translate('cancel'),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          completeClockOut(descriptionController.text);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Complete the clock out process
+                        completeClockOut(descriptionController.text);
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                        child: const Text(
-                          'Submit',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
+                      child: Text(translate('submit')),
                     ),
                   ],
                 ),
@@ -490,6 +542,10 @@ class TimeClockProvider extends ChangeNotifier {
     // Save theme settings
     prefs.setString('themeMode', themeMode.toString());
     prefs.setInt('targetHours', targetHours);
+
+    // Save locale settings
+    prefs.setString('languageCode', locale.languageCode);
+    prefs.setString('countryCode', locale.countryCode ?? '');
   }
 
   Future<void> loadData() async {
@@ -534,6 +590,11 @@ class TimeClockProvider extends ChangeNotifier {
     }
 
     targetHours = prefs.getInt('targetHours') ?? 173;
+
+    // Load locale settings
+    final languageCode = prefs.getString('languageCode') ?? 'en';
+    final countryCode = prefs.getString('countryCode') ?? '';
+    locale = Locale(languageCode, countryCode);
 
     notifyListeners();
   }
@@ -615,5 +676,15 @@ class TimeClockProvider extends ChangeNotifier {
     targetHours = hours;
     notifyListeners();
     saveData();
+  }
+
+  void setLocale(Locale newLocale) {
+    locale = newLocale;
+    notifyListeners();
+    saveData();
+  }
+
+  String translate(String key) {
+    return translations[locale.languageCode]?[key] ?? key;
   }
 }

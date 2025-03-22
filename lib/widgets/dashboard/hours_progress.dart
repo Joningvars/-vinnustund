@@ -71,7 +71,7 @@ class HoursProgress extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'of $targetHours hours',
+                        '${provider.translate('of')} $targetHours ${provider.translate('hours')}',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.grey.shade600,
@@ -79,7 +79,7 @@ class HoursProgress extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'This $period',
+                        '${provider.translate('this')} ${provider.translate(period.toLowerCase())}',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade500,
@@ -91,7 +91,7 @@ class HoursProgress extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Total Hours',
+                provider.translate('totalHours'),
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ],
@@ -104,9 +104,12 @@ class HoursProgress extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Hours by Job',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                provider.translate('hoursbyJob'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               ...jobsWithPercentages.map((jobData) {

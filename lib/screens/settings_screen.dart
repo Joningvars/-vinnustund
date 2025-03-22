@@ -16,27 +16,30 @@ class SettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Settings',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                provider.translate('settings'),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 24),
 
               // Appearance section
-              _buildSectionHeader('Appearance'),
+              _buildSectionHeader(provider.translate('appearance')),
               const SizedBox(height: 8),
 
               // Theme selector
               Card(
                 margin: EdgeInsets.zero,
                 child: ListTile(
-                  title: const Text('Theme'),
+                  title: Text(provider.translate('theme')),
                   subtitle: Text(
                     provider.themeMode == ThemeMode.system
-                        ? 'System default'
+                        ? provider.translate('systemDefault')
                         : provider.themeMode == ThemeMode.dark
-                        ? 'Dark'
-                        : 'Light',
+                        ? provider.translate('dark')
+                        : provider.translate('light'),
                   ),
                   trailing: DropdownButton<ThemeMode>(
                     value: provider.themeMode,
@@ -46,19 +49,45 @@ class SettingsScreen extends StatelessWidget {
                         provider.setThemeMode(newValue);
                       }
                     },
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: ThemeMode.system,
-                        child: Text('System default'),
+                        child: Text(provider.translate('systemDefault')),
                       ),
                       DropdownMenuItem(
                         value: ThemeMode.light,
-                        child: Text('Light'),
+                        child: Text(provider.translate('light')),
                       ),
                       DropdownMenuItem(
                         value: ThemeMode.dark,
-                        child: Text('Dark'),
+                        child: Text(provider.translate('dark')),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  title: const Text('Language'),
+                  subtitle: Text(
+                    provider.locale.languageCode == 'en'
+                        ? 'English'
+                        : 'Íslenska',
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: provider.locale.languageCode,
+                    underline: const SizedBox(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        provider.setLocale(Locale(newValue, ''));
+                      }
+                    },
+                    items: const [
+                      DropdownMenuItem(value: 'en', child: Text('English')),
+                      DropdownMenuItem(value: 'is', child: Text('Íslenska')),
                     ],
                   ),
                 ),
