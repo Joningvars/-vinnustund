@@ -65,8 +65,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: initialProvider,
-      child: Consumer<TimeClockProvider>(
-        builder: (context, provider, _) {
+      child: Builder(
+        builder: (context) {
+          final provider = Provider.of<TimeClockProvider>(
+            context,
+            listen: false,
+          );
+
           return MaterialApp(
             navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
@@ -158,19 +163,38 @@ class MyApp extends StatelessWidget {
             themeMode: provider.themeMode,
             home:
                 onboardingComplete
-                    ? StreamBuilder<User?>(
-                      stream: AuthService().authStateChanges,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.active) {
-                          final user = snapshot.data;
-                          if (user == null) {
-                            return const LoginScreen();
-                          }
-                          return const TimeClockScreen();
-                        }
-                        return const Scaffold(
-                          body: Center(child: CircularProgressIndicator()),
+                    ? StatefulBuilder(
+                      builder: (context, setState) {
+                        return StreamBuilder<User?>(
+                          stream: AuthService().authStateChanges,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.active) {
+                              final user = snapshot.data;
+
+                              // Get the provider without listening to changes
+                              final provider = Provider.of<TimeClockProvider>(
+                                context,
+                                listen: false,
+                              );
+
+                              // Only update if user changed
+                              if (user != null &&
+                                  provider.currentUserId != user.uid) {
+                                provider.currentUserId = user.uid;
+                                // Load user data silently
+                                provider.loadDataSilently();
+                              }
+
+                              if (user == null) {
+                                return const LoginScreen();
+                              }
+                              return const TimeClockScreen();
+                            }
+                            return const Scaffold(
+                              body: Center(child: CircularProgressIndicator()),
+                            );
+                          },
                         );
                       },
                     )

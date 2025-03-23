@@ -248,6 +248,9 @@ class TimeClockProvider extends ChangeNotifier {
 
   DatabaseService? _databaseService;
 
+  // Add this property to track the current user
+  String? currentUserId;
+
   TimeClockProvider() {
     _initializeProvider();
   }
@@ -479,8 +482,10 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   void startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      notifyListeners();
+      // Don't call notifyListeners() here
+      // This is likely the main cause of flickering
     });
   }
 
@@ -1107,5 +1112,33 @@ class TimeClockProvider extends ChangeNotifier {
 
     // Notify listeners to update the UI
     notifyListeners();
+  }
+
+  // Add a method to get the current elapsed time
+  String getElapsedTimeString() {
+    if (clockInTime == null) return '00:00:00';
+
+    final now = DateTime.now();
+    final diff = now.difference(clockInTime!);
+
+    final hours = diff.inHours.toString().padLeft(2, '0');
+    final minutes = (diff.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (diff.inSeconds % 60).toString().padLeft(2, '0');
+
+    return '$hours:$minutes:$seconds';
+  }
+
+  // Add a method to load data without notifying listeners
+  Future<void> loadDataSilently() async {
+    try {
+      // Load user-specific data here without triggering a rebuild
+      // For example:
+      // final userDoc = await _firestore.collection('users').doc(currentUserId).get();
+      // final userData = userDoc.data();
+      // jobs = userData['jobs'];
+      // etc.
+    } catch (e) {
+      print('Error loading data silently: $e');
+    }
   }
 }
