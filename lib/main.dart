@@ -168,9 +168,17 @@ class MyApp extends StatelessWidget {
                         return StreamBuilder<User?>(
                           stream: AuthService().authStateChanges,
                           builder: (context, snapshot) {
+                            // Debug print to see what's happening
+                            print(
+                              'Auth state changed: ${snapshot.connectionState}, hasData: ${snapshot.hasData}',
+                            );
+
                             if (snapshot.connectionState ==
                                 ConnectionState.active) {
                               final user = snapshot.data;
+
+                              // Debug print user info
+                              print('User: ${user?.uid}');
 
                               // Get the provider without listening to changes
                               final provider = Provider.of<TimeClockProvider>(
@@ -179,18 +187,22 @@ class MyApp extends StatelessWidget {
                               );
 
                               // Only update if user changed
-                              if (user != null &&
-                                  provider.currentUserId != user.uid) {
+                              if (user != null) {
+                                // Set the current user ID regardless of previous value
                                 provider.currentUserId = user.uid;
+
                                 // Load user data silently
                                 provider.loadDataSilently();
-                              }
 
-                              if (user == null) {
+                                // Return the main app screen
+                                return const TimeClockScreen();
+                              } else {
+                                // User is null, show login screen
                                 return const LoginScreen();
                               }
-                              return const TimeClockScreen();
                             }
+
+                            // Show loading indicator while waiting for auth state
                             return const Scaffold(
                               body: Center(child: CircularProgressIndicator()),
                             );
