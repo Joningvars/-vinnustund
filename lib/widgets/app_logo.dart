@@ -86,7 +86,7 @@ class AppLogo extends StatelessWidget {
         if (showText) ...[
           const SizedBox(height: 8),
           Text(
-            'Vinnustund',
+            'Tímagátt',
             style: TextStyle(
               fontSize: size * 0.4,
               fontWeight: FontWeight.bold,
