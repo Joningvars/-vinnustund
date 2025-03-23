@@ -71,11 +71,11 @@ class SettingsScreen extends StatelessWidget {
               Card(
                 margin: EdgeInsets.zero,
                 child: ListTile(
-                  title: const Text('Language'),
+                  title: Text(provider.translate('language')),
                   subtitle: Text(
                     provider.locale.languageCode == 'en'
-                        ? 'English'
-                        : 'Íslenska',
+                        ? provider.translate('english')
+                        : provider.translate('icelandic'),
                   ),
                   trailing: DropdownButton<String>(
                     value: provider.locale.languageCode,
@@ -85,9 +85,15 @@ class SettingsScreen extends StatelessWidget {
                         provider.setLocale(Locale(newValue, ''));
                       }
                     },
-                    items: const [
-                      DropdownMenuItem(value: 'en', child: Text('English')),
-                      DropdownMenuItem(value: 'is', child: Text('Íslenska')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'en',
+                        child: Text(provider.translate('english')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'is',
+                        child: Text(provider.translate('icelandic')),
+                      ),
                     ],
                   ),
                 ),

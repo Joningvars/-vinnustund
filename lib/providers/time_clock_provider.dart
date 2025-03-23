@@ -74,6 +74,15 @@ class TimeClockProvider extends ChangeNotifier {
       'selectColor': 'Select Color',
       'create': 'Create',
       'jobAdded': 'Job added successfully',
+      'entries': 'entries',
+      'noEntries': 'No time entries yet',
+      'delete': 'Delete',
+      'deleteEntry': 'Delete Entry',
+      'deleteEntryConfirm': 'Are you sure you want to delete this time entry?',
+      'timeEntryDeleted': 'Time entry deleted',
+      'language': 'Language',
+      'english': 'English',
+      'icelandic': 'Íslenska',
     },
     'is': {
       'home': 'Heim',
@@ -112,8 +121,20 @@ class TimeClockProvider extends ChangeNotifier {
       'selectColor': 'Veldu lit',
       'create': 'Búa til',
       'jobAdded': 'Verki bætt við',
+      'entries': 'færslur',
+      'noEntries': 'Engar tímafærslur enn',
+      'delete': 'Eyða',
+      'deleteEntry': 'Eyða færslu',
+      'deleteEntryConfirm':
+          'Ertu viss um að þú viljir eyða þessari tímafærslu?',
+      'timeEntryDeleted': 'Tímafærslu eytt',
+      'language': 'Tungumál',
+      'english': 'English',
+      'icelandic': 'Íslenska',
     },
   };
+
+  final TextEditingController descriptionController = TextEditingController();
 
   TimeClockProvider() {
     loadData();
@@ -284,27 +305,33 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   void completeClockOut(String description) {
-    final now = DateTime.now();
+    if (clockInTime == null) return;
+
+    clockOutTime = DateTime.now();
+    final duration = clockOutTime!.difference(clockInTime!);
+
+    final entry = TimeEntry(
+      jobId: selectedJob!.id,
+      jobName: selectedJob!.name,
+      jobColor: selectedJob!.color,
+      clockInTime: clockInTime!,
+      clockOutTime: clockOutTime!,
+      duration: duration,
+      description: description.isNotEmpty ? description : null,
+    );
+
+    timeEntries.add(entry);
     isClockedIn = false;
     isOnBreak = false;
-    clockOutTime = now;
+    clockInTime = null;
+    clockOutTime = null;
+    breakStartTime = null;
 
-    // Add the completed time entry to history
-    if (clockInTime != null && selectedJob != null) {
-      timeEntries.insert(
-        0,
-        TimeEntry(
-          clockInTime: clockInTime!,
-          clockOutTime: now,
-          jobId: selectedJob!.id,
-          jobName: selectedJob!.name,
-          jobColor: selectedJob!.color,
-          description: description.isNotEmpty ? description : null,
-        ),
-      );
+    if (_timer != null) {
+      _timer!.cancel();
+      _timer = null;
     }
 
-    stopTimer();
     calculateHoursWorkedThisWeek();
     saveData();
     notifyListeners();
@@ -405,19 +432,20 @@ class TimeClockProvider extends ChangeNotifier {
     }
   }
 
-  void addManualEntry() {
-    if (context == null || selectedJob == null) return;
+  bool addManualEntry() {
+    if (selectedJob == null) {
+      return false;
+    }
 
     final now = DateTime.now();
-    final startDateTime = DateTime(
+    final start = DateTime(
       now.year,
       now.month,
       now.day,
       startTime.hour,
       startTime.minute,
     );
-
-    final endDateTime = DateTime(
+    final end = DateTime(
       now.year,
       now.month,
       now.day,
@@ -426,54 +454,37 @@ class TimeClockProvider extends ChangeNotifier {
     );
 
     // Handle case where end time is on the next day
-    final adjustedEndDateTime =
-        endDateTime.isBefore(startDateTime)
-            ? endDateTime.add(const Duration(days: 1))
-            : endDateTime;
+    final adjustedEnd =
+        end.isBefore(start) ? end.add(const Duration(days: 1)) : end;
 
-    timeEntries.insert(
-      0,
-      TimeEntry(
-        clockInTime: startDateTime,
-        clockOutTime: adjustedEndDateTime,
-        jobId: selectedJob!.id,
-        jobName: selectedJob!.name,
-        jobColor: selectedJob!.color,
-      ),
+    final entry = TimeEntry(
+      jobId: selectedJob!.id,
+      jobName: selectedJob!.name,
+      jobColor: selectedJob!.color,
+      clockInTime: start,
+      clockOutTime: adjustedEnd,
+      duration: adjustedEnd.difference(start),
+      description:
+          descriptionController.text.isNotEmpty
+              ? descriptionController.text
+              : null,
     );
 
+    timeEntries.add(entry);
     calculateHoursWorkedThisWeek();
     saveData();
     notifyListeners();
 
-    ScaffoldMessenger.of(context!).showSnackBar(
-      SnackBar(
-        content: const Text('Time entry added successfully'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.green,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    // Clear the description controller after adding the entry
+    descriptionController.clear();
+
+    return true;
   }
 
-  void deleteTimeEntry(String id) {
-    if (context == null) return;
-
-    timeEntries.removeWhere((entry) => entry.id == id);
-    calculateHoursWorkedThisWeek();
-    saveData();
+  void deleteTimeEntry(TimeEntry entry) {
+    timeEntries.removeWhere((e) => e.id == entry.id);
     notifyListeners();
-
-    ScaffoldMessenger.of(context!).showSnackBar(
-      SnackBar(
-        content: const Text('Time entry deleted'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.red,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    saveData();
   }
 
   String formatTimeOfDay(TimeOfDay tod) {

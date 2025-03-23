@@ -236,6 +236,7 @@ class AddTimeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               TextField(
+                controller: provider.descriptionController,
                 decoration: InputDecoration(
                   hintText: provider.translate('enterWorkDescription'),
                   filled: true,
@@ -255,20 +256,31 @@ class AddTimeScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    provider.addManualEntry();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(provider.translate('timeEntryAdded')),
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        margin: const EdgeInsets.all(16),
-                      ),
-                    );
-                  },
+                  onPressed:
+                      provider.selectedJob == null
+                          ? null // Disable button if no job selected
+                          : () {
+                            if (provider.addManualEntry()) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    provider.translate('timeEntryAdded'),
+                                  ),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: Colors.green,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  margin: const EdgeInsets.all(16),
+                                ),
+                              );
+
+                              // Navigate to home screen
+                              Navigator.of(
+                                context,
+                              ).popUntil((route) => route.isFirst);
+                            }
+                          },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
@@ -276,6 +288,9 @@ class AddTimeScreen extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
+                    // Add disabled style
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade600,
                   ),
                   child: Text(
                     provider.translate('submit'),

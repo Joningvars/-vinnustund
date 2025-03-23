@@ -154,18 +154,17 @@ class _TimeClockScreenState extends State<TimeClockScreen>
         jobId: _jobs[0].id,
         jobName: _jobs[0].name,
         jobColor: _jobs[0].color,
+        duration: Duration(hours: 8),
       ),
       TimeEntry(
-        clockInTime: DateTime.now().subtract(const Duration(days: 2, hours: 9)),
-        clockOutTime: DateTime.now().subtract(
-          const Duration(days: 2, hours: 1),
-        ),
+        clockInTime: DateTime.now().subtract(const Duration(days: 1)),
+        clockOutTime: DateTime.now().subtract(const Duration(days: 1)),
         jobId: _jobs[1].id,
         jobName: _jobs[1].name,
         jobColor: _jobs[1].color,
+        duration: Duration(hours: 8),
       ),
     ]);
-
     _calculateHoursWorkedThisWeek();
   }
 
@@ -233,6 +232,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
             jobId: _selectedJob!.id,
             jobName: _selectedJob!.name,
             jobColor: _selectedJob!.color,
+            duration: Duration(hours: 8),
           ),
         );
 
@@ -526,6 +526,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
           jobId: _selectedJob!.id,
           jobName: _selectedJob!.name,
           jobColor: _selectedJob!.color,
+          duration: Duration(hours: 8),
         ),
       );
 
