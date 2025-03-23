@@ -10,6 +10,7 @@ class TimeEntry {
   final DateTime clockOutTime;
   final Duration duration;
   final String? description;
+  final String date;
 
   TimeEntry({
     String? id,
@@ -20,7 +21,9 @@ class TimeEntry {
     required this.clockOutTime,
     required this.duration,
     this.description,
-  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString();
+  }) : this.id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       this.date =
+           "${clockInTime.year}-${clockInTime.month.toString().padLeft(2, '0')}-${clockInTime.day.toString().padLeft(2, '0')}";
 
   String get formattedDate => DateFormat('MMM d, yyyy').format(clockInTime);
 
@@ -40,10 +43,11 @@ class TimeEntry {
       'jobId': jobId,
       'jobName': jobName,
       'jobColor': jobColor.value,
-      'clockInTime': clockInTime.millisecondsSinceEpoch,
-      'clockOutTime': clockOutTime.millisecondsSinceEpoch,
-      'duration': duration.inMilliseconds,
+      'clockInTime': clockInTime.toIso8601String(),
+      'clockOutTime': clockOutTime.toIso8601String(),
+      'duration': duration.inMinutes,
       'description': description,
+      'date': date,
     };
   }
 
@@ -53,9 +57,9 @@ class TimeEntry {
       jobId: json['jobId'],
       jobName: json['jobName'],
       jobColor: Color(json['jobColor']),
-      clockInTime: DateTime.fromMillisecondsSinceEpoch(json['clockInTime']),
-      clockOutTime: DateTime.fromMillisecondsSinceEpoch(json['clockOutTime']),
-      duration: Duration(milliseconds: json['duration']),
+      clockInTime: DateTime.parse(json['clockInTime']),
+      clockOutTime: DateTime.parse(json['clockOutTime']),
+      duration: Duration(minutes: json['duration']),
       description: json['description'],
     );
   }

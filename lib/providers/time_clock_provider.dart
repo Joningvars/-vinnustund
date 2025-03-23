@@ -142,6 +142,12 @@ class TimeClockProvider extends ChangeNotifier {
       'next': 'Next',
       'getStarted': 'Get Started',
       'developer': 'Developer',
+      'date': 'Date',
+      'filterByJob': 'Filter by Job',
+      'allJobs': 'All Jobs',
+      'year': 'Year',
+      'selectDate': 'Select Date',
+      'allDates': 'All Dates',
     },
     'is': {
       'home': 'Heim',
@@ -239,6 +245,12 @@ class TimeClockProvider extends ChangeNotifier {
       'next': 'Áfram',
       'getStarted': 'Byrja',
       'developer': 'Þróunaraðili',
+      'date': 'Dagsetning',
+      'filterByJob': 'Sía eftir starfi',
+      'allJobs': 'Öll störf',
+      'year': 'Ár',
+      'selectDate': 'Veldu dagsetningu',
+      'allDates': 'Allar dagsetningar',
     },
   };
 
@@ -250,6 +262,9 @@ class TimeClockProvider extends ChangeNotifier {
 
   // Add this property to track the current user
   String? currentUserId;
+
+  // Add this property to your TimeClockProvider class
+  DateTime selectedDate = DateTime.now();
 
   TimeClockProvider() {
     _initializeProvider();
@@ -619,8 +634,9 @@ class TimeClockProvider extends ChangeNotifier {
     return true;
   }
 
-  void deleteTimeEntry(TimeEntry entry) {
-    timeEntries.removeWhere((e) => e.id == entry.id);
+  void deleteTimeEntry(String entryId) {
+    timeEntries.removeWhere((entry) => entry.id == entryId);
+    calculateHoursWorkedThisWeek();
     notifyListeners();
     saveData();
   }
@@ -691,8 +707,8 @@ class TimeClockProvider extends ChangeNotifier {
     );
   }
 
-  void setState(VoidCallback fn) {
-    fn();
+  void setState(VoidCallback callback) {
+    callback();
     notifyListeners();
   }
 
@@ -1140,5 +1156,69 @@ class TimeClockProvider extends ChangeNotifier {
     } catch (e) {
       print('Error loading data silently: $e');
     }
+  }
+
+  void addTimeEntry(
+    Job job,
+    DateTime clockInTime,
+    DateTime clockOutTime,
+    Duration duration,
+    String? description,
+  ) {
+    // Create the entry with the selected date
+    final entry = TimeEntry(
+      jobId: job.id,
+      jobName: job.name,
+      jobColor: job.color,
+      clockInTime: clockInTime,
+      clockOutTime: clockOutTime,
+      duration: duration,
+      description: description,
+    );
+
+    // Check for duplicates (entries with same date and job within 1 minute)
+    final duplicates =
+        timeEntries
+            .where(
+              (e) =>
+                  e.date == entry.date &&
+                  e.jobId == entry.jobId &&
+                  (e.clockInTime.difference(entry.clockInTime).inMinutes.abs() <
+                      1),
+            )
+            .toList();
+
+    // Remove any duplicates
+    if (duplicates.isNotEmpty) {
+      for (var dup in duplicates) {
+        timeEntries.remove(dup);
+      }
+    }
+
+    // Add the new entry
+    timeEntries.add(entry);
+    calculateHoursWorkedThisWeek();
+    notifyListeners();
+
+    // Save to Firebase
+    if (_databaseService != null) {
+      _databaseService!.saveTimeEntry(entry);
+    } else {
+      saveData(); // Fallback to local storage
+    }
+  }
+
+  // Add this method to filter time entries by date
+  List<TimeEntry> getTimeEntriesByDate(DateTime date) {
+    final dateString =
+        "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    return timeEntries.where((entry) => entry.date == dateString).toList();
+  }
+
+  // Add this method to get unique dates from time entries
+  List<String> getUniqueDates() {
+    final dates = timeEntries.map((entry) => entry.date).toSet().toList();
+    dates.sort((a, b) => b.compareTo(a)); // Sort descending (newest first)
+    return dates;
   }
 }
