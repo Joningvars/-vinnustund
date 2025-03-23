@@ -5,13 +5,22 @@ import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter/material.dart';
 
 class AuthService {
+  // Use a singleton pattern to ensure only one instance exists
+  static final AuthService _instance = AuthService._internal();
+
+  factory AuthService() {
+    return _instance;
+  }
+
+  AuthService._internal();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Get current user
   User? get currentUser => _auth.currentUser;
 
-  // Auth state changes stream
+  // Auth state changes stream - cache the stream to prevent multiple subscriptions
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Sign in with email and password

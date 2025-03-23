@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -49,20 +50,24 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCRhbyf5gCFWw02z9AuTsSnvmjSLVMZs9A',
-    appId: '1:960328995224:android:77b6961164bf41f017dbed',
-    messagingSenderId: '960328995224',
-    projectId: 'vinnustund-23c45',
-    storageBucket: 'vinnustund-23c45.firebasestorage.app',
-  );
+  static FirebaseOptions get android {
+    return FirebaseOptions(
+      apiKey: dotenv.env['ANDROID_API_KEY'] ?? '',
+      appId: dotenv.env['ANDROID_APP_ID'] ?? '',
+      messagingSenderId: dotenv.env['MESSAGING_SENDER_ID'] ?? '',
+      projectId: dotenv.env['PROJECT_ID'] ?? '',
+      storageBucket: dotenv.env['STORAGE_BUCKET'] ?? '',
+    );
+  }
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBTnTzop2TCqzF2k7bDX1ZNPeSWoflPhv4',
-    appId: '1:960328995224:ios:e8332a7c3f3c888017dbed',
-    messagingSenderId: '960328995224',
-    projectId: 'vinnustund-23c45',
-    storageBucket: 'vinnustund-23c45.firebasestorage.app',
-    iosBundleId: 'com.example.timeClock',
-  );
+  static FirebaseOptions get ios {
+    return FirebaseOptions(
+      apiKey: dotenv.env['IOS_API_KEY'] ?? '',
+      appId: dotenv.env['IOS_APP_ID'] ?? '',
+      messagingSenderId: dotenv.env['MESSAGING_SENDER_ID'] ?? '',
+      projectId: dotenv.env['PROJECT_ID'] ?? '',
+      storageBucket: dotenv.env['STORAGE_BUCKET'] ?? '',
+      iosBundleId: dotenv.env['IOS_BUNDLE_ID'] ?? '',
+    );
+  }
 }

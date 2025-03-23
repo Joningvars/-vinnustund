@@ -16,34 +16,69 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:time_clock/screens/auth/login_screen.dart';
 import 'package:time_clock/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:time_clock/screens/onboarding_screen.dart';
+import 'package:time_clock/localization/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     print('Firebase initialized successfully');
   } catch (e) {
     print('Error initializing Firebase: $e');
   }
 
-  runApp(const MyApp());
+  // Check if onboarding is completed
+  final prefs = await SharedPreferences.getInstance();
+  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+
+  // Create and initialize the provider
+  final provider = TimeClockProvider();
+  await provider
+      .initializeApp(); // Make sure this method exists and initializes translations
+
+  runApp(
+    MyApp(onboardingComplete: onboardingComplete, initialProvider: provider),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool onboardingComplete;
+  final TimeClockProvider initialProvider;
+
+  const MyApp({
+    super.key,
+    required this.onboardingComplete,
+    required this.initialProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TimeClockProvider(),
-      child: Consumer<TimeClockProvider>(
-        builder: (context, provider, _) {
+    return ChangeNotifierProvider.value(
+      value: initialProvider,
+      child: Builder(
+        builder: (context) {
+          final provider = Provider.of<TimeClockProvider>(
+            context,
+            listen: false,
+          );
+
           return MaterialApp(
+            navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
             title: 'Time Clock',
             // Localization setup
             localizationsDelegates: const [
+              AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
@@ -126,23 +161,47 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: provider.themeMode,
-            home: StreamBuilder<User?>(
-              stream: AuthService().authStateChanges,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.active) {
-                  final user = snapshot.data;
-                  if (user == null) {
-                    return const LoginScreen();
-                  }
-                  return const TimeClockScreen();
-                }
+            home:
+                onboardingComplete
+                    ? StatefulBuilder(
+                      builder: (context, setState) {
+                        return StreamBuilder<User?>(
+                          stream: AuthService().authStateChanges,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.active) {
+                              final user = snapshot.data;
 
-                // Show loading indicator while checking auth state
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              },
-            ),
+                              // Get the provider without listening to changes
+                              final provider = Provider.of<TimeClockProvider>(
+                                context,
+                                listen: false,
+                              );
+
+                              // Only update if user changed
+                              if (user != null &&
+                                  provider.currentUserId != user.uid) {
+                                provider.currentUserId = user.uid;
+                                // Load user data silently
+                                provider.loadDataSilently();
+                              }
+
+                              if (user == null) {
+                                return const LoginScreen();
+                              }
+                              return const TimeClockScreen();
+                            }
+                            return const Scaffold(
+                              body: Center(child: CircularProgressIndicator()),
+                            );
+                          },
+                        );
+                      },
+                    )
+                    : ChangeNotifierProvider.value(
+                      value: provider,
+                      child: const OnboardingScreen(),
+                    ),
           );
         },
       ),
