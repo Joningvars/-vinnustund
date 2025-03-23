@@ -11,6 +11,7 @@ import 'package:time_clock/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const MyApp());
@@ -28,7 +29,6 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'Time Clock',
-
             // Localization setup
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
@@ -48,6 +48,9 @@ class MyApp extends StatelessWidget {
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.white,
+              textTheme: GoogleFonts.comfortaaTextTheme(
+                Theme.of(context).textTheme,
+              ),
               cardTheme: CardTheme(
                 elevation: 0,
                 color: Colors.grey.shade50,
@@ -78,6 +81,14 @@ class MyApp extends StatelessWidget {
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.grey.shade900,
+              textTheme: GoogleFonts.comfortaaTextTheme(
+                Theme.of(context).textTheme.copyWith(
+                  bodyMedium: TextStyle(color: Colors.grey.shade600),
+                  bodyLarge: TextStyle(color: Colors.grey.shade600),
+                  titleMedium: TextStyle(color: Colors.grey.shade400),
+                  titleLarge: TextStyle(color: Colors.grey.shade400),
+                ),
+              ),
               cardTheme: CardTheme(
                 elevation: 0,
                 color: Colors.grey.shade300,
@@ -103,12 +114,6 @@ class MyApp extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide(color: Colors.lightBlueAccent),
                 ),
-              ),
-              textTheme: TextTheme(
-                bodyMedium: TextStyle(color: Colors.grey.shade600),
-                bodyLarge: TextStyle(color: Colors.grey.shade600),
-                titleMedium: TextStyle(color: Colors.grey.shade400),
-                titleLarge: TextStyle(color: Colors.grey.shade400),
               ),
             ),
             themeMode: provider.themeMode,
