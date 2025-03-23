@@ -150,4 +150,19 @@ class DatabaseService {
     }
     return null;
   }
+
+  // Add this method to your DatabaseService class
+  Future<void> saveTimeEntry(TimeEntry entry) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('timeEntries')
+          .doc(entry.id)
+          .set(entry.toJson());
+    } catch (e) {
+      print('Error saving time entry: $e');
+      rethrow;
+    }
+  }
 }

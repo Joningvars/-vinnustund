@@ -117,13 +117,63 @@ class AddTimeScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Date selector
                         Text(
-                          provider.formatDate(DateTime.now()),
+                          provider.translate('date'),
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () => _selectDate(context, provider),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 24),
+                                    const SizedBox(width: 16),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          DateFormat.yMMMMd(
+                                            provider.locale.languageCode,
+                                          ).format(provider.selectedDate),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const Spacer(),
+                                    Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 16,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -283,26 +333,8 @@ class AddTimeScreen extends StatelessWidget {
                               // Ensure keyboard is dismissed
                               FocusManager.instance.primaryFocus?.unfocus();
 
-                              if (provider.addManualEntry()) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      provider.translate('timeEntryAdded'),
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
-                                    backgroundColor: Colors.green,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    margin: const EdgeInsets.all(16),
-                                  ),
-                                );
-
-                                // Navigate back to home screen using the provider
-                                provider.setSelectedTabIndex(
-                                  0,
-                                ); // Navigate to Home tab
-                              }
+                              // Just call _submitTimeEntry directly
+                              _submitTimeEntry(context, provider);
                             },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
@@ -383,6 +415,97 @@ class AddTimeScreen extends StatelessWidget {
     if (picked != null && picked != provider.endTime) {
       provider.setState(() {
         provider.endTime = picked;
+      });
+    }
+  }
+
+  Future<void> _selectDate(
+    BuildContext context,
+    TimeClockProvider provider,
+  ) async {
+    HapticFeedback.selectionClick();
+
+    final ThemeData theme = Theme.of(context);
+    final Color primaryColor = theme.colorScheme.primary;
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: provider.selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: primaryColor,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black87,
+            ),
+            dialogBackgroundColor: Colors.white,
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: primaryColor,
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: Colors.white,
+              headerBackgroundColor: primaryColor.withOpacity(0.9),
+              headerForegroundColor: Colors.white,
+              headerHeadlineStyle: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+              dayStyle: const TextStyle(fontSize: 16),
+              yearStyle: const TextStyle(fontSize: 16),
+              todayBackgroundColor: MaterialStateProperty.all(
+                primaryColor.withOpacity(0.15),
+              ),
+              todayForegroundColor: MaterialStateProperty.all(primaryColor),
+              dayBackgroundColor: MaterialStateProperty.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return primaryColor;
+                }
+                return null;
+              }),
+              dayForegroundColor: MaterialStateProperty.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.white;
+                }
+                return null;
+              }),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: child!,
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null && picked != provider.selectedDate) {
+      provider.setState(() {
+        provider.selectedDate = picked;
       });
     }
   }
@@ -669,5 +792,64 @@ class AddTimeScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _submitTimeEntry(BuildContext context, TimeClockProvider provider) {
+    if (provider.selectedJob == null) return;
+
+    HapticFeedback.mediumImpact();
+
+    // Create DateTime objects for clock in and clock out times using the selected date
+    final clockInDateTime = DateTime(
+      provider.selectedDate.year,
+      provider.selectedDate.month,
+      provider.selectedDate.day,
+      provider.startTime.hour,
+      provider.startTime.minute,
+    );
+
+    DateTime clockOutDateTime = DateTime(
+      provider.selectedDate.year,
+      provider.selectedDate.month,
+      provider.selectedDate.day,
+      provider.endTime.hour,
+      provider.endTime.minute,
+    );
+
+    // If end time is before start time, assume it's the next day
+    if (clockOutDateTime.isBefore(clockInDateTime)) {
+      clockOutDateTime = clockOutDateTime.add(const Duration(days: 1));
+    }
+
+    // Calculate duration
+    final duration = clockOutDateTime.difference(clockInDateTime);
+
+    // Add time entry
+    provider.addTimeEntry(
+      provider.selectedJob!,
+      clockInDateTime,
+      clockOutDateTime,
+      duration,
+      provider.descriptionController.text.isNotEmpty
+          ? provider.descriptionController.text
+          : null,
+    );
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(provider.translate('timeEntryAdded')),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.green,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+
+    // Clear description
+    provider.descriptionController.clear();
+
+    // Navigate to home screen
+    provider.setSelectedTabIndex(0);
   }
 }

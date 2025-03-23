@@ -6,8 +6,15 @@ import 'package:time_clock/models/time_entry.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter/rendering.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String? _selectedDate;
 
   @override
   Widget build(BuildContext context) {
@@ -377,7 +384,7 @@ class HistoryScreen extends StatelessWidget {
                         ElevatedButton(
                           onPressed: () {
                             HapticFeedback.mediumImpact();
-                            provider.deleteTimeEntry(entry);
+                            provider.deleteTimeEntry(entry.id);
                             Navigator.of(context).pop(true);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
