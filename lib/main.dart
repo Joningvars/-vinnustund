@@ -620,12 +620,12 @@ class _TimeClockScreenState extends State<TimeClockScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<TimeClockProvider>(context);
     provider.context = context;
 
     return Scaffold(
       body: IndexedStack(
-        index: _selectedIndex,
+        index: provider.selectedTabIndex,
         children: const [
           HomeScreen(),
           AddTimeScreen(),
@@ -633,39 +633,37 @@ class _TimeClockScreenState extends State<TimeClockScreen>
           SettingsScreen(),
         ],
       ),
-      bottomNavigationBar: Consumer<TimeClockProvider>(
-        builder: (context, provider, _) {
-          return NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.home_outlined),
-                selectedIcon: const Icon(Icons.home),
-                label: provider.translate('home'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.add_circle_outline),
-                selectedIcon: const Icon(Icons.add_circle),
-                label: provider.translate('addTime'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.history_outlined),
-                selectedIcon: const Icon(Icons.history),
-                label: provider.translate('history'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.settings_outlined),
-                selectedIcon: const Icon(Icons.settings),
-                label: provider.translate('settings'),
-              ),
-            ],
-          );
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: provider.selectedTabIndex,
+        onDestinationSelected: (index) {
+          // Dismiss keyboard when switching tabs
+          FocusScope.of(context).unfocus();
+
+          // Update the selected tab index in the provider
+          provider.setSelectedTabIndex(index);
         },
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: provider.translate('home'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.add_circle_outline),
+            selectedIcon: const Icon(Icons.add_circle),
+            label: provider.translate('addTime'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.history_outlined),
+            selectedIcon: const Icon(Icons.history),
+            label: provider.translate('history'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: provider.translate('settings'),
+          ),
+        ],
       ),
     );
   }

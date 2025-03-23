@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:time_clock/models/job.dart';
+import 'dart:math' as math;
 
 class HoursProgress extends StatelessWidget {
   final int hoursWorked;
@@ -38,7 +39,7 @@ class HoursProgress extends StatelessWidget {
     );
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Main circular progress indicator
         Expanded(
@@ -51,24 +52,27 @@ class HoursProgress extends StatelessWidget {
                   SizedBox(
                     width: 180,
                     height: 180,
-                    child: CustomPaint(
-                      painter: JobProgressPainter(
-                        progress: mainProgress,
-                        jobsWithPercentages: jobsWithPercentages,
-                        backgroundColor: Colors.grey.shade200,
-                      ),
-                      child: Container(),
+                    child: AnimatedJobProgressPainter(
+                      progress: mainProgress,
+                      jobsWithPercentages: jobsWithPercentages,
+                      backgroundColor: Colors.grey.shade200,
                     ),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '$totalHours',
-                        style: const TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: totalHours),
+                        duration: const Duration(milliseconds: 750),
+                        builder: (context, value, child) {
+                          return Text(
+                            '$value',
+                            style: const TextStyle(
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
                       ),
                       Text(
                         '${provider.translate('of')} $targetHours ${provider.translate('hours')}',
@@ -106,8 +110,9 @@ class HoursProgress extends StatelessWidget {
             children: [
               Text(
                 provider.translate('hoursbyJob'),
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -244,4 +249,81 @@ class JobProgressPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Add this class to create an animated progress painter
+class AnimatedJobProgressPainter extends StatefulWidget {
+  final List<Map<String, dynamic>> jobsWithPercentages;
+  final double progress;
+  final Color backgroundColor;
+
+  const AnimatedJobProgressPainter({
+    super.key,
+    required this.jobsWithPercentages,
+    required this.progress,
+    required this.backgroundColor,
+  });
+
+  @override
+  State<AnimatedJobProgressPainter> createState() =>
+      _AnimatedJobProgressPainterState();
+}
+
+class _AnimatedJobProgressPainterState extends State<AnimatedJobProgressPainter>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _progressAnimation;
+  double _oldProgress = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+    _progressAnimation = Tween<double>(
+      begin: 0.0,
+      end: widget.progress,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _oldProgress = widget.progress;
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(AnimatedJobProgressPainter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress != widget.progress) {
+      _oldProgress = oldWidget.progress;
+      _progressAnimation = Tween<double>(
+        begin: _oldProgress,
+        end: widget.progress,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+      _controller.reset();
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _progressAnimation,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: JobProgressPainter(
+            jobsWithPercentages: widget.jobsWithPercentages,
+            progress: _progressAnimation.value,
+            backgroundColor: widget.backgroundColor,
+          ),
+          child: Container(),
+        );
+      },
+    );
+  }
 }

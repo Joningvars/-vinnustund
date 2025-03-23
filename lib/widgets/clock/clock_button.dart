@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:time_clock/models/job.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:flutter/services.dart';
 
 class ClockButton extends StatelessWidget {
   final bool isClockedIn;
@@ -25,6 +26,7 @@ class ClockButton extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
+        HapticFeedback.mediumImpact();
         if (isClockedIn) {
           // Set the context before showing the dialog
           provider.context = context;
@@ -78,6 +80,7 @@ class ClockButton extends StatelessWidget {
                 if (isClockedIn)
                   GestureDetector(
                     onTap: () {
+                      HapticFeedback.lightImpact();
                       onBreakPressed();
                     },
                     child: Padding(

@@ -6,6 +6,7 @@ import 'package:time_clock/widgets/clock/clock_button.dart';
 import 'package:time_clock/widgets/dashboard/hours_progress.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:flutter/services.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -68,7 +69,10 @@ class HomeScreen extends StatelessWidget {
               // Hours progress
               HoursProgress(
                 hoursWorked: provider.getHoursWorkedForSelectedJob(),
-                targetHours: provider.targetHours,
+                targetHours: calculatePeriodTarget(
+                  provider.selectedPeriod,
+                  provider.targetHours,
+                ),
                 period: provider.selectedPeriod,
               ),
 
@@ -206,6 +210,7 @@ class HomeScreen extends StatelessWidget {
                 final isSelected = provider.selectedJob?.id == job.id;
                 return GestureDetector(
                   onTap: () {
+                    HapticFeedback.selectionClick();
                     if (provider.isClockedIn) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -223,6 +228,7 @@ class HomeScreen extends StatelessWidget {
                     provider.setSelectedJob(job);
                   },
                   onLongPress: () {
+                    HapticFeedback.heavyImpact();
                     _showDeleteJobConfirmation(context, provider, job);
                   },
                   child: AnimatedContainer(
@@ -599,5 +605,16 @@ class HomeScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  int calculatePeriodTarget(String period, int monthlyTarget) {
+    if (period == 'Day') {
+      // Assuming 22 working days per month
+      return (monthlyTarget / 22).round();
+    } else if (period == 'Week') {
+      // Assuming 4.33 weeks per month
+      return (monthlyTarget / 4.33).round();
+    }
+    return monthlyTarget; // For 'Month'
   }
 }

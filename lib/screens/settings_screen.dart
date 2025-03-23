@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:flutter/services.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -41,29 +42,11 @@ class SettingsScreen extends StatelessWidget {
                         ? provider.translate('dark')
                         : provider.translate('light'),
                   ),
-                  trailing: DropdownButton<ThemeMode>(
-                    value: provider.themeMode,
-                    underline: const SizedBox(),
-                    onChanged: (ThemeMode? newValue) {
-                      if (newValue != null) {
-                        provider.setThemeMode(newValue);
-                      }
-                    },
-                    items: [
-                      DropdownMenuItem(
-                        value: ThemeMode.system,
-                        child: Text(provider.translate('systemDefault')),
-                      ),
-                      DropdownMenuItem(
-                        value: ThemeMode.light,
-                        child: Text(provider.translate('light')),
-                      ),
-                      DropdownMenuItem(
-                        value: ThemeMode.dark,
-                        child: Text(provider.translate('dark')),
-                      ),
-                    ],
-                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _showThemeSelector(context, provider);
+                  },
                 ),
               ),
 
@@ -77,32 +60,18 @@ class SettingsScreen extends StatelessWidget {
                         ? provider.translate('english')
                         : provider.translate('icelandic'),
                   ),
-                  trailing: DropdownButton<String>(
-                    value: provider.locale.languageCode,
-                    underline: const SizedBox(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        provider.setLocale(Locale(newValue, ''));
-                      }
-                    },
-                    items: [
-                      DropdownMenuItem(
-                        value: 'en',
-                        child: Text(provider.translate('english')),
-                      ),
-                      DropdownMenuItem(
-                        value: 'is',
-                        child: Text(provider.translate('icelandic')),
-                      ),
-                    ],
-                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _showLanguageSelector(context, provider);
+                  },
                 ),
               ),
 
               const SizedBox(height: 24),
 
               // Target hours settings
-              _buildSectionHeader('Work Hours'),
+              _buildSectionHeader(provider.translate('workHours')),
               const SizedBox(height: 8),
 
               Card(
@@ -112,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Monthly Target Hours'),
+                      Text(provider.translate('monthlyTargetHours')),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -143,7 +112,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // About section
-              _buildSectionHeader('About'),
+              _buildSectionHeader(provider.translate('about')),
               const SizedBox(height: 8),
 
               Card(
@@ -151,12 +120,12 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      title: const Text('Version'),
+                      title: Text(provider.translate('version')),
                       trailing: const Text('1.0.0'),
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      title: const Text('Privacy Policy'),
+                      title: Text(provider.translate('privacyPolicy')),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
                         // Open privacy policy
@@ -164,7 +133,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      title: const Text('Terms of Service'),
+                      title: Text(provider.translate('termsOfService')),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
                         // Open terms of service
@@ -191,6 +160,131 @@ class SettingsScreen extends StatelessWidget {
           color: Colors.grey,
         ),
       ),
+    );
+  }
+
+  void _showThemeSelector(BuildContext context, TimeClockProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  provider.translate('theme'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: Text(provider.translate('systemDefault')),
+                leading: const Icon(Icons.settings_brightness),
+                trailing:
+                    provider.themeMode == ThemeMode.system
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  provider.setThemeMode(ThemeMode.system);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: Text(provider.translate('light')),
+                leading: const Icon(Icons.light_mode),
+                trailing:
+                    provider.themeMode == ThemeMode.light
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  provider.setThemeMode(ThemeMode.light);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: Text(provider.translate('dark')),
+                leading: const Icon(Icons.dark_mode),
+                trailing:
+                    provider.themeMode == ThemeMode.dark
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  provider.setThemeMode(ThemeMode.dark);
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLanguageSelector(BuildContext context, TimeClockProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  provider.translate('language'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                title: Text(provider.translate('english')),
+                leading: const Text('🇺🇸', style: TextStyle(fontSize: 24)),
+                trailing:
+                    provider.locale.languageCode == 'en'
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  provider.setLocale(const Locale('en', ''));
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: Text(provider.translate('icelandic')),
+                leading: const Text('🇮🇸', style: TextStyle(fontSize: 24)),
+                trailing:
+                    provider.locale.languageCode == 'is'
+                        ? const Icon(Icons.check, color: Colors.blue)
+                        : null,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  provider.setLocale(const Locale('is', ''));
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

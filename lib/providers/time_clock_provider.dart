@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:time_clock/models/job.dart';
 import 'package:time_clock/models/time_entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 class TimeClockProvider extends ChangeNotifier {
   BuildContext? context;
@@ -34,7 +35,7 @@ class TimeClockProvider extends ChangeNotifier {
 
   ThemeMode themeMode = ThemeMode.system;
 
-  Locale locale = const Locale('en', '');
+  Locale locale = const Locale('is', '');
 
   Map<String, Map<String, String>> translations = {
     'en': {
@@ -88,6 +89,19 @@ class TimeClockProvider extends ChangeNotifier {
       'deleteJob': 'Delete Job',
       'deleteJobConfirm':
           'Are you sure you want to delete this job? All time entries for this job will also be deleted.',
+      'appearance': 'Appearance',
+      'theme': 'Theme',
+      'systemDefault': 'System Default',
+      'light': 'Light',
+      'dark': 'Dark',
+      'workHours': 'Work Hours',
+      'monthlyTargetHours': 'Monthly Target Hours',
+      'about': 'About',
+      'version': 'Version',
+      'privacyPolicy': 'Privacy Policy',
+      'termsOfService': 'Terms of Service',
+      'hoursRemaining': 'hours remaining',
+      'more': 'more',
     },
     'is': {
       'home': 'Heim',
@@ -142,10 +156,25 @@ class TimeClockProvider extends ChangeNotifier {
       'deleteJob': 'Eyða verki',
       'deleteJobConfirm':
           'Ertu viss um að þú viljir eyða þessu verki? Öllum tímafærslum fyrir þetta verk verður einnig eytt.',
+      'appearance': 'Útlit',
+      'theme': 'Þema',
+      'systemDefault': 'Sjálfgefið kerfi',
+      'light': 'Ljóst',
+      'dark': 'Dökkt',
+      'workHours': 'Vinnustundir',
+      'monthlyTargetHours': 'Mánaðarleg markmiðsstundir',
+      'about': 'Um',
+      'version': 'Útgáfa',
+      'privacyPolicy': 'Persónuverndarstefna',
+      'termsOfService': 'Þjónustuskilmálar',
+      'hoursRemaining': 'tímar eftir',
+      'more': 'fleiri',
     },
   };
 
   final TextEditingController descriptionController = TextEditingController();
+
+  int selectedTabIndex = 0;
 
   TimeClockProvider() {
     loadData();
@@ -191,6 +220,9 @@ class TimeClockProvider extends ChangeNotifier {
 
   void showWorkDescriptionDialog(BuildContext context) {
     final TextEditingController descriptionController = TextEditingController();
+
+    // Ensure keyboard is dismissed when dialog is shown
+    FocusScope.of(context).unfocus();
 
     showDialog(
       context: context,
@@ -276,6 +308,7 @@ class TimeClockProvider extends ChangeNotifier {
                   children: [
                     TextButton(
                       onPressed: () {
+                        HapticFeedback.lightImpact();
                         Navigator.of(context).pop();
                       },
                       child: Text(
@@ -288,7 +321,7 @@ class TimeClockProvider extends ChangeNotifier {
                     ),
                     ElevatedButton(
                       onPressed: () {
-                        // Complete the clock out process
+                        HapticFeedback.mediumImpact();
                         completeClockOut(descriptionController.text);
                         Navigator.of(context).pop();
                       },
@@ -444,19 +477,22 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   bool addManualEntry() {
-    if (selectedJob == null) {
-      return false;
+    if (selectedJob == null) return false;
+
+    // Ensure keyboard is dismissed
+    if (context != null) {
+      FocusScope.of(context!).unfocus();
     }
 
     final now = DateTime.now();
-    final start = DateTime(
+    final startDateTime = DateTime(
       now.year,
       now.month,
       now.day,
       startTime.hour,
       startTime.minute,
     );
-    final end = DateTime(
+    final endDateTime = DateTime(
       now.year,
       now.month,
       now.day,
@@ -465,16 +501,20 @@ class TimeClockProvider extends ChangeNotifier {
     );
 
     // Handle case where end time is on the next day
-    final adjustedEnd =
-        end.isBefore(start) ? end.add(const Duration(days: 1)) : end;
+    final adjustedEndDateTime =
+        endDateTime.isBefore(startDateTime)
+            ? endDateTime.add(const Duration(days: 1))
+            : endDateTime;
+
+    final duration = adjustedEndDateTime.difference(startDateTime);
 
     final entry = TimeEntry(
       jobId: selectedJob!.id,
       jobName: selectedJob!.name,
       jobColor: selectedJob!.color,
-      clockInTime: start,
-      clockOutTime: adjustedEnd,
-      duration: adjustedEnd.difference(start),
+      clockInTime: startDateTime,
+      clockOutTime: adjustedEndDateTime,
+      duration: duration,
       description:
           descriptionController.text.isNotEmpty
               ? descriptionController.text
@@ -482,13 +522,10 @@ class TimeClockProvider extends ChangeNotifier {
     );
 
     timeEntries.add(entry);
+    descriptionController.clear(); // Clear the description field
     calculateHoursWorkedThisWeek();
     saveData();
     notifyListeners();
-
-    // Clear the description controller after adding the entry
-    descriptionController.clear();
-
     return true;
   }
 
@@ -624,7 +661,7 @@ class TimeClockProvider extends ChangeNotifier {
     targetHours = prefs.getInt('targetHours') ?? 173;
 
     // Load locale settings
-    final languageCode = prefs.getString('languageCode') ?? 'en';
+    final languageCode = prefs.getString('languageCode') ?? 'is';
     final countryCode = prefs.getString('countryCode') ?? '';
     locale = Locale(languageCode, countryCode);
 
@@ -632,24 +669,26 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   int getHoursWorkedForSelectedJob() {
-    if (selectedJob == null) return 0;
-
     final now = DateTime.now();
-    DateTime? startDate;
+    DateTime startDate;
 
-    // Set the start date based on selected period
-    if (selectedPeriod == "Day") {
-      startDate = DateTime(now.year, now.month, now.day);
-    } else if (selectedPeriod == "Week") {
-      startDate = now.subtract(Duration(days: now.weekday - 1));
-    } else if (selectedPeriod == "Month") {
-      startDate = DateTime(now.year, now.month, 1);
+    switch (selectedPeriod) {
+      case 'Day':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Week':
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case 'Month':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      default:
+        startDate = DateTime(now.year, now.month, now.day);
     }
 
     int totalMinutes = 0;
     for (var entry in timeEntries) {
-      if (entry.jobId == selectedJob!.id &&
-          entry.clockInTime.isAfter(startDate!)) {
+      if (entry.clockInTime.isAfter(startDate)) {
         totalMinutes += entry.duration.inMinutes;
       }
     }
@@ -794,5 +833,15 @@ class TimeClockProvider extends ChangeNotifier {
         ),
       );
     }
+  }
+
+  void setSelectedTabIndex(int index) {
+    selectedTabIndex = index;
+    notifyListeners();
+  }
+
+  void setSelectedPeriod(String period) {
+    selectedPeriod = period;
+    notifyListeners();
   }
 }
