@@ -37,6 +37,8 @@ class TimeClockProvider extends ChangeNotifier {
 
   Locale locale = const Locale('is', '');
 
+  bool use24HourFormat = true;
+
   Map<String, Map<String, String>> translations = {
     'en': {
       'home': 'Home',
@@ -102,6 +104,22 @@ class TimeClockProvider extends ChangeNotifier {
       'termsOfService': 'Terms of Service',
       'hoursRemaining': 'hours remaining',
       'more': 'more',
+      'january': 'January',
+      'february': 'February',
+      'march': 'March',
+      'april': 'April',
+      'may': 'May',
+      'june': 'June',
+      'july': 'July',
+      'august': 'August',
+      'september': 'September',
+      'october': 'October',
+      'november': 'November',
+      'december': 'December',
+      'timeFormat': 'Time Format',
+      'hour24': '24-hour',
+      'hour12': '12-hour',
+      'minutes': 'mins',
     },
     'is': {
       'home': 'Heim',
@@ -162,13 +180,29 @@ class TimeClockProvider extends ChangeNotifier {
       'light': 'Ljóst',
       'dark': 'Dökkt',
       'workHours': 'Vinnustundir',
-      'monthlyTargetHours': 'Mánaðarleg markmiðsstundir',
+      'monthlyTargetHours': 'Mánaðarlegt markmið',
       'about': 'Um',
       'version': 'Útgáfa',
       'privacyPolicy': 'Persónuverndarstefna',
       'termsOfService': 'Þjónustuskilmálar',
       'hoursRemaining': 'tímar eftir',
       'more': 'fleiri',
+      'january': 'Janúar',
+      'february': 'Febrúar',
+      'march': 'Mars',
+      'april': 'Apríl',
+      'may': 'Maí',
+      'june': 'Júní',
+      'july': 'Júlí',
+      'august': 'Ágúst',
+      'september': 'September',
+      'october': 'Október',
+      'november': 'Nóvember',
+      'december': 'Desember',
+      'timeFormat': 'Tímasnið',
+      'hour24': '24-tíma',
+      'hour12': '12-tíma',
+      'minutes': 'mín',
     },
   };
 
@@ -538,8 +572,12 @@ class TimeClockProvider extends ChangeNotifier {
   String formatTimeOfDay(TimeOfDay tod) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
-    final format = DateFormat.jm(); // 6:00 PM format
-    return format.format(dt);
+
+    if (use24HourFormat) {
+      return DateFormat('HH:mm').format(dt); // 24-hour format
+    } else {
+      return DateFormat('h:mm a').format(dt); // 12-hour format with AM/PM
+    }
   }
 
   String formatDateTime(DateTime? dateTime) {
@@ -582,7 +620,12 @@ class TimeClockProvider extends ChangeNotifier {
   String formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
-    return '$hours hrs $minutes mins';
+
+    // Use translated terms for hours and minutes
+    final hoursText = translate('hours');
+    final minutesText = translate('minutes');
+
+    return '$hours $hoursText $minutes $minutesText';
   }
 
   Duration getTotalDuration() {
@@ -615,6 +658,11 @@ class TimeClockProvider extends ChangeNotifier {
     // Save locale settings
     prefs.setString('languageCode', locale.languageCode);
     prefs.setString('countryCode', locale.countryCode ?? '');
+
+    // Save time format preference
+    prefs.setBool('use24HourFormat', use24HourFormat);
+
+    notifyListeners();
   }
 
   Future<void> loadData() async {
@@ -664,6 +712,9 @@ class TimeClockProvider extends ChangeNotifier {
     final languageCode = prefs.getString('languageCode') ?? 'is';
     final countryCode = prefs.getString('countryCode') ?? '';
     locale = Locale(languageCode, countryCode);
+
+    // Load time format preference
+    use24HourFormat = prefs.getBool('use24HourFormat') ?? true;
 
     notifyListeners();
   }
@@ -843,5 +894,51 @@ class TimeClockProvider extends ChangeNotifier {
   void setSelectedPeriod(String period) {
     selectedPeriod = period;
     notifyListeners();
+  }
+
+  void toggleTimeFormat() {
+    use24HourFormat = !use24HourFormat;
+    notifyListeners();
+    saveData();
+  }
+
+  String formatTime(DateTime dateTime) {
+    if (use24HourFormat) {
+      return DateFormat('HH:mm').format(dateTime); // 24-hour format
+    } else {
+      return DateFormat('h:mm a').format(dateTime); // 12-hour format with AM/PM
+    }
+  }
+
+  String formatDate(DateTime dateTime) {
+    // Get the month name based on the month number
+    final monthNames = [
+      'january',
+      'february',
+      'march',
+      'april',
+      'may',
+      'june',
+      'july',
+      'august',
+      'september',
+      'october',
+      'november',
+      'december',
+    ];
+
+    final monthKey = monthNames[dateTime.month - 1]; // Arrays are 0-indexed
+    final month = translate(monthKey);
+
+    return '$month ${dateTime.day}, ${dateTime.year}';
+  }
+
+  // Add a method to get the correct period text
+  String getPeriodText(String period) {
+    if (period == 'Day') {
+      return translate('today');
+    } else {
+      return '${translate('this')} ${translate(period.toLowerCase())}';
+    }
   }
 }

@@ -71,6 +71,26 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    title: Text(provider.translate('timeFormat')),
+                    subtitle: Text(
+                      provider.use24HourFormat
+                          ? provider.translate('hour24')
+                          : provider.translate('hour12'),
+                    ),
+                    trailing: Switch(
+                      value: provider.use24HourFormat,
+                      onChanged: (value) {
+                        HapticFeedback.selectionClick();
+                        provider.toggleTimeFormat();
+                      },
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 24),
 
                 // Target hours settings
@@ -128,7 +148,10 @@ class SettingsScreen extends StatelessWidget {
                         title: Text(provider.translate('version')),
                         trailing: const Text('1.0.0'),
                       ),
-                      const Divider(height: 1),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Divider(height: 2, thickness: 2),
+                      ),
                       ListTile(
                         title: Text(provider.translate('privacyPolicy')),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -136,7 +159,10 @@ class SettingsScreen extends StatelessWidget {
                           // Open privacy policy
                         },
                       ),
-                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: const Divider(height: 2, thickness: 2),
+                      ),
                       ListTile(
                         title: Text(provider.translate('termsOfService')),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -193,7 +219,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Divider(height: 2, thickness: 2),
+              ),
               ListTile(
                 title: Text(provider.translate('systemDefault')),
                 leading: const Icon(Icons.settings_brightness),
@@ -265,7 +294,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Divider(height: 2, thickness: 2),
+              ),
               ListTile(
                 title: Text(provider.translate('english')),
                 leading: const Text('🇺🇸', style: TextStyle(fontSize: 24)),

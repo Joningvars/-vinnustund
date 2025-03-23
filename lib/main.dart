@@ -48,9 +48,7 @@ class MyApp extends StatelessWidget {
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.white,
-              textTheme: GoogleFonts.comfortaaTextTheme(
-                Theme.of(context).textTheme,
-              ),
+              textTheme: getTextTheme(context),
               cardTheme: CardTheme(
                 elevation: 0,
                 color: Colors.grey.shade50,
@@ -81,13 +79,11 @@ class MyApp extends StatelessWidget {
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.grey.shade900,
-              textTheme: GoogleFonts.comfortaaTextTheme(
-                Theme.of(context).textTheme.copyWith(
-                  bodyMedium: TextStyle(color: Colors.grey.shade600),
-                  bodyLarge: TextStyle(color: Colors.grey.shade600),
-                  titleMedium: TextStyle(color: Colors.grey.shade400),
-                  titleLarge: TextStyle(color: Colors.grey.shade400),
-                ),
+              textTheme: getTextTheme(context).copyWith(
+                bodyMedium: TextStyle(color: Colors.grey.shade600),
+                bodyLarge: TextStyle(color: Colors.grey.shade600),
+                titleMedium: TextStyle(color: Colors.grey.shade400),
+                titleLarge: TextStyle(color: Colors.grey.shade400),
               ),
               cardTheme: CardTheme(
                 elevation: 0,
@@ -122,6 +118,15 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
+  }
+
+  TextTheme getTextTheme(BuildContext context) {
+    try {
+      return GoogleFonts.comfortaaTextTheme(Theme.of(context).textTheme);
+    } catch (e) {
+      print('Google Fonts error: $e');
+      return Theme.of(context).textTheme;
+    }
   }
 }
 

@@ -83,7 +83,7 @@ class HoursProgress extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${provider.translate('this')} ${provider.translate(period.toLowerCase())}',
+                        provider.getPeriodText(period),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade500,

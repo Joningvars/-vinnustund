@@ -118,9 +118,7 @@ class AddTimeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          DateFormat(
-                            'EEEE, MMMM d, yyyy',
-                          ).format(DateTime.now()),
+                          provider.formatDate(DateTime.now()),
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -159,7 +157,7 @@ class AddTimeScreen extends StatelessWidget {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            _formatTimeOfDay(
+                                            provider.formatTimeOfDay(
                                               provider.startTime,
                                             ),
                                             style: const TextStyle(
@@ -205,7 +203,9 @@ class AddTimeScreen extends StatelessWidget {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            _formatTimeOfDay(provider.endTime),
+                                            provider.formatTimeOfDay(
+                                              provider.endTime,
+                                            ),
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -341,6 +341,14 @@ class AddTimeScreen extends StatelessWidget {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: provider.startTime,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(alwaysUse24HourFormat: provider.use24HourFormat),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null && picked != provider.startTime) {
@@ -362,6 +370,14 @@ class AddTimeScreen extends StatelessWidget {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: provider.endTime,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(alwaysUse24HourFormat: provider.use24HourFormat),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null && picked != provider.endTime) {
@@ -369,13 +385,6 @@ class AddTimeScreen extends StatelessWidget {
         provider.endTime = picked;
       });
     }
-  }
-
-  String _formatTimeOfDay(TimeOfDay tod) {
-    final now = DateTime.now();
-    final dt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
-    final format = DateFormat.jm(); // 6:00 PM format
-    return format.format(dt);
   }
 
   void _showAddJobDialog(BuildContext context, TimeClockProvider provider) {

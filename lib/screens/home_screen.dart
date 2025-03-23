@@ -24,7 +24,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               // Date header
               Text(
-                DateFormat('MMMM d, yyyy').format(DateTime.now()),
+                provider.formatDate(DateTime.now()),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -108,8 +108,8 @@ class HomeScreen extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      // Navigate to history tab
-                      DefaultTabController.of(context).animateTo(2);
+                      // Navigate to the history tab (index 2)
+                      provider.setSelectedTabIndex(2);
                     },
                     child: Text(provider.translate('viewAll')),
                   ),
@@ -118,7 +118,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 8),
               ...provider.timeEntries
                   .take(3)
-                  .map((entry) => _buildTimeEntryCard(entry, provider))
+                  .map((entry) => _buildRecentEntry(entry, provider))
                   .toList(),
             ],
           ),
@@ -447,43 +447,33 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTimeEntryCard(TimeEntry entry, TimeClockProvider provider) {
+  Widget _buildRecentEntry(TimeEntry entry, TimeClockProvider provider) {
     return Card(
+      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: entry.jobColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.jobName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('MMM d, yyyy').format(entry.clockInTime),
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: entry.jobColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  entry.jobName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
                 Text(
                   provider.formatDuration(entry.duration),
                   style: const TextStyle(
@@ -491,9 +481,15 @@ class HomeScreen extends StatelessWidget {
                     fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 4),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
                 Text(
-                  '${DateFormat('h:mm a').format(entry.clockInTime)} - ${DateFormat('h:mm a').format(entry.clockOutTime)}',
+                  '${provider.formatTime(entry.clockInTime)} - ${provider.formatTime(entry.clockOutTime)}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                 ),
               ],

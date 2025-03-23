@@ -143,9 +143,7 @@ class HistoryScreen extends StatelessWidget {
 
                           // Format the date for display
                           final date = DateTime.parse(dateStr);
-                          final formattedDate = DateFormat.yMMMMd().format(
-                            date,
-                          );
+                          String formattedDate = provider.formatDate(date);
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,7 +250,7 @@ class HistoryScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${DateFormat.jm().format(entry.clockInTime)} - ${DateFormat.jm().format(entry.clockOutTime)}',
+                    '${provider.formatTime(entry.clockInTime)} - ${provider.formatTime(entry.clockOutTime)}',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                   ),
                 ],
