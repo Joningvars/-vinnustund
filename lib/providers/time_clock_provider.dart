@@ -10,6 +10,11 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:time_clock/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:time_clock/localization/app_localizations.dart';
+
+// Add this global navigator key
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class TimeClockProvider extends ChangeNotifier {
   BuildContext? context;
@@ -124,6 +129,19 @@ class TimeClockProvider extends ChangeNotifier {
       'hour12': '12-hour',
       'minutes': 'mins',
       'signOut': 'Sign Out',
+      'trackYourWorkHours': 'Track Your Work Hours',
+      'trackYourWorkHoursDesc':
+          'Easily clock in and out to track your work hours accurately',
+      'multipleJobs': 'Multiple Jobs',
+      'multipleJobsDesc':
+          'Track time for different jobs and projects separately',
+      'detailedReports': 'Detailed Reports',
+      'detailedReportsDesc':
+          'View detailed reports of your work hours by day, week, or month',
+      'skip': 'Skip',
+      'next': 'Next',
+      'getStarted': 'Get Started',
+      'developer': 'Developer',
     },
     'is': {
       'home': 'Heim',
@@ -208,6 +226,19 @@ class TimeClockProvider extends ChangeNotifier {
       'hour12': '12-tíma',
       'minutes': 'mín',
       'signOut': 'Skrá út',
+      'trackYourWorkHours': 'Skráðu vinnustundir þínar',
+      'trackYourWorkHoursDesc':
+          'Stimpla inn og út til að fylgjast nákvæmlega með vinnustundum þínum',
+      'multipleJobs': 'Mörg verkefni',
+      'multipleJobsDesc':
+          'Halda utan um tíma fyrir mismunandi verkefni og vinnustaði',
+      'detailedReports': 'Ítarlegar skýrslur',
+      'detailedReportsDesc':
+          'Skoða ítarlegar skýrslur um vinnustundir þínar eftir degi, viku eða mánuði',
+      'skip': 'Sleppa',
+      'next': 'Áfram',
+      'getStarted': 'Byrja',
+      'developer': 'Þróunaraðili',
     },
   };
 
@@ -887,7 +918,13 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   String translate(String key) {
-    return translations[locale.languageCode]?[key] ?? key;
+    try {
+      // First try to use the built-in translations
+      return translations[locale.languageCode]?[key] ?? key;
+    } catch (e) {
+      print('Translation error for key $key: $e');
+      return key;
+    }
   }
 
   void addJob(String name, Color color) {
@@ -1051,5 +1088,24 @@ class TimeClockProvider extends ChangeNotifier {
         print('Error initializing user data: $e');
       }
     }
+  }
+
+  Future<void> initializeApp() async {
+    // Load any saved preferences
+    final prefs = await SharedPreferences.getInstance();
+
+    // Load language preference
+    final String languageCode =
+        prefs.getString('languageCode') ?? 'is'; // Default to Icelandic
+    final String countryCode = prefs.getString('countryCode') ?? '';
+
+    // Set the locale
+    locale = Locale(languageCode, countryCode);
+
+    // Load other preferences
+    // ...
+
+    // Notify listeners to update the UI
+    notifyListeners();
   }
 }

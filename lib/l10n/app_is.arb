@@ -42,5 +42,14 @@
   "mins": "mín",
   "of": "af",
   "hours": "klst",
-  "this": "Þessi"
+  "this": "Þessi",
+  "trackYourWorkHours": "Skráðu vinnustundir þínar",
+  "trackYourWorkHoursDesc": "Stimpla inn og út til að fylgjast nákvæmlega með vinnustundum þínum",
+  "multipleJobs": "Mörg verkefni",
+  "multipleJobsDesc": "Halda utan um tíma fyrir mismunandi verkefni og vinnustaði",
+  "detailedReports": "Ítarlegar skýrslur",
+  "detailedReportsDesc": "Skoða ítarlegar skýrslur um vinnustundir þínar eftir degi, viku eða mánuði",
+  "skip": "Sleppa",
+  "next": "Áfram",
+  "getStarted": "Byrja"
 } 

@@ -18,6 +18,9 @@ import 'package:time_clock/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:time_clock/screens/onboarding_screen.dart';
+import 'package:time_clock/localization/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,23 +37,43 @@ void main() async {
     print('Error initializing Firebase: $e');
   }
 
-  runApp(const MyApp());
+  // Check if onboarding is completed
+  final prefs = await SharedPreferences.getInstance();
+  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+
+  // Create and initialize the provider
+  final provider = TimeClockProvider();
+  await provider
+      .initializeApp(); // Make sure this method exists and initializes translations
+
+  runApp(
+    MyApp(onboardingComplete: onboardingComplete, initialProvider: provider),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool onboardingComplete;
+  final TimeClockProvider initialProvider;
+
+  const MyApp({
+    super.key,
+    required this.onboardingComplete,
+    required this.initialProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TimeClockProvider(),
+    return ChangeNotifierProvider.value(
+      value: initialProvider,
       child: Consumer<TimeClockProvider>(
         builder: (context, provider, _) {
           return MaterialApp(
+            navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
             title: 'Time Clock',
             // Localization setup
             localizationsDelegates: const [
+              AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
@@ -133,23 +156,28 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: provider.themeMode,
-            home: StreamBuilder<User?>(
-              stream: AuthService().authStateChanges,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.active) {
-                  final user = snapshot.data;
-                  if (user == null) {
-                    return const LoginScreen();
-                  }
-                  return const TimeClockScreen();
-                }
-
-                // Show loading indicator while checking auth state
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              },
-            ),
+            home:
+                onboardingComplete
+                    ? StreamBuilder<User?>(
+                      stream: AuthService().authStateChanges,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.active) {
+                          final user = snapshot.data;
+                          if (user == null) {
+                            return const LoginScreen();
+                          }
+                          return const TimeClockScreen();
+                        }
+                        return const Scaffold(
+                          body: Center(child: CircularProgressIndicator()),
+                        );
+                      },
+                    )
+                    : ChangeNotifierProvider.value(
+                      value: provider,
+                      child: const OnboardingScreen(),
+                    ),
           );
         },
       ),

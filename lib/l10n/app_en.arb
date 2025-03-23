@@ -42,5 +42,14 @@
   "mins": "mins",
   "of": "of",
   "hours": "hours",
-  "this": "This"
+  "this": "This",
+  "trackYourWorkHours": "Track Your Work Hours",
+  "trackYourWorkHoursDesc": "Easily clock in and out to track your work hours accurately",
+  "multipleJobs": "Multiple Jobs",
+  "multipleJobsDesc": "Track time for different jobs and projects separately",
+  "detailedReports": "Detailed Reports",
+  "detailedReportsDesc": "View detailed reports of your work hours by day, week, or month",
+  "skip": "Skip",
+  "next": "Next",
+  "getStarted": "Get Started"
 } 

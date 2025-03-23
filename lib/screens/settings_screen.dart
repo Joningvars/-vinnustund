@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:time_clock/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -190,6 +191,24 @@ class SettingsScreen extends StatelessWidget {
                     },
                   ),
                 ),
+
+                // Add this in the build method, near the bottom of your settings list
+                _buildSectionHeader(provider.translate('developer')),
+                const SizedBox(height: 8),
+
+                // Reset onboarding button
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    title: Text('Reset Onboarding'),
+                    subtitle: Text('Show the onboarding screens again'),
+                    trailing: const Icon(Icons.refresh),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      _resetOnboarding(context);
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -346,6 +365,20 @@ class SettingsScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _resetOnboarding(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboardingComplete', false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Onboarding reset. Restart the app to see it.'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 }
