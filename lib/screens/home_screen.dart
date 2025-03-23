@@ -222,6 +222,9 @@ class HomeScreen extends StatelessWidget {
                     }
                     provider.setSelectedJob(job);
                   },
+                  onLongPress: () {
+                    _showDeleteJobConfirmation(context, provider, job);
+                  },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
@@ -492,6 +495,40 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showDeleteJobConfirmation(
+    BuildContext context,
+    TimeClockProvider provider,
+    Job job,
+  ) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(provider.translate('deleteJob')),
+          content: Text(provider.translate('deleteJobConfirm')),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(provider.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: () {
+                provider.deleteJob(job.id);
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                provider.translate('delete'),
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -83,6 +83,11 @@ class TimeClockProvider extends ChangeNotifier {
       'language': 'Language',
       'english': 'English',
       'icelandic': 'Íslenska',
+      'cannotDeleteActiveJob': 'Cannot delete job while clocked in with it',
+      'jobDeleted': 'Job deleted',
+      'deleteJob': 'Delete Job',
+      'deleteJobConfirm':
+          'Are you sure you want to delete this job? All time entries for this job will also be deleted.',
     },
     'is': {
       'home': 'Heim',
@@ -131,6 +136,12 @@ class TimeClockProvider extends ChangeNotifier {
       'language': 'Tungumál',
       'english': 'English',
       'icelandic': 'Íslenska',
+      'cannotDeleteActiveJob':
+          'Ekki hægt að eyða verki á meðan þú ert stimplaður inn á það',
+      'jobDeleted': 'Verki eytt',
+      'deleteJob': 'Eyða verki',
+      'deleteJobConfirm':
+          'Ertu viss um að þú viljir eyða þessu verki? Öllum tímafærslum fyrir þetta verk verður einnig eytt.',
     },
   };
 
@@ -727,6 +738,55 @@ class TimeClockProvider extends ChangeNotifier {
           content: Text(translate('jobAdded')),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.green,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
+  void deleteJob(String jobId) {
+    // Don't allow deleting the job if it's currently selected and clocked in
+    if (isClockedIn && selectedJob?.id == jobId) {
+      if (context != null) {
+        ScaffoldMessenger.of(context!).showSnackBar(
+          SnackBar(
+            content: Text(translate('cannotDeleteActiveJob')),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Remove the job
+    jobs.removeWhere((job) => job.id == jobId);
+
+    // If the deleted job was selected, select another job if available
+    if (selectedJob?.id == jobId) {
+      selectedJob = jobs.isNotEmpty ? jobs.first : null;
+    }
+
+    // Remove time entries associated with this job
+    timeEntries.removeWhere((entry) => entry.jobId == jobId);
+
+    calculateHoursWorkedThisWeek();
+    notifyListeners();
+    saveData();
+
+    if (context != null) {
+      ScaffoldMessenger.of(context!).showSnackBar(
+        SnackBar(
+          content: Text(translate('jobDeleted')),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),

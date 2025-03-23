@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:time_clock/models/job.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 
 class AddTimeScreen extends StatelessWidget {
@@ -58,6 +59,9 @@ class AddTimeScreen extends StatelessWidget {
                       return GestureDetector(
                         onTap: () {
                           provider.setSelectedJob(job);
+                        },
+                        onLongPress: () {
+                          _showDeleteJobConfirmation(context, provider, job);
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
@@ -274,11 +278,6 @@ class AddTimeScreen extends StatelessWidget {
                                   margin: const EdgeInsets.all(16),
                                 ),
                               );
-
-                              // Navigate to home screen
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
                             }
                           },
                   style: ElevatedButton.styleFrom(
@@ -523,6 +522,40 @@ class AddTimeScreen extends StatelessWidget {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showDeleteJobConfirmation(
+    BuildContext context,
+    TimeClockProvider provider,
+    Job job,
+  ) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(provider.translate('deleteJob')),
+          content: Text(provider.translate('deleteJobConfirm')),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(provider.translate('cancel')),
+            ),
+            TextButton(
+              onPressed: () {
+                provider.deleteJob(job.id);
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                provider.translate('delete'),
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
         );
       },
     );
