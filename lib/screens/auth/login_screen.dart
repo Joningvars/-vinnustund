@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:time_clock/main.dart';
 import 'package:time_clock/services/auth_service.dart';
 import 'package:time_clock/screens/auth/register_screen.dart';
 import 'package:flutter/services.dart';
@@ -47,15 +48,33 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _login() async {
     if (_formKey.currentState!.validate()) {
+      // Dismiss keyboard
+      FocusScope.of(context).unfocus();
+
       setState(() {
         _isLoading = true;
         _errorMessage = '';
       });
 
       try {
-        await _authService.signInWithEmailAndPassword(_email, _password);
-        // Login successful - navigation is handled by the auth state listener
+        // Sign in with email and password
+        final userCredential = await _authService.signInWithEmailAndPassword(
+          _email,
+          _password,
+        );
+
+        print('Login successful, user: ${userCredential.user?.uid}');
+
+        if (mounted) {
+          // Navigate to the main app screen and remove all previous routes
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const TimeClockScreen()),
+            (route) => false,
+          );
+        }
       } catch (e) {
+        print('Login error: $e');
+
         setState(() {
           _errorMessage =
               e.toString().contains('user-not-found')
@@ -65,9 +84,11 @@ class _LoginScreenState extends State<LoginScreen>
                   : 'Login failed: ${e.toString()}';
         });
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

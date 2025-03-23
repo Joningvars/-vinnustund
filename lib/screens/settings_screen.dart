@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:time_clock/screens/auth/login_screen.dart';
 import 'package:time_clock/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -184,10 +185,9 @@ class SettingsScreen extends StatelessWidget {
                   child: ListTile(
                     title: Text(provider.translate('signOut')),
                     leading: const Icon(Icons.logout, color: Colors.red),
-                    onTap: () async {
+                    onTap: () {
                       HapticFeedback.mediumImpact();
-                      await AuthService().signOut();
-                      // No need to navigate - the auth state listener will handle it
+                      _logout(context);
                     },
                   ),
                 ),
@@ -380,5 +380,22 @@ class SettingsScreen extends StatelessWidget {
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _logout(BuildContext context) async {
+    try {
+      await AuthService().signOut();
+
+      // Navigate back to login screen and clear all previous routes
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      print('Error signing out: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
+    }
   }
 }

@@ -71,7 +71,13 @@ class AuthService {
 
   // Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
+    try {
+      await _auth.signOut();
+      print('User signed out');
+    } catch (e) {
+      print('Error signing out: $e');
+      rethrow;
+    }
   }
 
   // Reset password
