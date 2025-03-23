@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:time_clock/services/auth_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -171,6 +172,22 @@ class SettingsScreen extends StatelessWidget {
                         },
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Sign Out button
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    title: Text(provider.translate('signOut')),
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    onTap: () async {
+                      HapticFeedback.mediumImpact();
+                      await AuthService().signOut();
+                      // No need to navigate - the auth state listener will handle it
+                    },
                   ),
                 ),
               ],

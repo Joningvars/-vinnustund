@@ -12,8 +12,21 @@ import 'package:provider/provider.dart';
 import 'package:time_clock/providers/time_clock_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:time_clock/screens/auth/login_screen.dart';
+import 'package:time_clock/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    print('Firebase initialized successfully');
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
+
   runApp(const MyApp());
 }
 
@@ -113,7 +126,23 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: provider.themeMode,
-            home: const TimeClockScreen(),
+            home: StreamBuilder<User?>(
+              stream: AuthService().authStateChanges,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.active) {
+                  final user = snapshot.data;
+                  if (user == null) {
+                    return const LoginScreen();
+                  }
+                  return const TimeClockScreen();
+                }
+
+                // Show loading indicator while checking auth state
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              },
+            ),
           );
         },
       ),
