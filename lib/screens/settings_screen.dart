@@ -10,139 +10,145 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeClockProvider>(context);
 
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                provider.translate('settings'),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Appearance section
-              _buildSectionHeader(provider.translate('appearance')),
-              const SizedBox(height: 8),
-
-              // Theme selector
-              Card(
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  title: Text(provider.translate('theme')),
-                  subtitle: Text(
-                    provider.themeMode == ThemeMode.system
-                        ? provider.translate('systemDefault')
-                        : provider.themeMode == ThemeMode.dark
-                        ? provider.translate('dark')
-                        : provider.translate('light'),
+    return GestureDetector(
+      // Dismiss keyboard when tapping anywhere on the screen
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  provider.translate('settings'),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    _showThemeSelector(context, provider);
-                  },
                 ),
-              ),
+                const SizedBox(height: 24),
 
-              const SizedBox(height: 16),
-              Card(
-                margin: EdgeInsets.zero,
-                child: ListTile(
-                  title: Text(provider.translate('language')),
-                  subtitle: Text(
-                    provider.locale.languageCode == 'en'
-                        ? provider.translate('english')
-                        : provider.translate('icelandic'),
+                // Appearance section
+                _buildSectionHeader(provider.translate('appearance')),
+                const SizedBox(height: 8),
+
+                // Theme selector
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    title: Text(provider.translate('theme')),
+                    subtitle: Text(
+                      provider.themeMode == ThemeMode.system
+                          ? provider.translate('systemDefault')
+                          : provider.themeMode == ThemeMode.dark
+                          ? provider.translate('dark')
+                          : provider.translate('light'),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showThemeSelector(context, provider);
+                    },
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    _showLanguageSelector(context, provider);
-                  },
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    title: Text(provider.translate('language')),
+                    subtitle: Text(
+                      provider.locale.languageCode == 'en'
+                          ? provider.translate('english')
+                          : provider.translate('icelandic'),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showLanguageSelector(context, provider);
+                    },
+                  ),
+                ),
 
-              // Target hours settings
-              _buildSectionHeader(provider.translate('workHours')),
-              const SizedBox(height: 8),
+                const SizedBox(height: 24),
 
-              Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(provider.translate('monthlyTargetHours')),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Slider(
-                              value: provider.targetHours.toDouble(),
-                              min: 40,
-                              max: 240,
-                              divisions: 20,
-                              label: provider.targetHours.toString(),
-                              onChanged: (double value) {
-                                provider.setTargetHours(value.toInt());
-                              },
+                // Target hours settings
+                _buildSectionHeader(provider.translate('workHours')),
+                const SizedBox(height: 8),
+
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(provider.translate('monthlyTargetHours')),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Slider(
+                                value: provider.targetHours.toDouble(),
+                                min: 40,
+                                max: 240,
+                                divisions: 20,
+                                label: provider.targetHours.toString(),
+                                onChanged: (double value) {
+                                  provider.setTargetHours(value.toInt());
+                                },
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${provider.targetHours} hrs',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              '${provider.targetHours} hrs',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // About section
+                _buildSectionHeader(provider.translate('about')),
+                const SizedBox(height: 8),
+
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        title: Text(provider.translate('version')),
+                        trailing: const Text('1.0.0'),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        title: Text(provider.translate('privacyPolicy')),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          // Open privacy policy
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        title: Text(provider.translate('termsOfService')),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          // Open terms of service
+                        },
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // About section
-              _buildSectionHeader(provider.translate('about')),
-              const SizedBox(height: 8),
-
-              Card(
-                margin: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      title: Text(provider.translate('version')),
-                      trailing: const Text('1.0.0'),
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      title: Text(provider.translate('privacyPolicy')),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        // Open privacy policy
-                      },
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      title: Text(provider.translate('termsOfService')),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        // Open terms of service
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -164,6 +170,9 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showThemeSelector(BuildContext context, TimeClockProvider provider) {
+    // Dismiss keyboard before showing bottom sheet
+    FocusScope.of(context).unfocus();
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -233,6 +242,9 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showLanguageSelector(BuildContext context, TimeClockProvider provider) {
+    // Dismiss keyboard before showing bottom sheet
+    FocusScope.of(context).unfocus();
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(

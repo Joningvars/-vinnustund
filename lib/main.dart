@@ -71,16 +71,44 @@ class MyApp extends StatelessWidget {
               colorScheme: ColorScheme.fromSeed(
                 seedColor: Colors.blueGrey,
                 brightness: Brightness.dark,
+                primary: Colors.lightBlueAccent,
+                onPrimary: Colors.black,
+                surface: Colors.grey.shade800,
+                onSurface: Colors.grey.shade800,
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.grey.shade900,
               cardTheme: CardTheme(
                 elevation: 0,
-                color: Colors.grey.shade800,
+                color: Colors.grey.shade300,
                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
+              ),
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: Colors.grey.shade700,
+                hintStyle: TextStyle(color: Colors.grey.shade400),
+                labelStyle: TextStyle(color: Colors.grey.shade300),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade600),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade600),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.lightBlueAccent),
+                ),
+              ),
+              textTheme: TextTheme(
+                bodyMedium: TextStyle(color: Colors.grey.shade600),
+                bodyLarge: TextStyle(color: Colors.grey.shade600),
+                titleMedium: TextStyle(color: Colors.grey.shade400),
+                titleLarge: TextStyle(color: Colors.grey.shade400),
               ),
             ),
             themeMode: provider.themeMode,
