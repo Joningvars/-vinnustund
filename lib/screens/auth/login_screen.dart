@@ -74,258 +74,265 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 20),
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 20),
 
-                    // Logo with animation
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0.0, end: 1.0),
-                      duration: const Duration(milliseconds: 800),
-                      curve: Curves.elasticOut,
-                      builder: (context, value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: const AppLogo(size: 80),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 48),
+                      // Logo with animation
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 800),
+                        curve: Curves.elasticOut,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: const AppLogo(size: 80),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 48),
 
-                    // Email field with animation
-                    SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.2,
-                            0.6,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                      ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.2,
-                            0.6,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                        child: TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.email),
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!value.contains('@')) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) => _email = value.trim(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Password field with animation
-                    SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.3,
-                            0.7,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                      ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.3,
-                            0.7,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                        child: TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.lock),
-                          ),
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) => _password = value,
-                        ),
-                      ),
-                    ),
-
-                    if (_errorMessage.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-
-                    // Login button with animation
-                    SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.4,
-                            0.8,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                      ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.4,
-                            0.8,
-                            curve: Curves.easeOut,
-                          ),
-                        ),
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            foregroundColor:
-                                Theme.of(context).colorScheme.onPrimary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      // Email field with animation
+                      SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.2),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.2,
+                              0.6,
+                              curve: Curves.easeOut,
                             ),
                           ),
-                          child:
-                              _isLoading
-                                  ? const CircularProgressIndicator()
-                                  : const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                        ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.2,
+                              0.6,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.email),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              if (!value.contains('@')) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) => _email = value.trim(),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // Register button with animation
-                    SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.5,
-                            0.9,
-                            curve: Curves.easeOut,
+                      // Password field with animation
+                      SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.2),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.3,
+                              0.7,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                        ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.3,
+                              0.7,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'Password',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.lock),
+                            ),
+                            obscureText: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) => _password = value,
                           ),
                         ),
                       ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.5,
-                            0.9,
-                            curve: Curves.easeOut,
+
+                      if (_errorMessage.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          _errorMessage,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+
+                      // Login button with animation
+                      SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.2),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.4,
+                              0.8,
+                              curve: Curves.easeOut,
+                            ),
                           ),
                         ),
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const RegisterScreen(),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.4,
+                              0.8,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            );
-                          },
-                          child: const Text('Don\'t have an account? Register'),
+                            ),
+                            child:
+                                _isLoading
+                                    ? const CircularProgressIndicator()
+                                    : const Text(
+                                      'Login',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
 
-                    // Forgot password button with animation
-                    SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.6,
-                            1.0,
-                            curve: Curves.easeOut,
+                      // Register button with animation
+                      SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.2),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.5,
+                              0.9,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                        ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.5,
+                              0.9,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const RegisterScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'Don\'t have an account? Register',
+                            ),
                           ),
                         ),
                       ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: _animationController,
-                          curve: const Interval(
-                            0.6,
-                            1.0,
-                            curve: Curves.easeOut,
+
+                      // Forgot password button with animation
+                      SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.2),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.6,
+                              1.0,
+                              curve: Curves.easeOut,
+                            ),
                           ),
                         ),
-                        child: TextButton(
-                          onPressed: () {
-                            _showResetPasswordDialog();
-                          },
-                          child: const Text('Forgot Password?'),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _animationController,
+                            curve: const Interval(
+                              0.6,
+                              1.0,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                          child: TextButton(
+                            onPressed: () {
+                              _showResetPasswordDialog();
+                            },
+                            child: const Text('Forgot Password?'),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
