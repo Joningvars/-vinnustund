@@ -16,12 +16,19 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:time_clock/screens/auth/login_screen.dart';
 import 'package:time_clock/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     print('Firebase initialized successfully');
   } catch (e) {
     print('Error initializing Firebase: $e');
