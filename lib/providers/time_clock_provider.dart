@@ -7,6 +7,9 @@ import 'package:time_clock/models/job.dart';
 import 'package:time_clock/models/time_entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:time_clock/services/database_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TimeClockProvider extends ChangeNotifier {
   BuildContext? context;
@@ -120,6 +123,7 @@ class TimeClockProvider extends ChangeNotifier {
       'hour24': '24-hour',
       'hour12': '12-hour',
       'minutes': 'mins',
+      'signOut': 'Sign Out',
     },
     'is': {
       'home': 'Heim',
@@ -203,6 +207,7 @@ class TimeClockProvider extends ChangeNotifier {
       'hour24': '24-tíma',
       'hour12': '12-tíma',
       'minutes': 'mín',
+      'signOut': 'Skrá út',
     },
   };
 
@@ -210,7 +215,22 @@ class TimeClockProvider extends ChangeNotifier {
 
   int selectedTabIndex = 0;
 
+  DatabaseService? _databaseService;
+
   TimeClockProvider() {
+    _initializeProvider();
+  }
+
+  Future<void> _initializeProvider() async {
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != null) {
+        _databaseService = DatabaseService(uid: user.uid);
+        loadData();
+      } else {
+        _databaseService = null;
+      }
+    });
+
     loadData();
   }
 
@@ -641,26 +661,44 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   Future<void> saveData() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    // Save time entries
-    final entriesJson = timeEntries.map((entry) => entry.toJson()).toList();
-    await prefs.setString('timeEntries', jsonEncode(entriesJson));
+      // Save time entries
+      final entriesJson = timeEntries.map((entry) => entry.toJson()).toList();
+      await prefs.setString('timeEntries', jsonEncode(entriesJson));
 
-    // Save jobs
-    final jobsJson = jobs.map((job) => job.toJson()).toList();
-    await prefs.setString('jobs', jsonEncode(jobsJson));
+      // Save jobs
+      final jobsJson = jobs.map((job) => job.toJson()).toList();
+      await prefs.setString('jobs', jsonEncode(jobsJson));
 
-    // Save theme settings
-    prefs.setString('themeMode', themeMode.toString());
-    prefs.setInt('targetHours', targetHours);
+      // Save theme settings
+      prefs.setString('themeMode', themeMode.toString());
+      prefs.setInt('targetHours', targetHours);
 
-    // Save locale settings
-    prefs.setString('languageCode', locale.languageCode);
-    prefs.setString('countryCode', locale.countryCode ?? '');
+      // Save locale settings
+      prefs.setString('languageCode', locale.languageCode);
+      prefs.setString('countryCode', locale.countryCode ?? '');
 
-    // Save time format preference
-    prefs.setBool('use24HourFormat', use24HourFormat);
+      // Save time format preference
+      prefs.setBool('use24HourFormat', use24HourFormat);
+
+      // Save to Firestore if user is authenticated
+      if (_databaseService != null) {
+        await _databaseService!.saveJobs(jobs);
+        await _databaseService!.saveTimeEntries(timeEntries);
+        await _databaseService!.saveUserSettings(
+          languageCode: locale.languageCode,
+          countryCode: locale.countryCode ?? '',
+          use24HourFormat: use24HourFormat,
+          targetHours: targetHours,
+          themeMode: themeMode.toString(),
+        );
+      }
+    } catch (e) {
+      print('Error saving data: $e');
+      // You could show a snackbar or dialog here to inform the user
+    }
 
     notifyListeners();
   }
@@ -715,6 +753,48 @@ class TimeClockProvider extends ChangeNotifier {
 
     // Load time format preference
     use24HourFormat = prefs.getBool('use24HourFormat') ?? true;
+
+    // Then try to load from Firestore if user is authenticated
+    if (_databaseService != null) {
+      try {
+        // Load jobs
+        final firestoreJobs = await _databaseService!.loadJobs();
+        if (firestoreJobs.isNotEmpty) {
+          jobs = firestoreJobs;
+        }
+
+        // Load time entries
+        final firestoreEntries = await _databaseService!.loadTimeEntries();
+        if (firestoreEntries.isNotEmpty) {
+          timeEntries = firestoreEntries;
+        }
+
+        // Load user settings
+        final settings = await _databaseService!.loadUserSettings();
+        if (settings != null) {
+          locale = Locale(
+            settings['languageCode'] ?? 'en',
+            settings['countryCode'] ?? '',
+          );
+          use24HourFormat = settings['use24HourFormat'] ?? true;
+          targetHours = settings['targetHours'] ?? 173;
+
+          final themeModeStr = settings['themeMode'];
+          if (themeModeStr != null) {
+            if (themeModeStr.contains('dark')) {
+              themeMode = ThemeMode.dark;
+            } else if (themeModeStr.contains('light')) {
+              themeMode = ThemeMode.light;
+            } else {
+              themeMode = ThemeMode.system;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error loading data from Firestore: $e');
+        // Continue with local data if Firestore fails
+      }
+    }
 
     notifyListeners();
   }
@@ -939,6 +1019,37 @@ class TimeClockProvider extends ChangeNotifier {
       return translate('today');
     } else {
       return '${translate('this')} ${translate(period.toLowerCase())}';
+    }
+  }
+
+  // Add this method to initialize user data when they first sign up
+  Future<void> initializeNewUser() async {
+    if (_databaseService != null) {
+      try {
+        // First, create the user document if it doesn't exist
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+                'email': user.email,
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        }
+
+        // Then save jobs and settings
+        await _databaseService!.saveJobs(jobs);
+        await _databaseService!.saveUserSettings(
+          languageCode: locale.languageCode,
+          countryCode: locale.countryCode ?? '',
+          use24HourFormat: use24HourFormat,
+          targetHours: targetHours,
+          themeMode: themeMode.toString(),
+        );
+      } catch (e) {
+        print('Error initializing user data: $e');
+      }
     }
   }
 }
