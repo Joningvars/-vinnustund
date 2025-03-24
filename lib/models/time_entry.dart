@@ -21,22 +21,34 @@ class TimeEntry {
     required this.clockOutTime,
     required this.duration,
     this.description,
-  }) : this.id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-       this.date =
-           "${clockInTime.year}-${clockInTime.month.toString().padLeft(2, '0')}-${clockInTime.day.toString().padLeft(2, '0')}";
+    String? date,
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+       date = date ?? DateFormat('yyyy-MM-dd').format(clockInTime);
 
-  String get formattedDate => DateFormat('MMM d, yyyy').format(clockInTime);
-
-  String get formattedClockIn => DateFormat('h:mm a').format(clockInTime);
-
-  String get formattedClockOut => DateFormat('h:mm a').format(clockOutTime);
-
-  String get formattedDuration {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    return '$hours hrs $minutes mins';
+  // Format the date for display
+  String get formattedDate {
+    final dateObj = DateFormat('yyyy-MM-dd').parse(date);
+    return DateFormat.yMMMd().format(dateObj);
   }
 
+  // Format clock in time
+  String get formattedClockIn {
+    return DateFormat.jm().format(clockInTime);
+  }
+
+  // Format clock out time
+  String get formattedClockOut {
+    return DateFormat.jm().format(clockOutTime);
+  }
+
+  // Format duration
+  String get formattedDuration {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    return '$hours:${minutes.toString().padLeft(2, '0')}';
+  }
+
+  // Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -46,7 +58,7 @@ class TimeEntry {
       'clockInTime': clockInTime.toIso8601String(),
       'clockOutTime': clockOutTime.toIso8601String(),
       'duration': duration.inMinutes,
-      'description': description,
+      'description': description ?? '',
       'date': date,
     };
   }
@@ -61,6 +73,7 @@ class TimeEntry {
       clockOutTime: DateTime.parse(json['clockOutTime']),
       duration: Duration(minutes: json['duration']),
       description: json['description'],
+      date: json['date'],
     );
   }
 }

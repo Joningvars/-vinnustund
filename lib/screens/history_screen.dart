@@ -494,7 +494,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                               // Divider
                               if (index < sortedDates.length - 1)
-                                const Divider(height: 32, thickness: 1),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: const Divider(
+                                    height: 32,
+                                    thickness: 1,
+                                  ),
+                                ),
                             ],
                           );
                         },
