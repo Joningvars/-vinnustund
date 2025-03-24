@@ -187,7 +187,7 @@ class TimeClockProvider extends ChangeNotifier {
       'create': 'Búa til',
       'jobAdded': 'Verki bætt við',
       'entries': 'færslur',
-      'noEntries': 'Engar tímafærslur enn',
+      'noEntries': 'Engar tímafærslur',
       'delete': 'Eyða',
       'deleteEntry': 'Eyða færslu',
       'deleteEntryConfirm':
@@ -634,11 +634,45 @@ class TimeClockProvider extends ChangeNotifier {
     return true;
   }
 
-  void deleteTimeEntry(String entryId) {
-    timeEntries.removeWhere((entry) => entry.id == entryId);
-    calculateHoursWorkedThisWeek();
-    notifyListeners();
-    saveData();
+  Future<void> deleteTimeEntry(String id) async {
+    try {
+      // Delete from Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser?.uid)
+          .collection('timeEntries')
+          .doc(id)
+          .delete();
+
+      // Show a success message (optional)
+      if (context != null) {
+        ScaffoldMessenger.of(context!).showSnackBar(
+          SnackBar(
+            content: Text(translate('timeEntryDeleted')),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+
+      // The StreamBuilder will automatically update the UI
+    } catch (e) {
+      print('Error deleting time entry: $e');
+      // Show error message (optional)
+      if (context != null) {
+        ScaffoldMessenger.of(context!).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String formatTimeOfDay(TimeOfDay tod) {
@@ -860,7 +894,7 @@ class TimeClockProvider extends ChangeNotifier {
         startDate = DateTime(now.year, now.month, now.day);
         break;
       case 'Week':
-        startDate = now.subtract(Duration(days: now.weekday - 1));
+        startDate = now.subtract(const Duration(days: 7));
         break;
       case 'Month':
         startDate = DateTime(now.year, now.month, 1);
@@ -1220,5 +1254,99 @@ class TimeClockProvider extends ChangeNotifier {
     final dates = timeEntries.map((entry) => entry.date).toSet().toList();
     dates.sort((a, b) => b.compareTo(a)); // Sort descending (newest first)
     return dates;
+  }
+
+  // Update the getTimeEntriesStream method to use Firestore directly
+  Stream<List<TimeEntry>> getTimeEntriesStream() {
+    if (_databaseService == null) {
+      // Return an empty stream if no database service
+      return Stream.value(timeEntries);
+    }
+
+    // Use FirebaseFirestore directly instead of trying to use _databaseService.collection
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(FirebaseAuth.instance.currentUser?.uid)
+        .collection('timeEntries')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            return TimeEntry(
+              id: data['id'],
+              jobId: data['jobId'],
+              jobName: data['jobName'],
+              jobColor: Color(data['jobColor']),
+              clockInTime: DateTime.parse(data['clockInTime']),
+              clockOutTime: DateTime.parse(data['clockOutTime']),
+              duration: Duration(minutes: data['duration']),
+              description: data['description'],
+            );
+          }).toList();
+        });
+  }
+
+  // Update the updateTimeEntriesWithoutNotifying method to properly calculate hours
+  void updateTimeEntriesWithoutNotifying(List<TimeEntry> entries) {
+    timeEntries = entries;
+
+    // Calculate hours for the selected period
+    final now = DateTime.now();
+    DateTime startDate;
+
+    switch (selectedPeriod) {
+      case 'Day':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Week':
+        startDate = now.subtract(const Duration(days: 7));
+        break;
+      case 'Month':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      default:
+        startDate = DateTime(now.year, now.month, now.day);
+    }
+
+    int totalMinutes = 0;
+    for (var entry in timeEntries) {
+      if (entry.clockInTime.isAfter(startDate)) {
+        totalMinutes += entry.duration.inMinutes;
+      }
+    }
+
+    hoursWorkedThisWeek = totalMinutes ~/ 60;
+    // No notifyListeners() call here
+  }
+
+  // Update recalculateAllHours to remove the notifyListeners call
+  void recalculateAllHours() {
+    // Calculate hours for the selected period
+    final now = DateTime.now();
+    DateTime startDate;
+
+    switch (selectedPeriod) {
+      case 'Day':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Week':
+        startDate = now.subtract(const Duration(days: 7));
+        break;
+      case 'Month':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      default:
+        startDate = DateTime(now.year, now.month, now.day);
+    }
+
+    int totalMinutes = 0;
+    for (var entry in timeEntries) {
+      if (entry.clockInTime.isAfter(startDate)) {
+        totalMinutes += entry.duration.inMinutes;
+      }
+    }
+
+    hoursWorkedThisWeek = totalMinutes ~/ 60;
+    // Remove the notifyListeners() call
   }
 }
