@@ -17,111 +17,124 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Date header
-              Text(
-                provider.formatDate(DateTime.now()),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                provider.translate('hoursWorked'),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
+        child: StreamBuilder<List<TimeEntry>>(
+          stream: provider.getTimeEntriesStream(),
+          builder: (context, snapshot) {
+            // When the stream updates, update the timeEntries list without notifying
+            if (snapshot.hasData) {
+              // Update the entries without triggering a rebuild
+              provider.updateTimeEntriesWithoutNotifying(snapshot.data!);
+            }
 
-              // Period selector
-              Row(
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPeriodSelector(
-                    provider.translate('today'),
-                    provider.selectedPeriod == 'Day',
-                    provider,
-                    context,
-                  ),
-                  _buildPeriodSelector(
-                    provider.translate('week'),
-                    provider.selectedPeriod == 'Week',
-                    provider,
-                    context,
-                  ),
-                  _buildPeriodSelector(
-                    provider.translate('month'),
-                    provider.selectedPeriod == 'Month',
-                    provider,
-                    context,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // Hours progress
-              HoursProgress(
-                hoursWorked: provider.getHoursWorkedForSelectedJob(),
-                targetHours: calculatePeriodTarget(
-                  provider.selectedPeriod,
-                  provider.targetHours,
-                ),
-                period: provider.selectedPeriod,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Job selector
-              _buildJobSelector(provider, context),
-
-              const SizedBox(height: 16),
-
-              // Clock in/out section with integrated break button
-              ClockButton(
-                isClockedIn: provider.isClockedIn,
-                isOnBreak: provider.isOnBreak,
-                selectedJob: provider.selectedJob,
-                onPressed:
-                    provider.isClockedIn ? provider.clockOut : provider.clockIn,
-                onBreakPressed: provider.toggleBreak,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Recent time entries
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                  // Date header
                   Text(
-                    provider.translate('recentEntries'),
+                    provider.formatDate(DateTime.now()),
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    provider.translate('hoursWorked'),
+                    style: const TextStyle(
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      // Navigate to the history tab (index 2)
-                      provider.setSelectedTabIndex(2);
-                    },
-                    child: Text(provider.translate('viewAll')),
+                  const SizedBox(height: 8),
+
+                  // Period selector
+                  Row(
+                    children: [
+                      _buildPeriodSelector(
+                        provider.translate('today'),
+                        provider.selectedPeriod == 'Day',
+                        provider,
+                        context,
+                      ),
+                      _buildPeriodSelector(
+                        provider.translate('week'),
+                        provider.selectedPeriod == 'Week',
+                        provider,
+                        context,
+                      ),
+                      _buildPeriodSelector(
+                        provider.translate('month'),
+                        provider.selectedPeriod == 'Month',
+                        provider,
+                        context,
+                      ),
+                    ],
                   ),
+
+                  const SizedBox(height: 24),
+
+                  // Hours progress
+                  HoursProgress(
+                    hoursWorked: provider.getHoursWorkedForSelectedJob(),
+                    targetHours: calculatePeriodTarget(
+                      provider.selectedPeriod,
+                      provider.targetHours,
+                    ),
+                    period: provider.selectedPeriod,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Job selector
+                  _buildJobSelector(provider, context),
+
+                  const SizedBox(height: 16),
+
+                  // Clock in/out section with integrated break button
+                  ClockButton(
+                    isClockedIn: provider.isClockedIn,
+                    isOnBreak: provider.isOnBreak,
+                    selectedJob: provider.selectedJob,
+                    onPressed:
+                        provider.isClockedIn
+                            ? provider.clockOut
+                            : provider.clockIn,
+                    onBreakPressed: provider.toggleBreak,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Recent time entries
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        provider.translate('recentEntries'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // Navigate to the history tab (index 2)
+                          provider.setSelectedTabIndex(2);
+                        },
+                        child: Text(provider.translate('viewAll')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...provider.timeEntries
+                      .take(3)
+                      .map((entry) => _buildRecentEntry(entry, provider))
+                      .toList(),
                 ],
               ),
-              const SizedBox(height: 8),
-              ...provider.timeEntries
-                  .take(3)
-                  .map((entry) => _buildRecentEntry(entry, provider))
-                  .toList(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

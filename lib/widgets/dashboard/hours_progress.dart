@@ -19,8 +19,50 @@ class HoursProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeClockProvider>(context);
-    final jobHours = provider.getHoursWorkedByJob();
-    final totalHours = jobHours.values.fold(0, (sum, hours) => sum + hours);
+
+    // Calculate job hours directly from the time entries
+    final now = DateTime.now();
+    DateTime startDate;
+
+    switch (period) {
+      case 'Day':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Week':
+        startDate = now.subtract(const Duration(days: 7));
+        break;
+      case 'Month':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      default:
+        startDate = DateTime(now.year, now.month, now.day);
+    }
+
+    // Calculate hours by job for the selected period
+    final Map<String, int> jobHours = {};
+    int totalMinutes = 0;
+
+    for (var entry in provider.timeEntries) {
+      if (entry.clockInTime.isAfter(startDate)) {
+        // Add to job-specific hours
+        if (!jobHours.containsKey(entry.jobId)) {
+          jobHours[entry.jobId] = 0;
+        }
+        jobHours[entry.jobId] =
+            jobHours[entry.jobId]! + entry.duration.inMinutes;
+
+        // Add to total minutes
+        totalMinutes += entry.duration.inMinutes;
+      }
+    }
+
+    // Convert minutes to hours
+    final totalHours = totalMinutes ~/ 60;
+
+    // Convert job minutes to hours
+    final jobHoursConverted = Map<String, int>.fromEntries(
+      jobHours.entries.map((e) => MapEntry(e.key, e.value ~/ 60)),
+    );
 
     // For the main progress indicator, use total hours
     final mainProgress = (totalHours / targetHours).clamp(0.0, 1.0);
@@ -28,7 +70,7 @@ class HoursProgress extends StatelessWidget {
     // Create a list of jobs with their hours and percentages
     final jobsWithPercentages =
         provider.jobs.map((job) {
-          final hours = jobHours[job.id] ?? 0;
+          final hours = jobHoursConverted[job.id] ?? 0;
           final percentage = totalHours > 0 ? hours / totalHours : 0.0;
           return {'job': job, 'hours': hours, 'percentage': percentage};
         }).toList();
