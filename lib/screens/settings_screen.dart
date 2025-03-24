@@ -153,7 +153,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(height: 2, thickness: 2),
+                        child: Divider(height: 2, thickness: 1.2),
                       ),
                       ListTile(
                         title: Text(provider.translate('privacyPolicy')),
@@ -164,7 +164,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Divider(height: 2, thickness: 2),
+                        child: const Divider(height: 2, thickness: 1.2),
                       ),
                       ListTile(
                         title: Text(provider.translate('termsOfService')),
@@ -257,7 +257,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 2),
+                child: const Divider(height: 2, thickness: 1.2),
               ),
               ListTile(
                 title: Text(provider.translate('systemDefault')),
@@ -332,7 +332,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 2),
+                child: const Divider(height: 2, thickness: 1.2),
               ),
               ListTile(
                 title: Text(provider.translate('english')),

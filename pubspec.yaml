@@ -97,5 +97,6 @@ flutter:
 
   assets:
     - .env
+    - assets/icons/
 
   generate: true

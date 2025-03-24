@@ -127,10 +127,7 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  ...provider.timeEntries
-                      .take(3)
-                      .map((entry) => _buildRecentEntry(entry, provider))
-                      .toList(),
+                  _buildRecentEntries(context, provider),
                 ],
               ),
             );
@@ -457,6 +454,40 @@ class HomeScreen extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _buildRecentEntries(BuildContext context, TimeClockProvider provider) {
+    // Get the most recent entries (limit to 3)
+    final recentEntries =
+        provider.timeEntries
+            .where(
+              (entry) => entry.clockOutTime != null,
+            ) // Ensure completed entries
+            .toList();
+
+    // Sort by most recent first
+    recentEntries.sort((a, b) => b.clockOutTime.compareTo(a.clockOutTime));
+
+    final entriesToShow = recentEntries.take(3).toList();
+
+    if (entriesToShow.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            provider.translate('noEntries'),
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children:
+          entriesToShow
+              .map((entry) => _buildRecentEntry(entry, provider))
+              .toList(),
     );
   }
 

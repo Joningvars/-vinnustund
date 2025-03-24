@@ -315,9 +315,13 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   void clockOut() {
-    if (context == null) return;
+    if (!isClockedIn || context == null) return;
 
-    // Show description dialog before completing clock out
+    // Set clockOutTime but don't reset state yet
+    clockOutTime = DateTime.now();
+    _timer?.cancel();
+
+    // Show description dialog
     showWorkDescriptionDialog(context!);
   }
 
@@ -412,6 +416,14 @@ class TimeClockProvider extends ChangeNotifier {
                     TextButton(
                       onPressed: () {
                         HapticFeedback.lightImpact();
+
+                        // Reset clock state without saving
+                        isClockedIn = false;
+                        clockInTime = null;
+                        clockOutTime = null;
+                        breakStartTime = null;
+                        notifyListeners();
+
                         Navigator.of(context).pop();
                       },
                       child: Text(
@@ -425,7 +437,39 @@ class TimeClockProvider extends ChangeNotifier {
                     ElevatedButton(
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        completeClockOut(descriptionController.text);
+
+                        // Create the time entry with description
+                        final entry = TimeEntry(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          jobId: selectedJob!.id,
+                          jobName: selectedJob!.name,
+                          jobColor: selectedJob!.color,
+                          clockInTime: clockInTime!,
+                          clockOutTime: clockOutTime!,
+                          duration: clockOutTime!.difference(clockInTime!),
+                          description: descriptionController.text,
+                          date: DateFormat('yyyy-MM-dd').format(clockInTime!),
+                        );
+
+                        // Add to local list
+                        timeEntries.add(entry);
+
+                        // Save to Firebase
+                        saveTimeEntryToFirebase(entry);
+
+                        // Reset clock state
+                        isClockedIn = false;
+                        isOnBreak = false;
+                        clockInTime = null;
+                        clockOutTime = null;
+                        breakStartTime = null;
+
+                        // Update calculations
+                        calculateHoursWorkedThisWeek();
+
+                        // Notify listeners
+                        notifyListeners();
+
                         Navigator.of(context).pop();
                       },
                       style: ElevatedButton.styleFrom(
@@ -1348,5 +1392,36 @@ class TimeClockProvider extends ChangeNotifier {
 
     hoursWorkedThisWeek = totalMinutes ~/ 60;
     // Remove the notifyListeners() call
+  }
+
+  // Add this method to directly save a time entry to Firebase
+  Future<void> saveTimeEntryToFirebase(TimeEntry entry) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print('Cannot save time entry: User not authenticated');
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('timeEntries')
+          .doc(entry.id)
+          .set({
+            'id': entry.id,
+            'jobId': entry.jobId,
+            'jobName': entry.jobName,
+            'jobColor': entry.jobColor.value,
+            'clockInTime': entry.clockInTime.toIso8601String(),
+            'clockOutTime': entry.clockOutTime.toIso8601String(),
+            'duration': entry.duration.inMinutes,
+            'description': entry.description ?? '',
+            'date': entry.date,
+          });
+      print('Time entry saved to Firebase successfully: ${entry.id}');
+    } catch (e) {
+      print('Error saving time entry to Firebase: $e');
+    }
   }
 }
