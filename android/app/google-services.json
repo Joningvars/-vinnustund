@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "960328995224",
-    "project_id": "vinnustund-23c45",
-    "storage_bucket": "vinnustund-23c45.firebasestorage.app"
+    "project_number": "824971521193",
+    "project_id": "timagatt",
+    "storage_bucket": "timagatt.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:960328995224:android:77b6961164bf41f017dbed",
+        "mobilesdk_app_id": "1:824971521193:android:862309ab84319b90e30db8",
         "android_client_info": {
           "package_name": "com.example.time_clock"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCRhbyf5gCFWw02z9AuTsSnvmjSLVMZs9A"
+          "current_key": "AIzaSyC8zwAnXgcDUeurpuYxadWu5LYhekh_8U4"
         }
       ],
       "services": {
