@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
-import 'package:time_clock/screens/auth/login_screen.dart';
-import 'package:time_clock/services/auth_service.dart';
+import 'package:timagatt/screens/auth/login_screen.dart';
+import 'package:timagatt/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatelessWidget {

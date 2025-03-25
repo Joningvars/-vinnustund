@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:time_clock/utils/image_paths.dart';
+import 'package:timagatt/utils/image_paths.dart';
 
 class AppLogo extends StatelessWidget {
   final double size;

@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/material.dart';
 
 class AuthService {

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 
 class ClockDisplay extends StatefulWidget {
   const ClockDisplay({super.key});

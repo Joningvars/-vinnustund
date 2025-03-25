@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:time_clock/models/job.dart';
-import 'package:time_clock/models/time_entry.dart';
-import 'package:time_clock/widgets/clock/clock_button.dart';
-import 'package:time_clock/widgets/dashboard/hours_progress.dart';
+import 'package:timagatt/models/job.dart';
+import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/widgets/clock/clock_button.dart';
+import 'package:timagatt/widgets/dashboard/hours_progress.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
 
 class HomeScreen extends StatelessWidget {

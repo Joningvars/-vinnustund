@@ -3,15 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
-import 'package:time_clock/models/job.dart';
-import 'package:time_clock/models/time_entry.dart';
+import 'package:timagatt/models/job.dart';
+import 'package:timagatt/models/time_entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:time_clock/services/database_service.dart';
+import 'package:timagatt/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:time_clock/localization/app_localizations.dart';
+import 'package:timagatt/localization/app_localizations.dart';
 
 // Add this global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -247,7 +247,7 @@ class TimeClockProvider extends ChangeNotifier {
       'developer': 'Þróunaraðili',
       'date': 'Dagsetning',
       'filterByJob': 'Sía eftir starfi',
-      'allJobs': 'Öll störf',
+      'allJobs': 'Sjá allt',
       'year': 'Ár',
       'selectDate': 'Veldu dagsetningu',
       'allDates': 'Allar dagsetningar',
