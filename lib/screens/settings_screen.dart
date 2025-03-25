@@ -7,6 +7,7 @@ import 'package:timagatt/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/main.dart';
+import 'package:timagatt/utils/routes.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -372,16 +373,21 @@ class SettingsScreen extends StatelessWidget {
 
   void _resetOnboarding(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboardingComplete', false);
+    await prefs.setBool('showOnboarding', true);
 
+    // Show confirmation
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Onboarding reset. Restart the app to see it.'),
+        content: Text(
+          'Onboarding reset. You will see it next time you restart the app.',
+        ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
       ),
     );
+
+    // Important: Don't log out or navigate away - just set the flag
   }
 
   void _signOut(BuildContext context) async {

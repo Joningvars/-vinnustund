@@ -5,6 +5,8 @@ import 'package:timagatt/screens/auth/register_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/widgets/app_logo.dart';
 
+import '../../utils/routes.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 

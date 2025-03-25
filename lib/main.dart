@@ -17,6 +17,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:timagatt/screens/auth/login_screen.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/utils/routes.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,18 +25,6 @@ import 'package:timagatt/screens/onboarding_screen.dart';
 import 'package:timagatt/localization/app_localizations.dart';
 import 'package:timagatt/screens/splash_screen.dart';
 import 'package:timagatt/screens/time_clock_screen.dart';
-
-// Define route names as constants
-class Routes {
-  static const splash = '/splash';
-  static const onboarding = '/onboarding';
-  static const login = '/login';
-  static const main = '/main';
-  static const home = '/home';
-  static const addTime = '/add-time';
-  static const history = '/history';
-  static const settings = '/settings';
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -172,7 +161,6 @@ class MyApp extends StatelessWidget {
         if (settings.name == Routes.main) {
           // Force home tab when navigating to main screen
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            provider.selectedTabIndex = 0;
             provider.notifyListeners();
           });
           return MaterialPageRoute(builder: (_) => const TimeClockScreen());
@@ -192,7 +180,6 @@ class TimeClockScreen extends StatefulWidget {
 
 class _TimeClockScreenState extends State<TimeClockScreen>
     with SingleTickerProviderStateMixin {
-  int _selectedIndex = 0;
   bool isClockedIn = false;
   bool isOnBreak = false;
   DateTime? clockInTime;
@@ -280,12 +267,6 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     _animationController.dispose();
     _timer?.cancel();
     super.dispose();
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   void clockIn() {
