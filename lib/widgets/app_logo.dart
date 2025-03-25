@@ -9,6 +9,8 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -16,12 +18,17 @@ class AppLogo extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            color:
+                isDarkMode
+                    ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.1)
+                    : Theme.of(
+                      context,
+                    ).colorScheme.onSecondary.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
           child: Stack(
             alignment: Alignment.center,
-            children: [Image.asset(logo)],
+            children: [isDarkMode ? Image.asset(logoDark) : Image.asset(logo)],
           ),
         ),
         if (showText) ...[
@@ -31,7 +38,10 @@ class AppLogo extends StatelessWidget {
             style: TextStyle(
               fontSize: size * 0.4,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
+              color:
+                  isDarkMode
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : Theme.of(context).colorScheme.primary,
             ),
           ),
         ],

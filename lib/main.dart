@@ -25,6 +25,8 @@ import 'package:timagatt/screens/onboarding_screen.dart';
 import 'package:timagatt/localization/app_localizations.dart';
 import 'package:timagatt/screens/splash_screen.dart';
 import 'package:timagatt/screens/time_clock_screen.dart';
+import 'package:timagatt/utils/theme/darkmode.dart';
+import 'package:timagatt/utils/theme/lightmode.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,66 +67,9 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Tímagátt',
-      // Restore your former theme data with Google Fonts
-      theme: ThemeData(
-        textTheme: GoogleFonts.comfortaaTextTheme(),
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        cardTheme: CardTheme(
-          elevation: 0,
-          color: Colors.grey.shade50,
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          titleTextStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      darkTheme: ThemeData.dark().copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.grey.shade900,
-        textTheme: GoogleFonts.comfortaaTextTheme(ThemeData.dark().textTheme),
-        cardTheme: CardTheme(
-          elevation: 0,
-          color: Colors.grey.shade300,
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.grey.shade700,
-          hintStyle: TextStyle(color: Colors.grey.shade400),
-          labelStyle: TextStyle(color: Colors.grey.shade300),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade600),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade600),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.lightBlueAccent),
-          ),
-        ),
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: lightTheme,
+      darkTheme: darkTheme,
       themeMode: provider.themeMode,
       navigatorKey: navigatorKey,
 

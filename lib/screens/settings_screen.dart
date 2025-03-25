@@ -156,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(height: 2, thickness: 1.2),
+                        child: Divider(height: 2, thickness: 0.5),
                       ),
                       ListTile(
                         title: Text(provider.translate('privacyPolicy')),
@@ -167,7 +167,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Divider(height: 2, thickness: 1.2),
+                        child: const Divider(height: 2, thickness: 0.5),
                       ),
                       ListTile(
                         title: Text(provider.translate('termsOfService')),
@@ -194,24 +194,7 @@ class SettingsScreen extends StatelessWidget {
                     },
                   ),
                 ),
-
-                // Add this in the build method, near the bottom of your settings list
-                _buildSectionHeader(provider.translate('developer')),
                 const SizedBox(height: 8),
-
-                // Reset onboarding button
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: ListTile(
-                    title: Text('Reset Onboarding'),
-                    subtitle: Text('Show the onboarding screens again'),
-                    trailing: const Icon(Icons.refresh),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      _resetOnboarding(context);
-                    },
-                  ),
-                ),
               ],
             ),
           ),
@@ -260,7 +243,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 1.2),
+                child: const Divider(height: 2, thickness: 0.5),
               ),
               ListTile(
                 title: Text(provider.translate('systemDefault')),
@@ -335,7 +318,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 1.2),
+                child: const Divider(height: 2, thickness: 0.5),
               ),
               ListTile(
                 title: Text(provider.translate('english')),

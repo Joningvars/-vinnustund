@@ -42,9 +42,6 @@ class HoursProgress extends StatelessWidget {
     final Map<String, int> jobHours = {};
     int totalMinutes = 0;
 
-    // Debug the time entries
-    print('Building HoursProgress with ${provider.timeEntries.length} entries');
-
     for (var entry in provider.timeEntries) {
       if (entry.clockInTime.isAfter(startDate)) {
         // Add to job-specific hours
@@ -56,11 +53,6 @@ class HoursProgress extends StatelessWidget {
 
         // Add to total minutes
         totalMinutes += entry.duration.inMinutes;
-
-        // Debug each entry
-        print(
-          'Entry: ${entry.jobName}, Duration: ${entry.duration.inMinutes} minutes',
-        );
       }
     }
 

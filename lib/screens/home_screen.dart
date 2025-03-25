@@ -14,6 +14,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeClockProvider>(context);
+    // Add a recovery mechanism
+    if (provider.timeEntries.isEmpty && !provider.isRecoveryAttempted) {
+      // Try to recover entries from Firebase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        provider.mergeTimeEntries();
+        provider.isRecoveryAttempted = true;
+      });
+    }
 
     // Add a recovery mechanism
     if (provider.timeEntries.isEmpty && !provider.isRecoveryAttempted) {
@@ -103,14 +111,17 @@ class HomeScreen extends StatelessWidget {
 
                   // Clock in/out section with integrated break button
                   ClockButton(
+                    onBreakPressed: provider.toggleBreak,
                     isClockedIn: provider.isClockedIn,
                     isOnBreak: provider.isOnBreak,
                     selectedJob: provider.selectedJob,
-                    onPressed:
-                        provider.isClockedIn
-                            ? provider.clockOut
-                            : provider.clockIn,
-                    onBreakPressed: provider.toggleBreak,
+                    onPressed: () {
+                      if (provider.isClockedIn) {
+                        provider.clockOut();
+                      } else {
+                        provider.clockIn();
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -152,6 +163,7 @@ class HomeScreen extends StatelessWidget {
     TimeClockProvider provider,
     BuildContext context,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -188,6 +200,8 @@ class HomeScreen extends StatelessWidget {
               color:
                   isSelected
                       ? Theme.of(context).colorScheme.primary
+                      : isDarkMode
+                      ? Colors.grey.shade300
                       : Colors.grey.shade700,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -199,6 +213,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildJobSelector(TimeClockProvider provider, BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -261,17 +276,29 @@ class HomeScreen extends StatelessWidget {
                       color:
                           isSelected
                               ? job.color.withOpacity(0.2)
+                              : isDarkMode
+                              ? Colors.grey.shade900
                               : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? job.color : Colors.grey.shade300,
+                        color:
+                            isSelected
+                                ? job.color
+                                : isDarkMode
+                                ? Colors.grey.shade700
+                                : Colors.grey.shade300,
                         width: 1,
                       ),
                     ),
                     child: AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 300),
                       style: TextStyle(
-                        color: isSelected ? job.color : Colors.grey.shade700,
+                        color:
+                            isSelected
+                                ? job.color
+                                : isDarkMode
+                                ? Colors.grey.shade100
+                                : Colors.grey.shade700,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
                       ),

@@ -24,7 +24,7 @@ class TimeClockProvider extends ChangeNotifier {
   DateTime? clockOutTime;
   DateTime? breakStartTime;
   Timer? _timer;
-  bool isComingFromLogin = true;
+  bool isComingFromLogin = false;
   TimeOfDay startTime = TimeOfDay(hour: 9, minute: 0);
   TimeOfDay endTime = TimeOfDay(hour: 17, minute: 0);
 
@@ -148,6 +148,37 @@ class TimeClockProvider extends ChangeNotifier {
       'year': 'Year',
       'selectDate': 'Select Date',
       'allDates': 'All Dates',
+      'welcomeBack': 'Welcome Back',
+      'loginToContinue': 'Login to continue using the app',
+      'email': 'Email',
+      'password': 'Password',
+      'login': 'Login',
+      'emailRequired': 'Email is required',
+      'passwordRequired': 'Password is required',
+      'invalidEmail': 'Please enter a valid email address',
+      'userDisabled': 'This user account has been disabled',
+      'userNotFound': 'No user found with this email',
+      'wrongPassword': 'Incorrect password',
+      'invalidCredentials': 'Invalid email or password',
+      'tooManyRequests': 'Too many login attempts. Please try again later',
+      'networkError': 'Network error. Please check your connection',
+      'loginError': 'Login error',
+      'unknownError': 'An unknown error occurred',
+      'register': 'Sign up',
+      'forgotPassword': 'Forgot Password?',
+      'enterName': 'Enter name',
+      'enterEmail': 'Enter email',
+      'enterPassword': 'Enter password',
+      'confirmPassword': 'Confirm password',
+      'passwordsDoNotMatch': 'Passwords do not match',
+      'passwordResetEmailSent': 'Password reset email sent',
+      'passwordTooShort': 'Password must be at least 6 characters',
+      'sendResetEmail': 'Send',
+      'error': 'Error',
+      'name': 'Name',
+      'resetPasswordDescription':
+          'Enter your email to receive a password reset link',
+      'resetPassword': 'Reset Password',
     },
     'is': {
       'home': 'Heim',
@@ -251,6 +282,38 @@ class TimeClockProvider extends ChangeNotifier {
       'year': 'Ár',
       'selectDate': 'Veldu dagsetningu',
       'allDates': 'Allar dagsetningar',
+      'welcomeBack': 'Velkomin/n aftur',
+      'loginToContinue': 'Skráðu þig inn til að halda áfram',
+      'email': 'Netfang',
+      'password': 'Lykilorð',
+      'login': 'Innskráning',
+      'emailRequired': 'Netfang er nauðsynlegt',
+      'passwordRequired': 'Lykilorð er nauðsynlegt',
+      'invalidEmail': 'Vinsamlegast sláðu inn gilt netfang',
+      'userDisabled': 'Þessi notandareikningur hefur verið gerður óvirkur',
+      'userNotFound': 'Enginn notandi fannst með þessu netfangi',
+      'wrongPassword': 'Rangt lykilorð',
+      'invalidCredentials': 'Ógilt netfang eða lykilorð',
+      'tooManyRequests':
+          'Of margar innskráningartilraunir. Vinsamlegast reyndu aftur síðar',
+      'networkError': 'Netvilla. Athugaðu nettenginguna þína',
+      'loginError': 'Innskráningarvilla',
+      'unknownError': 'Óþekkt villa kom upp',
+      'register': 'Stofna aðgang',
+      'forgotPassword': 'Gleymt lykilorð?',
+      'enterName': 'Sláðu inn nafn',
+      'enterEmail': 'Sláðu inn netfang',
+      'enterPassword': 'Sláðu inn lykilorð',
+      'confirmPassword': 'Staðfesta lykilorð',
+      'passwordsDoNotMatch': 'Lykilorðin passa ekki',
+      'passwordResetEmailSent': 'Tölvupóstur með lykilorðsstillingu sendur',
+      'passwordTooShort': 'Lykilorð verður að vera minnst 6 stafir',
+      'sendResetEmail': 'Senda',
+      'error': 'Villa',
+      'name': 'Nafn',
+      'resetPasswordDescription':
+          'Sláðu inn netfangið þitt til að fá lykilorðsstillingu',
+      'resetPassword': 'Endursetja lykilorð',
     },
   };
 

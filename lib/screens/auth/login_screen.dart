@@ -4,7 +4,9 @@ import 'package:timagatt/services/auth_service.dart';
 import 'package:timagatt/screens/auth/register_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/widgets/app_logo.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import '../../utils/routes.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,7 +26,8 @@ class _LoginScreenState extends State<LoginScreen>
   String _email = '';
   String _password = '';
   bool _isLoading = false;
-  String _errorMessage = '';
+  String? _errorMessage;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -48,312 +51,281 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _login() async {
-    if (_formKey.currentState!.validate()) {
-      // Dismiss keyboard
-      FocusScope.of(context).unfocus();
+  // Map Firebase error codes to user-friendly messages
+  String _getErrorMessage(FirebaseAuthException e) {
+    final provider = Provider.of<TimeClockProvider>(context, listen: false);
 
+    switch (e.code) {
+      case 'invalid-email':
+        return provider.translate('invalidEmail');
+      case 'user-disabled':
+        return provider.translate('userDisabled');
+      case 'user-not-found':
+        return provider.translate('userNotFound');
+      case 'wrong-password':
+        return provider.translate('wrongPassword');
+      case 'invalid-credential':
+        return provider.translate('invalidCredentials');
+      case 'too-many-requests':
+        return provider.translate('tooManyRequests');
+      case 'network-request-failed':
+        return provider.translate('networkError');
+      default:
+        return provider.translate('loginError') + ': ' + e.message!;
+    }
+  }
+
+  Future<void> _signIn() async {
+    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+
+    // Validate form
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Sign in with email and password
+      final userCredential = await _authService.signInWithEmailAndPassword(
+        _email,
+        _password,
+      );
+
+      // Set flag to indicate coming from login
+      provider.isComingFromLogin = true;
+
+      if (mounted) {
+        // Navigate to the main screen using named route
+        Navigator.of(context).pushReplacementNamed(Routes.main);
+      }
+    } on FirebaseAuthException catch (e) {
       setState(() {
-        _isLoading = true;
-        _errorMessage = '';
+        _errorMessage = _getErrorMessage(e);
       });
 
-      try {
-        // Sign in with email and password
-        final userCredential = await _authService.signInWithEmailAndPassword(
-          _email,
-          _password,
+      // Show error in snackbar with haptic feedback
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage!),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+          ),
         );
-
-        print('Login successful, user: ${userCredential.user?.uid}');
-
-        if (mounted) {
-          // Navigate to the main screen using named route
-          Navigator.of(context).pushReplacementNamed(Routes.main);
-        }
-      } catch (e) {
-        print('Login error: $e');
-
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = provider.translate('unknownError');
+      });
+    } finally {
+      if (mounted) {
         setState(() {
-          _errorMessage =
-              e.toString().contains('user-not-found')
-                  ? 'No user found with this email'
-                  : e.toString().contains('wrong-password')
-                  ? 'Wrong password'
-                  : 'Login failed: ${e.toString()}';
+          _isLoading = false;
         });
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-      },
-      child: Scaffold(
-        body: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 100),
+    final provider = Provider.of<TimeClockProvider>(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-                      // Logo with animation
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0.0, end: 1.0),
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.elasticOut,
-                        builder: (context, value, child) {
-                          return Transform.scale(
-                            scale: value,
-                            child: const AppLogo(size: 80),
-                          );
+    return Scaffold(
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  const AppLogo(size: 80),
+                  const SizedBox(height: 40),
+
+                  Text(
+                    provider.translate('welcomeBack'),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+
+                  Text(
+                    provider.translate('loginToContinue'),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color:
+                          isDarkMode
+                              ? Colors.grey.shade300
+                              : Colors.grey.shade700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Email field
+                  TextFormField(
+                    controller: null,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: provider.translate('email'),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return provider.translate('emailRequired');
+                      }
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
+                        return provider.translate('invalidEmail');
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _email = value.trim(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password field
+                  TextFormField(
+                    controller: null,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: provider.translate('password'),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
                         },
                       ),
-                      const SizedBox(height: 48),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return provider.translate('passwordRequired');
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _password = value,
+                  ),
+                  const SizedBox(height: 24),
 
-                      // Email field with animation
-                      SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.2),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.2,
-                              0.6,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                        ),
-                        child: FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.2,
-                              0.6,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.email),
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!value.contains('@')) {
-                                return 'Please enter a valid email';
-                              }
-                              return null;
-                            },
-                            onChanged: (value) => _email = value.trim(),
-                          ),
+                  // Error message
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                    ),
 
-                      // Password field with animation
-                      SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.2),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.3,
-                              0.7,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                        ),
-                        child: FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.3,
-                              0.7,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                          child: TextFormField(
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.lock),
-                            ),
-                            obscureText: true,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              return null;
-                            },
-                            onChanged: (value) => _password = value,
-                          ),
+                  // Login button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 60,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _signIn,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-
-                      if (_errorMessage.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage,
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-
-                      // Login button with animation
-                      SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.2),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.4,
-                              0.8,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                        ),
-                        child: FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.4,
-                              0.8,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primary,
-                              foregroundColor:
-                                  Theme.of(context).colorScheme.onPrimary,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child:
-                                _isLoading
-                                    ? const CircularProgressIndicator()
-                                    : const Text(
-                                      'Login',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Register button with animation
-                      SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.2),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.5,
-                              0.9,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                        ),
-                        child: FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.5,
-                              0.9,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const RegisterScreen(),
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator()
+                              : Text(
+                                provider.translate('login'),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                            },
-                            child: const Text(
-                              'Don\'t have an account? Register',
-                            ),
-                          ),
-                        ),
-                      ),
+                              ),
+                    ),
+                  ),
 
-                      // Forgot password button with animation
-                      SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.2),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.6,
-                              1.0,
-                              curve: Curves.easeOut,
+                  const SizedBox(height: 24),
+
+                  // Register link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
                             ),
-                          ),
-                        ),
-                        child: FadeTransition(
-                          opacity: CurvedAnimation(
-                            parent: _animationController,
-                            curve: const Interval(
-                              0.6,
-                              1.0,
-                              curve: Curves.easeOut,
-                            ),
-                          ),
-                          child: TextButton(
-                            onPressed: () {
-                              _showResetPasswordDialog();
-                            },
-                            child: const Text('Forgot Password?'),
+                          );
+                        },
+                        child: Text(
+                          provider.translate('register'),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
+
+                  // Forgot password link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: TextButton(
+                          onPressed: () {
+                            _showResetPasswordDialog(provider);
+                          },
+                          child: Text(
+                            provider.translate('forgotPassword'),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -362,168 +334,171 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _showResetPasswordDialog() {
+  void _showResetPasswordDialog(TimeClockProvider provider) {
     String resetEmail = '';
     final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with icon
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.lock_reset,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    provider.translate('resetPassword'),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    provider.translate('resetPasswordDescription'),
+                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: provider.translate('email'),
+                      hintText: provider.translate('enterEmail'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      prefixIcon: const Icon(Icons.email),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return provider.translate('enterEmail');
+                      }
+                      if (!value.contains('@')) {
+                        return provider.translate('invalidEmail');
+                      }
+                      return null;
+                    },
+                    onChanged: (value) {
+                      resetEmail = value.trim();
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: Text(
+                          provider.translate('cancel'),
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (formKey.currentState!.validate()) {
+                            try {
+                              await _authService.resetPassword(resetEmail);
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    provider.translate(
+                                      'passwordResetEmailSent',
+                                    ),
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  margin: const EdgeInsets.all(16),
+                                ),
+                              );
+                            } catch (e) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    provider.translate('error') +
+                                        ': ${e.toString()}',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  margin: const EdgeInsets.all(16),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(provider.translate('sendResetEmail')),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header with icon
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.lock_reset,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 30,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Reset Password',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Enter your email address to receive a password reset link',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade700,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        hintText: 'Enter your email',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.email),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                      onChanged: (value) {
-                        resetEmail = value.trim();
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () async {
-                            if (formKey.currentState!.validate()) {
-                              try {
-                                await _authService.resetPassword(resetEmail);
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Password reset email sent',
-                                    ),
-                                    backgroundColor: Colors.green,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    margin: const EdgeInsets.all(16),
-                                  ),
-                                );
-                              } catch (e) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error: ${e.toString()}'),
-                                    backgroundColor: Colors.red,
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    margin: const EdgeInsets.all(16),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            foregroundColor:
-                                Theme.of(context).colorScheme.onPrimary,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text('Send Reset Email'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
+        );
+      },
     );
   }
 }

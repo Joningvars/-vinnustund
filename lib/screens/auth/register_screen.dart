@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:flutter/services.dart';
 
@@ -53,8 +55,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<TimeClockProvider>(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(title: Text(provider.translate('register'))),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -65,14 +68,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
+                    decoration: InputDecoration(
+                      labelText: provider.translate('name'),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
+                      prefixIcon: const Icon(Icons.person),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
+                        return provider.translate('enterName');
                       }
                       return null;
                     },
@@ -80,18 +83,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
+                    decoration: InputDecoration(
+                      labelText: provider.translate('email'),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: const Icon(Icons.email),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                        return provider.translate('enterEmail');
                       }
                       if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return provider.translate('invalidEmail');
                       }
                       return null;
                     },
@@ -99,18 +102,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
+                    decoration: InputDecoration(
+                      labelText: provider.translate('password'),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                     ),
                     obscureText: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a password';
+                        return provider.translate('enterPassword');
                       }
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return provider.translate('passwordTooShort');
                       }
                       return null;
                     },
@@ -118,18 +121,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Confirm Password',
+                    decoration: InputDecoration(
+                      labelText: provider.translate('confirmPassword'),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                     ),
                     obscureText: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
+                        return provider.translate('confirmPassword');
                       }
                       if (value != _password) {
-                        return 'Passwords do not match';
+                        return provider.translate('passwordsDoNotMatch');
                       }
                       return null;
                     },
@@ -150,6 +153,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ElevatedButton(
                     onPressed: _isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -158,9 +163,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child:
                         _isLoading
                             ? const CircularProgressIndicator()
-                            : const Text(
-                              'Register',
-                              style: TextStyle(
+                            : Text(
+                              provider.translate('register'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
