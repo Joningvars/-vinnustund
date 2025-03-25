@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/screens/home_screen.dart';
@@ -16,206 +17,102 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:timagatt/screens/auth/login_screen.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/utils/routes.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timagatt/screens/onboarding_screen.dart';
 import 'package:timagatt/localization/app_localizations.dart';
 import 'package:timagatt/screens/splash_screen.dart';
+import 'package:timagatt/screens/time_clock_screen.dart';
+import 'package:timagatt/utils/theme/darkmode.dart';
+import 'package:timagatt/utils/theme/lightmode.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize date formatting for all locales
+  await initializeDateFormatting();
+
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('Firebase initialized successfully');
-  } catch (e) {
-    print('Error initializing Firebase: $e');
-  }
+  // Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Check if onboarding is completed
+  // Check if onboarding has been completed
   final prefs = await SharedPreferences.getInstance();
-  final bool onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
+  final showOnboarding = prefs.getBool('showOnboarding') ?? true;
 
   // Create and initialize the provider
   final provider = TimeClockProvider();
   await provider.initializeApp();
 
-  // Show splash screen first
   runApp(
-    MyApp(
-      isLoading: true,
-      initialProvider: provider,
-      onboardingComplete: onboardingComplete,
-    ),
-  );
-
-  // Add a delay to keep the splash screen visible longer
-  await Future.delayed(const Duration(milliseconds: 1500));
-
-  // Then show the main app (which will handle onboarding or auth)
-  runApp(
-    MyApp(
-      isLoading: false,
-      initialProvider: provider,
-      onboardingComplete: onboardingComplete,
+    ChangeNotifierProvider.value(
+      value: provider,
+      child: MyApp(showOnboarding: showOnboarding),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final bool isLoading;
-  final TimeClockProvider? initialProvider;
-  final bool onboardingComplete;
+  final bool showOnboarding;
 
-  const MyApp({
-    super.key,
-    required this.isLoading,
-    required this.initialProvider,
-    required this.onboardingComplete,
-  });
+  const MyApp({Key? key, required this.showOnboarding}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: initialProvider,
-      child: Builder(
-        builder: (context) {
-          final provider = Provider.of<TimeClockProvider>(
-            context,
-            listen: false,
-          );
+    final provider = Provider.of<TimeClockProvider>(context);
 
-          return MaterialApp(
-            navigatorKey: navigatorKey,
-            debugShowCheckedModeBanner: false,
-            title: 'Tímagátt',
-            // Localization setup
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: const [
-              Locale('en', ''), // English
-              Locale('is', ''), // Icelandic
-            ],
-            locale: provider.locale,
+    return MaterialApp(
+      title: 'Tímagátt',
+      debugShowCheckedModeBanner: false,
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: provider.themeMode,
+      navigatorKey: navigatorKey,
 
-            // Theme configuration
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-              useMaterial3: true,
-              scaffoldBackgroundColor: Colors.white,
-              textTheme: getTextTheme(context),
-              cardTheme: CardTheme(
-                elevation: 0,
-                color: Colors.grey.shade50,
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              appBarTheme: const AppBarTheme(
-                centerTitle: false,
-                elevation: 0,
-                backgroundColor: Colors.transparent,
-                titleTextStyle: TextStyle(
-                  color: Colors.black,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            darkTheme: ThemeData.dark().copyWith(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blue,
-                brightness: Brightness.dark,
-              ),
-              useMaterial3: true,
-              scaffoldBackgroundColor: Colors.grey.shade900,
-              textTheme: getTextTheme(context).copyWith(
-                bodyMedium: TextStyle(color: Colors.grey.shade600),
-                bodyLarge: TextStyle(color: Colors.grey.shade600),
-                titleMedium: TextStyle(color: Colors.grey.shade400),
-                titleLarge: TextStyle(color: Colors.grey.shade400),
-              ),
-              cardTheme: CardTheme(
-                elevation: 0,
-                color: Colors.grey.shade300,
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Colors.grey.shade700,
-                hintStyle: TextStyle(color: Colors.grey.shade400),
-                labelStyle: TextStyle(color: Colors.grey.shade300),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey.shade600),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey.shade600),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.lightBlueAccent),
-                ),
-              ),
-            ),
-            themeMode: provider.themeMode,
+      // Add localization support
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''), // English
+        Locale('is', ''), // Icelandic
+      ],
+      locale: provider.locale,
 
-            // Determine which screen to show
-            home:
-                isLoading
-                    ? const SplashScreen()
-                    : _buildInitialScreen(onboardingComplete),
-          );
-        },
-      ),
+      // Define all routes
+      routes: {
+        Routes.splash: (context) => const SplashScreen(),
+        Routes.onboarding: (context) => const OnboardingScreen(),
+        Routes.login: (context) => const LoginScreen(),
+        Routes.main: (context) => const TimeClockScreen(),
+        Routes.home: (context) => const HomeScreen(),
+        Routes.addTime: (context) => const AddTimeScreen(),
+        Routes.history: (context) => const HistoryScreen(),
+        Routes.settings: (context) => const SettingsScreen(),
+      },
+
+      // Determine initial route
+      initialRoute: showOnboarding ? Routes.onboarding : Routes.splash,
+
+      // Handle route generation for dynamic routes
+      onGenerateRoute: (settings) {
+        if (settings.name == Routes.main) {
+          // Force home tab when navigating to main screen
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            provider.notifyListeners();
+          });
+          return MaterialPageRoute(builder: (_) => const TimeClockScreen());
+        }
+        return null;
+      },
     );
-  }
-
-  Widget _buildInitialScreen(bool onboardingComplete) {
-    if (!onboardingComplete) {
-      return const OnboardingScreen();
-    } else {
-      return StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.active) {
-            final user = snapshot.data;
-            if (user != null) {
-              return const TimeClockScreen();
-            } else {
-              return const LoginScreen();
-            }
-          }
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        },
-      );
-    }
-  }
-
-  TextTheme getTextTheme(BuildContext context) {
-    try {
-      return GoogleFonts.comfortaaTextTheme(Theme.of(context).textTheme);
-    } catch (e) {
-      print('Google Fonts error: $e');
-      return Theme.of(context).textTheme;
-    }
   }
 }
 
@@ -228,7 +125,6 @@ class TimeClockScreen extends StatefulWidget {
 
 class _TimeClockScreenState extends State<TimeClockScreen>
     with SingleTickerProviderStateMixin {
-  int _selectedIndex = 0;
   bool isClockedIn = false;
   bool isOnBreak = false;
   DateTime? clockInTime;
@@ -316,12 +212,6 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     _animationController.dispose();
     _timer?.cancel();
     super.dispose();
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   void clockIn() {

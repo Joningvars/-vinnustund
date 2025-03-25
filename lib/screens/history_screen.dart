@@ -93,6 +93,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           entries.where((entry) => entry.jobId == _selectedJobId).toList();
     }
 
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     // Calculate total hours for the filtered entries
     int totalFilteredMinutes = 0;
     for (var entry in entries) {
@@ -521,7 +523,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                 child: Text(
                                                   entry.description!,
                                                   style: TextStyle(
-                                                    color: Colors.grey[800],
+                                                    color:
+                                                        isDarkMode
+                                                            ? Colors
+                                                                .grey
+                                                                .shade500
+                                                            : Colors
+                                                                .grey
+                                                                .shade700,
                                                     fontStyle: FontStyle.italic,
                                                   ),
                                                 ),
@@ -548,7 +557,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   // Period button widget that exactly matches the home page style
   Widget _buildPeriodButton(String text, bool isSelected, VoidCallback onTap) {
-    final color = Theme.of(context).primaryColor;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final color =
+        isDarkMode
+            ? Theme.of(context).colorScheme.secondary
+            : Theme.of(context).colorScheme.secondary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -556,7 +569,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : Colors.grey.shade100,
+          color:
+              isSelected
+                  ? color.withOpacity(0.2)
+                  : isDarkMode
+                  ? Colors.grey.shade900
+                  : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? color : Colors.grey.shade300,
@@ -567,7 +585,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 300),
             style: TextStyle(
-              color: isSelected ? color : Colors.grey.shade700,
+              color:
+                  isSelected
+                      ? color
+                      : isDarkMode
+                      ? Colors.grey.shade100
+                      : Colors.grey.shade700,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
             child: Text(text, textAlign: TextAlign.center),
@@ -584,6 +607,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     Color color,
     VoidCallback onTap,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -591,7 +615,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.2) : Colors.grey.shade100,
+          color:
+              isSelected
+                  ? color.withOpacity(0.2)
+                  : isDarkMode
+                  ? Colors.grey.shade900
+                  : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? color : Colors.grey.shade300,
@@ -602,7 +631,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 300),
             style: TextStyle(
-              color: isSelected ? color : Colors.grey.shade700,
+              color:
+                  isSelected
+                      ? color
+                      : isDarkMode
+                      ? Colors.grey.shade100
+                      : Colors.grey.shade700,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
             child: Text(text, textAlign: TextAlign.center),

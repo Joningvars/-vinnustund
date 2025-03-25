@@ -23,12 +23,66 @@ class ClockButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    // Define colors based on mode and state
+    final Color backgroundColor =
+        isDarkMode
+            ? isClockedIn
+                ? isOnBreak
+                    ? Colors
+                        .amber
+                        .shade700 // Dark amber for break in dark mode
+                    : Colors
+                        .red
+                        .shade700 // Dark red for clocked in dark mode
+                : Theme.of(context)
+                    .colorScheme
+                    .primary // Use tertiary (green) from theme
+            : isClockedIn
+            ? isOnBreak
+                ? Colors
+                    .amber
+                    .shade50 // Light amber for break in light mode
+                : Colors
+                    .red
+                    .shade50 // Light red for clocked in light mode
+            : Colors.green.shade50; // Light green for clocked out light mode
+
+    // Text color based on mode
+    final Color textColor =
+        isDarkMode
+            ? Colors
+                .white // Always white text in dark mode
+            : isClockedIn
+            ? isOnBreak
+                ? Colors.amber.shade700
+                : Colors.red
+            : Colors.green;
+
+    // Icon color based on mode
+    final Color iconColor =
+        isDarkMode
+            ? Colors
+                .white // Always white icons in dark mode
+            : isClockedIn
+            ? isOnBreak
+                ? Colors.amber.shade700
+                : Colors.red
+            : Colors.green.shade700;
+
+    // Job text color
+    final Color jobTextColor =
+        isDarkMode
+            ? Colors
+                .grey
+                .shade300 // Lighter grey in dark mode for better visibility
+            : Colors.grey.shade600;
 
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        if (isClockedIn) {
-          // Set the context before showing the dialog
+        if (provider.context == null) {
           provider.context = context;
         }
         onPressed();
@@ -36,13 +90,19 @@ class ClockButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color:
-              isClockedIn
-                  ? isOnBreak
-                      ? Colors.amber.shade50
-                      : Colors.red.shade50
-                  : Colors.green.shade50,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(16),
+          // Add subtle shadow in dark mode for depth
+          boxShadow:
+              isDarkMode
+                  ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                  : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -59,18 +119,13 @@ class ClockButton extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color:
-                        isClockedIn
-                            ? isOnBreak
-                                ? Colors.amber.shade700
-                                : Colors.red
-                            : Colors.green,
+                    color: textColor,
                   ),
                 ),
                 if (selectedJob != null)
                   Text(
                     selectedJob!.name,
-                    style: TextStyle(color: Colors.grey.shade600),
+                    style: TextStyle(color: jobTextColor),
                   ),
               ],
             ),
@@ -89,7 +144,7 @@ class ClockButton extends StatelessWidget {
                         isOnBreak
                             ? Icons.play_arrow_rounded
                             : Icons.pause_rounded,
-                        color: isOnBreak ? Colors.amber.shade700 : Colors.red,
+                        color: iconColor,
                         size: 42,
                       ),
                     ),
@@ -98,12 +153,7 @@ class ClockButton extends StatelessWidget {
                 // Main clock icon
                 Icon(
                   isClockedIn ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                  color:
-                      isClockedIn
-                          ? isOnBreak
-                              ? Colors.amber.shade700
-                              : Colors.red
-                          : Colors.green,
+                  color: iconColor,
                   size: 42,
                 ),
               ],

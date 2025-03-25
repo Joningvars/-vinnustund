@@ -79,6 +79,9 @@ class AddTimeScreen extends StatelessWidget {
                               color:
                                   isSelected
                                       ? job.color.withOpacity(0.2)
+                                      : Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey.shade900
                                       : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
@@ -95,6 +98,9 @@ class AddTimeScreen extends StatelessWidget {
                                 color:
                                     isSelected
                                         ? job.color
+                                        : Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.grey.shade100
                                         : Colors.grey.shade700,
                                 fontWeight:
                                     isSelected
@@ -129,7 +135,10 @@ class AddTimeScreen extends StatelessWidget {
                         Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey.shade900
+                                    : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Material(
@@ -199,7 +208,11 @@ class AddTimeScreen extends StatelessWidget {
                                         vertical: 12,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color:
+                                            Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.grey.shade900
+                                                : Colors.grey.shade100,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
@@ -245,7 +258,11 @@ class AddTimeScreen extends StatelessWidget {
                                         vertical: 12,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color:
+                                            Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.grey.shade900
+                                                : Colors.grey.shade100,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
@@ -305,15 +322,32 @@ class AddTimeScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 TextField(
                   controller: provider.descriptionController,
+                  style: TextStyle(
+                    color:
+                        Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey.shade100
+                            : Colors.grey.shade700,
+                    fontSize: 16,
+                  ),
                   decoration: InputDecoration(
                     hintText: provider.translate('enterWorkDescription'),
                     filled: true,
-                    fillColor: Colors.grey.shade100,
+
+                    fillColor:
+                        Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade100,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.all(16),
+                    labelStyle: TextStyle(
+                      color:
+                          Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey.shade100
+                              : Colors.grey.shade700,
+                    ),
                   ),
                   maxLines: 3,
                 ),
@@ -462,18 +496,18 @@ class AddTimeScreen extends StatelessWidget {
               ),
               dayStyle: const TextStyle(fontSize: 16),
               yearStyle: const TextStyle(fontSize: 16),
-              todayBackgroundColor: MaterialStateProperty.all(
+              todayBackgroundColor: WidgetStateProperty.all(
                 primaryColor.withOpacity(0.15),
               ),
-              todayForegroundColor: MaterialStateProperty.all(primaryColor),
-              dayBackgroundColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
+              todayForegroundColor: WidgetStateProperty.all(primaryColor),
+              dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
                   return primaryColor;
                 }
                 return null;
               }),
-              dayForegroundColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
+              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
                   return Colors.white;
                 }
                 return null;
@@ -569,7 +603,9 @@ class AddTimeScreen extends StatelessWidget {
                       decoration: InputDecoration(
                         labelText: provider.translate('jobName'),
                         filled: true,
-                        fillColor: Colors.grey.shade100,
+                        fillColor: Theme.of(
+                          context,
+                        ).colorScheme.surface.withOpacity(0.8),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide.none,

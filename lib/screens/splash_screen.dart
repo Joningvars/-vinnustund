@@ -1,9 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:timagatt/utils/image_paths.dart';
 import 'package:timagatt/widgets/app_logo.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/main.dart';
 
-class SplashScreen extends StatelessWidget {
+import '../utils/routes.dart'; // Import for Routes
+
+class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Check authentication status after a short delay
+    Future.delayed(const Duration(seconds: 2), () {
+      _checkAuthAndNavigate();
+    });
+  }
+
+  void _checkAuthAndNavigate() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      // User is logged in, navigate to main screen
+      Navigator.of(context).pushReplacementNamed(Routes.main);
+    } else {
+      // User is not logged in, navigate to login screen
+      Navigator.of(context).pushReplacementNamed(Routes.login);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

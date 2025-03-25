@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:timagatt/screens/auth/login_screen.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/main.dart';
+import 'package:timagatt/utils/routes.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -153,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(height: 2, thickness: 1.2),
+                        child: Divider(height: 2, thickness: 0.5),
                       ),
                       ListTile(
                         title: Text(provider.translate('privacyPolicy')),
@@ -164,7 +167,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Divider(height: 2, thickness: 1.2),
+                        child: const Divider(height: 2, thickness: 0.5),
                       ),
                       ListTile(
                         title: Text(provider.translate('termsOfService')),
@@ -187,28 +190,11 @@ class SettingsScreen extends StatelessWidget {
                     leading: const Icon(Icons.logout, color: Colors.red),
                     onTap: () {
                       HapticFeedback.mediumImpact();
-                      _logout(context);
+                      _signOut(context);
                     },
                   ),
                 ),
-
-                // Add this in the build method, near the bottom of your settings list
-                _buildSectionHeader(provider.translate('developer')),
                 const SizedBox(height: 8),
-
-                // Reset onboarding button
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: ListTile(
-                    title: Text('Reset Onboarding'),
-                    subtitle: Text('Show the onboarding screens again'),
-                    trailing: const Icon(Icons.refresh),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      _resetOnboarding(context);
-                    },
-                  ),
-                ),
               ],
             ),
           ),
@@ -257,7 +243,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 1.2),
+                child: const Divider(height: 2, thickness: 0.5),
               ),
               ListTile(
                 title: Text(provider.translate('systemDefault')),
@@ -332,7 +318,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const Divider(height: 2, thickness: 1.2),
+                child: const Divider(height: 2, thickness: 0.5),
               ),
               ListTile(
                 title: Text(provider.translate('english')),
@@ -370,32 +356,31 @@ class SettingsScreen extends StatelessWidget {
 
   void _resetOnboarding(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboardingComplete', false);
+    await prefs.setBool('showOnboarding', true);
 
+    // Show confirmation
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Onboarding reset. Restart the app to see it.'),
+        content: Text(
+          'Onboarding reset. You will see it next time you restart the app.',
+        ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
       ),
     );
+
+    // Important: Don't log out or navigate away - just set the flag
   }
 
-  void _logout(BuildContext context) async {
+  void _signOut(BuildContext context) async {
     try {
-      await AuthService().signOut();
+      await FirebaseAuth.instance.signOut();
 
-      // Navigate back to login screen and clear all previous routes
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
+      // Navigate to login screen using named route
+      Navigator.of(context).pushReplacementNamed(Routes.login);
     } catch (e) {
       print('Error signing out: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
     }
   }
 }

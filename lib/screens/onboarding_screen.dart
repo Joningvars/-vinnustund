@@ -4,6 +4,7 @@ import 'package:timagatt/widgets/app_logo.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/utils/routes.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -22,9 +23,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  void _markOnboardingComplete() async {
+  void _completeOnboarding() async {
+    // Mark onboarding as complete
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboardingComplete', true);
+    await prefs.setBool('showOnboarding', false);
+
+    // Navigate to login screen
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed(Routes.login);
+    }
   }
 
   @override
@@ -144,13 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       if (_currentPage < _pages.length - 1)
                         TextButton(
                           onPressed: () {
-                            _markOnboardingComplete();
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
-                              ),
-                            );
+                            _completeOnboarding();
                           },
                           child: Text(provider.translate('skip')),
                         )
@@ -166,13 +167,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               curve: Curves.easeInOut,
                             );
                           } else {
-                            _markOnboardingComplete();
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginScreen(),
-                              ),
-                            );
+                            _completeOnboarding();
                           }
                         },
                         style: ElevatedButton.styleFrom(
