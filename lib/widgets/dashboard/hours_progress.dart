@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:timagatt/models/job.dart';
-import 'dart:math' as math;
 
 class HoursProgress extends StatelessWidget {
   final int hoursWorked;
@@ -222,7 +221,7 @@ class HoursProgress extends StatelessWidget {
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),

@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:timagatt/utils/image_paths.dart';
 import 'package:timagatt/widgets/app_logo.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:timagatt/main.dart';
 
 import '../utils/routes.dart'; // Import for Routes
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();

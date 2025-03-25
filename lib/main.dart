@@ -12,11 +12,8 @@ import 'package:timagatt/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:timagatt/screens/auth/login_screen.dart';
-import 'package:timagatt/services/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/utils/routes.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -24,7 +21,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timagatt/screens/onboarding_screen.dart';
 import 'package:timagatt/localization/app_localizations.dart';
 import 'package:timagatt/screens/splash_screen.dart';
-import 'package:timagatt/screens/time_clock_screen.dart';
 import 'package:timagatt/utils/theme/darkmode.dart';
 import 'package:timagatt/utils/theme/lightmode.dart';
 
@@ -59,7 +55,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   final bool showOnboarding;
 
-  const MyApp({Key? key, required this.showOnboarding}) : super(key: key);
+  const MyApp({super.key, required this.showOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +136,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
   Timer? _timer;
 
   // For job tracking
-  List<Job> _jobs = [
+  final List<Job> _jobs = [
     Job(name: "Project Alpha", color: Colors.blue),
     Job(name: "Client Beta", color: Colors.green),
     Job(name: "Maintenance", color: Colors.orange),
@@ -157,7 +153,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
   final int _targetHours = 173;
 
   // For period selection
-  String _selectedPeriod = "Day";
+  final String _selectedPeriod = "Day";
 
   @override
   void initState() {

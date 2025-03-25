@@ -7,7 +7,7 @@ import 'package:timagatt/screens/history_screen.dart';
 import 'package:timagatt/screens/settings_screen.dart';
 
 class TimeClockScreen extends StatefulWidget {
-  const TimeClockScreen({Key? key}) : super(key: key);
+  const TimeClockScreen({super.key});
 
   @override
   _TimeClockScreenState createState() => _TimeClockScreenState();

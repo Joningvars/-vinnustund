@@ -5,8 +5,7 @@ class TimeEntryCard extends StatelessWidget {
   final TimeEntry entry;
   final VoidCallback onDelete;
 
-  const TimeEntryCard({Key? key, required this.entry, required this.onDelete})
-    : super(key: key);
+  const TimeEntryCard({super.key, required this.entry, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {

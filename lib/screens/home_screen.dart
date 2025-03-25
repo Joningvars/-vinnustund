@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/widgets/clock/clock_button.dart';

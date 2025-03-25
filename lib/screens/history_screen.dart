@@ -246,7 +246,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 },
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
                       ),
                     ),
@@ -541,7 +541,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       ),
                                     ),
                                   );
-                                }).toList(),
+                                }),
 
                                 const SizedBox(height: 16),
                               ],

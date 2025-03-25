@@ -14,14 +14,11 @@ final inputBackground = Color(0xFF2A2A2A); // For input fields
 final timerGreen = Color(0xFF28A745); // Clean green for timer button
 
 final darkTheme = ThemeData.dark().copyWith(
-  useMaterial3: true,
   colorScheme: ColorScheme.dark(
     primary: primaryBlue,
     secondary: Colors.white.withOpacity(0.7),
     surface: cardBackground,
-    background: darkBackground,
     onSurface: Colors.white,
-    onBackground: Colors.white,
     onPrimary: Colors.white,
     tertiary: timerGreen,
   ),
@@ -79,8 +76,8 @@ final darkTheme = ThemeData.dark().copyWith(
     ),
   ),
   checkboxTheme: CheckboxThemeData(
-    fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-      if (states.contains(MaterialState.selected)) {
+    fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) {
         return primaryBlue;
       }
       return Colors.grey.shade700;

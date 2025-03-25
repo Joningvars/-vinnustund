@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:timagatt/screens/auth/login_screen.dart';
-import 'package:timagatt/widgets/app_logo.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
@@ -39,7 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final provider = Provider.of<TimeClockProvider>(context);
 
     // Define pages with translations
-    final List<OnboardingPage> _pages = [
+    final List<OnboardingPage> pages = [
       OnboardingPage(
         title:
             provider.translate('trackYourWorkHours') == 'trackYourWorkHours'
@@ -89,8 +87,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  _pages[_currentPage].color.withOpacity(0.3),
-                  _pages[_currentPage].color.withOpacity(0.1),
+                  pages[_currentPage].color.withOpacity(0.3),
+                  pages[_currentPage].color.withOpacity(0.1),
                 ],
               ),
             ),
@@ -102,14 +100,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
-                    itemCount: _pages.length,
+                    itemCount: pages.length,
                     onPageChanged: (int page) {
                       setState(() {
                         _currentPage = page;
                       });
                     },
                     itemBuilder: (context, index) {
-                      return _buildPage(_pages[index]);
+                      return _buildPage(pages[index]);
                     },
                   ),
                 ),
@@ -120,7 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
-                      _pages.length,
+                      pages.length,
                       (index) => AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
                         margin: const EdgeInsets.symmetric(horizontal: 5),
@@ -129,7 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         decoration: BoxDecoration(
                           color:
                               _currentPage == index
-                                  ? _pages[_currentPage].color
+                                  ? pages[_currentPage].color
                                   : Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(5),
                         ),
@@ -148,7 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Skip button
-                      if (_currentPage < _pages.length - 1)
+                      if (_currentPage < pages.length - 1)
                         TextButton(
                           onPressed: () {
                             _completeOnboarding();
@@ -161,7 +159,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       // Next/Get Started button
                       ElevatedButton(
                         onPressed: () {
-                          if (_currentPage < _pages.length - 1) {
+                          if (_currentPage < pages.length - 1) {
                             _pageController.nextPage(
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeInOut,
@@ -171,7 +169,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _pages[_currentPage].color,
+                          backgroundColor: pages[_currentPage].color,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 30,
@@ -182,7 +180,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                         child: Text(
-                          _currentPage < _pages.length - 1
+                          _currentPage < pages.length - 1
                               ? provider.translate('next')
                               : provider.translate('getStarted'),
                         ),

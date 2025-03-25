@@ -82,9 +82,7 @@ class ClockButton extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        if (provider.context == null) {
-          provider.context = context;
-        }
+        provider.context ??= context;
         onPressed();
       },
       child: Container(

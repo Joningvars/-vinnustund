@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart' hide Color;
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';

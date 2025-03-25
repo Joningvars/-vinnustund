@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:timagatt/main.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:timagatt/screens/auth/register_screen.dart';
 import 'package:flutter/services.dart';
@@ -72,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen>
       case 'network-request-failed':
         return provider.translate('networkError');
       default:
-        return provider.translate('loginError') + ': ' + e.message!;
+        return '${provider.translate('loginError')}: ${e.message!}';
     }
   }
 
@@ -596,8 +595,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      provider.translate('error') +
-                                          ': ${e.toString()}',
+                                      '${provider.translate('error')}: ${e.toString()}',
                                     ),
                                     backgroundColor: Colors.red,
                                     behavior: SnackBarBehavior.floating,

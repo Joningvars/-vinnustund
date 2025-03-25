@@ -10,8 +10,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:timagatt/localization/app_localizations.dart';
 
 // Add this global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
