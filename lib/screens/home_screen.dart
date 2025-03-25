@@ -267,7 +267,7 @@ class HomeScreen extends StatelessWidget {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
+                    curve: Curves.easeOutCubic,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,
@@ -290,8 +290,8 @@ class HomeScreen extends StatelessWidget {
                         width: 1,
                       ),
                     ),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      job.name,
                       style: TextStyle(
                         color:
                             isSelected
@@ -302,7 +302,6 @@ class HomeScreen extends StatelessWidget {
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
-                      child: Text(job.name),
                     ),
                   ),
                 );

@@ -61,16 +61,16 @@ class AddTimeScreen extends StatelessWidget {
                         final isSelected = provider.selectedJob?.id == job.id;
                         return GestureDetector(
                           onTap: () {
-                            HapticFeedback.selectionClick(); // Add light haptic feedback
+                            HapticFeedback.selectionClick();
                             provider.setSelectedJob(job);
                           },
                           onLongPress: () {
-                            HapticFeedback.heavyImpact(); // Add heavy haptic feedback for destructive action
+                            HapticFeedback.heavyImpact();
                             _showDeleteJobConfirmation(context, provider, job);
                           },
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -92,8 +92,8 @@ class AddTimeScreen extends StatelessWidget {
                                 width: 1,
                               ),
                             ),
-                            child: AnimatedDefaultTextStyle(
-                              duration: const Duration(milliseconds: 300),
+                            child: Text(
+                              job.name,
                               style: TextStyle(
                                 color:
                                     isSelected
@@ -107,7 +107,6 @@ class AddTimeScreen extends StatelessWidget {
                                         ? FontWeight.bold
                                         : FontWeight.normal,
                               ),
-                              child: Text(job.name),
                             ),
                           ),
                         );
@@ -470,52 +469,7 @@ class AddTimeScreen extends StatelessWidget {
       builder: (BuildContext context, Widget? child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: primaryColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
-            ),
-            dialogBackgroundColor: Colors.white,
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: primaryColor,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              backgroundColor: Colors.white,
-              headerBackgroundColor: primaryColor.withOpacity(0.9),
-              headerForegroundColor: Colors.white,
-              headerHeadlineStyle: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              dayStyle: const TextStyle(fontSize: 16),
-              yearStyle: const TextStyle(fontSize: 16),
-              todayBackgroundColor: WidgetStateProperty.all(
-                primaryColor.withOpacity(0.15),
-              ),
-              todayForegroundColor: WidgetStateProperty.all(primaryColor),
-              dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return primaryColor;
-                }
-                return null;
-              }),
-              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.white;
-                }
-                return null;
-              }),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
+            colorScheme: theme.colorScheme.copyWith(primary: primaryColor),
           ),
           child: Container(
             decoration: BoxDecoration(

@@ -499,9 +499,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                             // Time range
                                             Row(
                                               children: [
-                                                const Icon(
+                                                Icon(
                                                   Icons.access_time,
                                                   size: 16,
+                                                  color: Colors.grey[600],
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -558,15 +559,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   // Period button widget that exactly matches the home page style
   Widget _buildPeriodButton(String text, bool isSelected, VoidCallback onTap) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final color =
-        isDarkMode
-            ? Theme.of(context).colorScheme.secondary
-            : Theme.of(context).colorScheme.secondary;
+    final color = Theme.of(context).colorScheme.primary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color:
@@ -581,19 +579,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
             width: 1,
           ),
         ),
-        child: Center(
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 300),
-            style: TextStyle(
-              color:
-                  isSelected
-                      ? color
-                      : isDarkMode
-                      ? Colors.grey.shade100
-                      : Colors.grey.shade700,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-            child: Text(text, textAlign: TextAlign.center),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color:
+                isSelected
+                    ? color
+                    : isDarkMode
+                    ? Colors.grey.shade100
+                    : Colors.grey.shade700,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
@@ -611,8 +607,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color:
@@ -627,19 +623,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
             width: 1,
           ),
         ),
-        child: Center(
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 300),
-            style: TextStyle(
-              color:
-                  isSelected
-                      ? color
-                      : isDarkMode
-                      ? Colors.grey.shade100
-                      : Colors.grey.shade700,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-            child: Text(text, textAlign: TextAlign.center),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color:
+                isSelected
+                    ? color
+                    : isDarkMode
+                    ? Colors.grey.shade100
+                    : Colors.grey.shade700,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
