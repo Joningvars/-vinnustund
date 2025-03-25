@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
-import 'package:time_clock/models/job.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/models/job.dart';
 import 'dart:math' as math;
 
 class HoursProgress extends StatelessWidget {
@@ -42,6 +42,9 @@ class HoursProgress extends StatelessWidget {
     final Map<String, int> jobHours = {};
     int totalMinutes = 0;
 
+    // Debug the time entries
+    print('Building HoursProgress with ${provider.timeEntries.length} entries');
+
     for (var entry in provider.timeEntries) {
       if (entry.clockInTime.isAfter(startDate)) {
         // Add to job-specific hours
@@ -53,11 +56,17 @@ class HoursProgress extends StatelessWidget {
 
         // Add to total minutes
         totalMinutes += entry.duration.inMinutes;
+
+        // Debug each entry
+        print(
+          'Entry: ${entry.jobName}, Duration: ${entry.duration.inMinutes} minutes',
+        );
       }
     }
 
     // Convert minutes to hours
     final totalHours = totalMinutes ~/ 60;
+    print('Total hours calculated: $totalHours');
 
     // Convert job minutes to hours
     final jobHoursConverted = Map<String, int>.fromEntries(

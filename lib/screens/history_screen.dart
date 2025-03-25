@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/models/time_entry.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
-import 'package:flutter/rendering.dart';
+import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -14,103 +13,60 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  String? _selectedDate;
+  DateTime? _startDate;
+  DateTime? _endDate;
   String? _selectedJobId;
+  final FocusNode _focusNode = FocusNode();
 
-  Future<void> _selectDate(
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDateRange(
     BuildContext context,
     TimeClockProvider provider,
   ) async {
     HapticFeedback.selectionClick();
 
+    FocusScope.of(context).unfocus();
+
     final ThemeData theme = Theme.of(context);
     final Color primaryColor = theme.colorScheme.primary;
 
-    final DateTime? picked = await showDatePicker(
+    DateTimeRange initialRange = DateTimeRange(
+      start: _startDate ?? DateTime.now().subtract(const Duration(days: 7)),
+      end: _endDate ?? DateTime.now(),
+    );
+
+    final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDateRange: initialRange,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) {
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: primaryColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
-            ),
-            dialogBackgroundColor: Colors.white,
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: primaryColor,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              backgroundColor: Colors.white,
-              headerBackgroundColor: primaryColor,
-              headerForegroundColor: Colors.white,
-              headerHeadlineStyle: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-              dayStyle: const TextStyle(fontSize: 16),
-              yearStyle: const TextStyle(fontSize: 16),
-              todayBackgroundColor: MaterialStateProperty.all(
-                primaryColor.withOpacity(0.15),
-              ),
-              todayForegroundColor: MaterialStateProperty.all(primaryColor),
-              dayBackgroundColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return primaryColor;
-                }
-                return null;
-              }),
-              dayForegroundColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.white;
-                }
-                return null;
-              }),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(primary: primaryColor),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: child!,
-            ),
-          ),
+          child: child!,
         );
       },
     );
 
     if (picked != null) {
       setState(() {
-        _selectedDate = DateFormat('yyyy-MM-dd').format(picked);
+        _startDate = picked.start;
+        _endDate = picked.end;
       });
     }
   }
 
   void _clearFilters() {
     setState(() {
-      _selectedDate = null;
+      _startDate = null;
+      _endDate = null;
       _selectedJobId = null;
     });
   }
@@ -120,22 +76,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final provider = Provider.of<TimeClockProvider>(context);
     List<TimeEntry> entries = provider.timeEntries;
 
-    // Apply filters
-    if (_selectedDate != null) {
+    // Apply date range filter
+    if (_startDate != null && _endDate != null) {
       entries =
-          entries
-              .where(
-                (entry) =>
-                    DateFormat('yyyy-MM-dd').format(entry.clockInTime) ==
-                    _selectedDate,
-              )
-              .toList();
+          entries.where((entry) {
+            return entry.clockInTime.isAfter(_startDate!) &&
+                entry.clockInTime.isBefore(
+                  _endDate!.add(const Duration(days: 1)),
+                );
+          }).toList();
     }
 
+    // Apply job filter
     if (_selectedJobId != null) {
       entries =
           entries.where((entry) => entry.jobId == _selectedJobId).toList();
     }
+
+    // Calculate total hours for the filtered entries
+    int totalFilteredMinutes = 0;
+    for (var entry in entries) {
+      totalFilteredMinutes += entry.duration.inMinutes;
+    }
+    final totalFilteredHours = totalFilteredMinutes ~/ 60;
+    final totalFilteredRemainingMinutes = totalFilteredMinutes % 60;
 
     // Group entries by date
     final Map<String, List<TimeEntry>> entriesByDate = {};
@@ -151,561 +115,497 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final sortedDates =
         entriesByDate.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    provider.translate('history'),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+    // Format date range for display
+    String dateRangeText = provider.translate('allDates');
+    if (_startDate != null && _endDate != null) {
+      final startFormatted = DateFormat('MMM d, yyyy').format(_startDate!);
+      final endFormatted = DateFormat('MMM d, yyyy').format(_endDate!);
+      dateRangeText = '$startFormatted - $endFormatted';
+    }
 
-                  // Filter section
-                  Row(
-                    children: [
-                      // Date filter button
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => _selectDate(context, provider),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => _selectDate(context, provider),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.calendar_today,
-                                        size: 24,
-                                        color:
-                                            _selectedDate != null
-                                                ? Theme.of(
-                                                  context,
-                                                ).colorScheme.primary
-                                                : Colors.grey.shade700,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            provider.translate('date'),
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _selectedDate != null
-                                                ? DateFormat.yMMMMd(
-                                                  provider.locale.languageCode,
-                                                ).format(
-                                                  DateFormat(
-                                                    'yyyy-MM-dd',
-                                                  ).parse(_selectedDate!),
-                                                )
-                                                : provider.translate(
-                                                  'allDates',
-                                                ),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color:
-                                                  _selectedDate != null
-                                                      ? Theme.of(
-                                                        context,
-                                                      ).colorScheme.primary
-                                                      : Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 16,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                            .withOpacity(0.5),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: null,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title section - exactly like home screen
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      provider.translate('history'),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
                       ),
-
-                      const SizedBox(width: 8),
-
-                      // Clear filters button
-                      if (_selectedDate != null || _selectedJobId != null)
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            _clearFilters();
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.clear,
-                              size: 20,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Job filter
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        // All jobs option
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _selectedJobId = null;
-                            });
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  _selectedJobId == null
-                                      ? Theme.of(
-                                        context,
-                                      ).colorScheme.primary.withOpacity(0.2)
-                                      : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color:
-                                    _selectedJobId == null
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Colors.grey.shade300,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              provider.translate('allJobs'),
-                              style: TextStyle(
-                                color:
-                                    _selectedJobId == null
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Colors.grey.shade700,
-                                fontWeight:
-                                    _selectedJobId == null
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Job filters
-                        ...provider.jobs.map((job) {
-                          final isSelected = _selectedJobId == job.id;
-                          return GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() {
-                                _selectedJobId = isSelected ? null : job.id;
-                              });
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    isSelected
-                                        ? job.color.withOpacity(0.2)
-                                        : Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color:
-                                      isSelected
-                                          ? job.color
-                                          : Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                              ),
-                              child: AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 300),
-                                style: TextStyle(
-                                  color:
-                                      isSelected
-                                          ? job.color
-                                          : Colors.grey.shade700,
-                                  fontWeight:
-                                      isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                ),
-                                child: Text(job.name),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Results count
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                '${entries.length} ${provider.translate('entries')}',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
+                    // Clear filters button with X icon
+                    if (_startDate != null || _selectedJobId != null)
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: _clearFilters,
+                        tooltip: provider.translate('clearFilters'),
+                      ),
+                  ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: 8),
-
-            // Time entries list
-            Expanded(
-              child:
-                  sortedDates.isEmpty
-                      ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+              // Date range selector
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date range button
+                    InkWell(
+                      onTap: () => _selectDateRange(context, provider),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.history,
-                              size: 64,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 16),
                             Text(
-                              provider.translate('noEntries'),
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey.shade600,
-                              ),
+                              dateRangeText,
+                              style: const TextStyle(fontSize: 16),
                             ),
+                            const Icon(Icons.calendar_today, size: 20),
                           ],
                         ),
-                      )
-                      : ListView.builder(
-                        itemCount: sortedDates.length,
-                        itemBuilder: (context, index) {
-                          final date = sortedDates[index];
-                          final dateEntries = entriesByDate[date]!;
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-                          // Calculate total hours for this date
-                          final totalMinutes = dateEntries.fold<int>(
-                            0,
-                            (sum, entry) => sum + entry.duration.inMinutes,
-                          );
-                          final hours = totalMinutes ~/ 60;
-                          final minutes = totalMinutes % 60;
+                    // Job filter section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          provider.translate('filterByJob'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        // Total hours display
+                        Text(
+                          '$totalFilteredHours ${provider.translate('klst')} $totalFilteredRemainingMinutes ${provider.translate('mín')}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Date header
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  16,
-                                  8,
-                                ),
-                                child: Row(
+                    // Job selection - exactly like home screen
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        shrinkWrap: true,
+                        children: [
+                          // All jobs button
+                          _buildPeriodButton(
+                            provider.translate('allJobs'),
+                            _selectedJobId == null,
+                            () {
+                              setState(() {
+                                _selectedJobId = null;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Job buttons - using the same style as home page
+                          ...provider.jobs.map((job) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _buildJobButton(
+                                job.name,
+                                _selectedJobId == job.id,
+                                job.color,
+                                () {
+                                  setState(() {
+                                    _selectedJobId =
+                                        _selectedJobId == job.id
+                                            ? null
+                                            : job.id;
+                                  });
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Entries list
+              Expanded(
+                child:
+                    entriesByDate.isEmpty
+                        ? Center(
+                          child: Text(
+                            provider.translate('noEntries'),
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        )
+                        : ListView.builder(
+                          itemCount: sortedDates.length,
+                          padding: const EdgeInsets.all(16),
+                          itemBuilder: (context, index) {
+                            final date = sortedDates[index];
+                            final dateEntries = entriesByDate[date]!;
+
+                            // Calculate total hours for this date
+                            int totalMinutes = 0;
+                            for (var entry in dateEntries) {
+                              totalMinutes += entry.duration.inMinutes;
+                            }
+                            final totalHours = totalMinutes ~/ 60;
+                            final remainingMinutes = totalMinutes % 60;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Date header with total hours
+                                Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      DateFormat.yMMMMd(
-                                        provider.locale.languageCode,
-                                      ).format(DateTime.parse(date)),
+                                      provider.formatDate(DateTime.parse(date)),
                                       style: const TextStyle(
-                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
+                                        fontSize: 16,
                                       ),
                                     ),
                                     Text(
-                                      '$hours ${provider.translate('hours')} ${minutes > 0 ? '$minutes ${provider.translate('minutes')}' : ''}',
+                                      '$totalHours ${provider.translate('klst')} $remainingMinutes ${provider.translate('mín')}',
                                       style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade700,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
+                                const SizedBox(height: 8),
 
-                              // Entries for this date
-                              ...dateEntries
-                                  .map(
-                                    (entry) => _buildTimeEntryCard(
-                                      context,
-                                      entry,
-                                      provider,
+                                // Time entries for this date - same card design as home page
+                                ...dateEntries.map((entry) {
+                                  return Dismissible(
+                                    key: Key(entry.id),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      color: Colors.red,
+                                      child: const Icon(
+                                        Icons.delete,
+                                        color: Colors.white,
+                                      ),
                                     ),
-                                  )
-                                  .toList(),
+                                    confirmDismiss: (direction) async {
+                                      return await showDialog(
+                                        context: context,
+                                        builder:
+                                            (context) => Dialog(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  20.0,
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.delete_outline,
+                                                      color: Colors.red,
+                                                      size: 48,
+                                                    ),
+                                                    const SizedBox(height: 16),
+                                                    Text(
+                                                      provider.translate(
+                                                        'deleteEntry',
+                                                      ),
+                                                      style: const TextStyle(
+                                                        fontSize: 20,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      provider.translate(
+                                                        'deleteEntryConfirm',
+                                                      ),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: TextStyle(
+                                                        color: Colors.grey[700],
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 24),
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceEvenly,
+                                                      children: [
+                                                        Expanded(
+                                                          child: OutlinedButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).pop(
+                                                                      false,
+                                                                    ),
+                                                            style: OutlinedButton.styleFrom(
+                                                              side: BorderSide(
+                                                                color:
+                                                                    Colors
+                                                                        .grey
+                                                                        .shade300,
+                                                              ),
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                              ),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        12,
+                                                                  ),
+                                                            ),
+                                                            child: Text(
+                                                              provider
+                                                                  .translate(
+                                                                    'cancel',
+                                                                  ),
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .grey[700],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 16,
+                                                        ),
+                                                        Expanded(
+                                                          child: ElevatedButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).pop(true),
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  Colors.red,
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                              ),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    vertical:
+                                                                        12,
+                                                                  ),
+                                                            ),
+                                                            child: Text(
+                                                              provider
+                                                                  .translate(
+                                                                    'delete',
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                      );
+                                    },
+                                    onDismissed: (direction) {
+                                      provider.deleteTimeEntry(entry.id);
+                                    },
+                                    child: Card(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Job name and duration
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      width: 12,
+                                                      height: 12,
+                                                      decoration: BoxDecoration(
+                                                        color: entry.jobColor,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      entry.jobName,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
 
-                              // Divider
-                              if (index < sortedDates.length - 1)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: const Divider(
-                                    height: 32,
-                                    thickness: 1,
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-            ),
-          ],
+                                            // Time range
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.access_time,
+                                                  size: 16,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '${provider.formatTime(entry.clockInTime)} - ${provider.formatTime(entry.clockOutTime)}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+
+                                            // Description if available
+                                            if (entry.description != null &&
+                                                entry.description!.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 8.0,
+                                                ),
+                                                child: Text(
+                                                  entry.description!,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[800],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+
+                                const SizedBox(height: 16),
+                              ],
+                            );
+                          },
+                        ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTimeEntryCard(
-    BuildContext context,
-    TimeEntry entry,
-    TimeClockProvider provider,
-  ) {
-    return Dismissible(
-      key: Key(entry.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20.0),
-        color: Colors.red,
-        child: const Icon(Icons.delete, color: Colors.white),
+  // Period button widget that exactly matches the home page style
+  Widget _buildPeriodButton(String text, bool isSelected, VoidCallback onTap) {
+    final color = Theme.of(context).primaryColor;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.2) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              color: isSelected ? color : Colors.grey.shade700,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+            child: Text(text, textAlign: TextAlign.center),
+          ),
+        ),
       ),
-      confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder:
-              (context) => Dialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Warning icon
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+    );
+  }
 
-                      // Title
-                      Text(
-                        provider.translate('deleteEntry'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Message
-                      Text(
-                        provider.translate('deleteEntryConfirm'),
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Action buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Cancel button
-                          OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              side: BorderSide(color: Colors.grey[300]!),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                            child: Text(
-                              provider.translate('cancel'),
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-
-                          // Delete button
-                          ElevatedButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                            child: Text(
-                              provider.translate('delete'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-        );
-      },
-      onDismissed: (direction) {
-        provider.deleteTimeEntry(entry.id);
-      },
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: entry.jobColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    entry.jobName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    provider.formatDuration(entry.duration),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${provider.formatTime(entry.clockInTime)} - ${provider.formatTime(entry.clockOutTime)}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                  ),
-                ],
-              ),
-              if (entry.description != null &&
-                  entry.description!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  entry.description!,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                ),
-              ],
-            ],
+  // Job button widget that exactly matches the home page style
+  Widget _buildJobButton(
+    String text,
+    bool isSelected,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.2) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              color: isSelected ? color : Colors.grey.shade700,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+            child: Text(text, textAlign: TextAlign.center),
           ),
         ),
       ),

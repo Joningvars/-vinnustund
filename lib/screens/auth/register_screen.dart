@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:time_clock/services/auth_service.dart';
+import 'package:timagatt/services/auth_service.dart';
 import 'package:flutter/services.dart';
 
 class RegisterScreen extends StatefulWidget {

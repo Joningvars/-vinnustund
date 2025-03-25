@@ -1,4 +1,4 @@
-name: time_clock
+name: timagatt
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -42,6 +42,9 @@ dependencies:
   firebase_auth: ^5.5.1
   cloud_firestore: ^5.6.5
   flutter_dotenv: ^5.2.1
+  flutter_native_splash: ^2.4.5
+  flutter_launcher_icons: ^0.14.3
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -100,3 +103,42 @@ flutter:
     - assets/icons/
 
   generate: true
+
+# Flutter Native Splash configuration should be at the top level, not under flutter:
+flutter_native_splash:
+  color: "#ffffff"
+  color_dark: "#121212"
+  image: assets/icons/splash-icon-light.png
+  image_dark: assets/icons/splash-icon-dark.png
+  
+  # Keep the splash screen visible for 2000 milliseconds (2 seconds)
+  android_12:
+    image: assets/icons/splash-icon-light.png
+    icon_background_color: "#ffffff"
+    image_dark: assets/icons/splash-icon-dark.png
+    icon_background_color_dark: "#121212"
+  
+  # Add this line to maintain the splash screen longer
+  android: true
+  ios: true
+  web: true
+  
+  # Duration to maintain the splash screen (in milliseconds)
+  android_gravity: center
+  ios_content_mode: center
+  web_image_mode: center
+  fullscreen: true
+
+# Add this section at the bottom of your pubspec.yaml
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/ios-light.png"
+  image_path_ios: "assets/icons/ios-light.png"
+  image_path_ios_dark_transparent: "assets/icons/ios-dark.png"
+  image_path_tinted_grayscale: "assets/icons/ios-tinted.png"
+  image_path_android: "assets/icons/android-adaptive.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icons/android-adaptive.png"

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:time_clock/main.dart';
-import 'package:time_clock/services/auth_service.dart';
-import 'package:time_clock/screens/auth/register_screen.dart';
+import 'package:timagatt/main.dart';
+import 'package:timagatt/services/auth_service.dart';
+import 'package:timagatt/screens/auth/register_screen.dart';
 import 'package:flutter/services.dart';
-import 'package:time_clock/widgets/app_logo.dart';
+import 'package:timagatt/widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

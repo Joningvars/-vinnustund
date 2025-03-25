@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:time_clock/models/time_entry.dart';
+import 'package:timagatt/models/time_entry.dart';
 
 class TimeEntryCard extends StatelessWidget {
   final TimeEntry entry;

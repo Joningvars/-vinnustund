@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:time_clock/models/job.dart';
+import 'package:timagatt/models/job.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
 
 class ClockButton extends StatelessWidget {

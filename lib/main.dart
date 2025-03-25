@@ -2,25 +2,26 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
-import 'package:time_clock/models/time_entry.dart';
-import 'package:time_clock/models/job.dart';
-import 'package:time_clock/screens/home_screen.dart';
-import 'package:time_clock/screens/add_time_screen.dart';
-import 'package:time_clock/screens/history_screen.dart';
-import 'package:time_clock/screens/settings_screen.dart';
+import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/models/job.dart';
+import 'package:timagatt/screens/home_screen.dart';
+import 'package:timagatt/screens/add_time_screen.dart';
+import 'package:timagatt/screens/history_screen.dart';
+import 'package:timagatt/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:time_clock/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:time_clock/screens/auth/login_screen.dart';
-import 'package:time_clock/services/auth_service.dart';
+import 'package:timagatt/screens/auth/login_screen.dart';
+import 'package:timagatt/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:time_clock/screens/onboarding_screen.dart';
-import 'package:time_clock/localization/app_localizations.dart';
+import 'package:timagatt/screens/onboarding_screen.dart';
+import 'package:timagatt/localization/app_localizations.dart';
+import 'package:timagatt/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,22 +44,40 @@ void main() async {
 
   // Create and initialize the provider
   final provider = TimeClockProvider();
-  await provider
-      .initializeApp(); // Make sure this method exists and initializes translations
+  await provider.initializeApp();
 
+  // Show splash screen first
   runApp(
-    MyApp(onboardingComplete: onboardingComplete, initialProvider: provider),
+    MyApp(
+      isLoading: true,
+      initialProvider: provider,
+      onboardingComplete: onboardingComplete,
+    ),
+  );
+
+  // Add a delay to keep the splash screen visible longer
+  await Future.delayed(const Duration(milliseconds: 1500));
+
+  // Then show the main app (which will handle onboarding or auth)
+  runApp(
+    MyApp(
+      isLoading: false,
+      initialProvider: provider,
+      onboardingComplete: onboardingComplete,
+    ),
   );
 }
 
 class MyApp extends StatelessWidget {
+  final bool isLoading;
+  final TimeClockProvider? initialProvider;
   final bool onboardingComplete;
-  final TimeClockProvider initialProvider;
 
   const MyApp({
     super.key,
-    required this.onboardingComplete,
+    required this.isLoading,
     required this.initialProvider,
+    required this.onboardingComplete,
   });
 
   @override
@@ -75,7 +94,7 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
-            title: 'Time Clock',
+            title: 'Tímagátt',
             // Localization setup
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -87,13 +106,11 @@ class MyApp extends StatelessWidget {
               Locale('en', ''), // English
               Locale('is', ''), // Icelandic
             ],
-            locale: provider.locale, // Get locale from provider
+            locale: provider.locale,
 
+            // Theme configuration
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
-                brightness: Brightness.light,
-              ),
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.white,
               textTheme: getTextTheme(context),
@@ -116,14 +133,10 @@ class MyApp extends StatelessWidget {
                 ),
               ),
             ),
-            darkTheme: ThemeData(
+            darkTheme: ThemeData.dark().copyWith(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueGrey,
+                seedColor: Colors.blue,
                 brightness: Brightness.dark,
-                primary: Colors.lightBlueAccent,
-                onPrimary: Colors.black,
-                surface: Colors.grey.shade800,
-                onSurface: Colors.grey.shade800,
               ),
               useMaterial3: true,
               scaffoldBackgroundColor: Colors.grey.shade900,
@@ -161,38 +174,39 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: provider.themeMode,
+
+            // Determine which screen to show
             home:
-                onboardingComplete
-                    ? StreamBuilder<User?>(
-                      stream: FirebaseAuth.instance.authStateChanges(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.active) {
-                          final user = snapshot.data;
-
-                          if (user != null) {
-                            // User is logged in
-                            return const TimeClockScreen();
-                          } else {
-                            // User is not logged in
-                            return const LoginScreen();
-                          }
-                        }
-
-                        // Show loading indicator while waiting for auth state
-                        return const Scaffold(
-                          body: Center(child: CircularProgressIndicator()),
-                        );
-                      },
-                    )
-                    : ChangeNotifierProvider.value(
-                      value: provider,
-                      child: const OnboardingScreen(),
-                    ),
+                isLoading
+                    ? const SplashScreen()
+                    : _buildInitialScreen(onboardingComplete),
           );
         },
       ),
     );
+  }
+
+  Widget _buildInitialScreen(bool onboardingComplete) {
+    if (!onboardingComplete) {
+      return const OnboardingScreen();
+    } else {
+      return StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.active) {
+            final user = snapshot.data;
+            if (user != null) {
+              return const TimeClockScreen();
+            } else {
+              return const LoginScreen();
+            }
+          }
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        },
+      );
+    }
   }
 
   TextTheme getTextTheme(BuildContext context) {
