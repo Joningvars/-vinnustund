@@ -24,7 +24,7 @@ class TimeClockProvider extends ChangeNotifier {
   DateTime? clockOutTime;
   DateTime? breakStartTime;
   Timer? _timer;
-
+  bool isComingFromLogin = true;
   TimeOfDay startTime = TimeOfDay(hour: 9, minute: 0);
   TimeOfDay endTime = TimeOfDay(hour: 17, minute: 0);
 
@@ -265,6 +265,9 @@ class TimeClockProvider extends ChangeNotifier {
 
   // Add this property to your TimeClockProvider class
   DateTime selectedDate = DateTime.now();
+
+  // Add this property to track recovery attempts
+  bool isRecoveryAttempted = false;
 
   TimeClockProvider() {
     _initializeProvider();
@@ -1189,23 +1192,107 @@ class TimeClockProvider extends ChangeNotifier {
     }
   }
 
+  // Add this method to safely merge local and remote time entries
+  Future<void> mergeTimeEntries() async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Get all entries from Firebase
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('timeEntries')
+              .get();
+
+      // Create a map of remote entries by ID for quick lookup
+      final remoteEntries = <String, TimeEntry>{};
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final entry = TimeEntry(
+          id: data['id'],
+          jobId: data['jobId'],
+          jobName: data['jobName'],
+          jobColor: Color(data['jobColor']),
+          clockInTime: DateTime.parse(data['clockInTime']),
+          clockOutTime: DateTime.parse(data['clockOutTime']),
+          duration: Duration(minutes: data['duration']),
+          description: data['description'],
+        );
+        remoteEntries[entry.id] = entry;
+      }
+
+      // Create a map of local entries by ID
+      final localEntries = <String, TimeEntry>{};
+      for (var entry in timeEntries) {
+        localEntries[entry.id] = entry;
+      }
+
+      // Merge entries - keep all entries from both sources
+      final mergedEntries = <TimeEntry>[];
+
+      // Add all remote entries
+      mergedEntries.addAll(remoteEntries.values);
+
+      // Add local entries that don't exist remotely
+      for (var entry in localEntries.values) {
+        if (!remoteEntries.containsKey(entry.id)) {
+          mergedEntries.add(entry);
+          // Also save this entry to Firebase
+          await saveTimeEntryToFirebase(entry);
+        }
+      }
+
+      // Update the time entries list
+      timeEntries = mergedEntries;
+
+      // Log the merge results
+      print(
+        'Merged time entries: Local=${localEntries.length}, Remote=${remoteEntries.length}, Final=${timeEntries.length}',
+      );
+
+      // Calculate hours without notifying
+      recalculateAllHours();
+
+      // Now notify listeners
+      notifyListeners();
+    } catch (e) {
+      print('Error merging time entries: $e');
+    }
+  }
+
+  // Update the initialization to call mergeTimeEntries
   Future<void> initializeApp() async {
-    // Load any saved preferences
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      // Initialize Firebase services
+      _databaseService = DatabaseService(
+        uid: FirebaseAuth.instance.currentUser!.uid,
+      );
 
-    // Load language preference
-    final String languageCode =
-        prefs.getString('languageCode') ?? 'is'; // Default to Icelandic
-    final String countryCode = prefs.getString('countryCode') ?? '';
+      // Load local data first
+      await loadData();
 
-    // Set the locale
-    locale = Locale(languageCode, countryCode);
+      // Then merge with remote data
+      await mergeTimeEntries();
 
-    // Load other preferences
-    // ...
+      // Rest of your initialization...
+    } catch (e) {
+      print('Error initializing app: $e');
+    }
+  }
 
-    // Notify listeners to update the UI
-    notifyListeners();
+  // Add this method to backup all entries to local storage
+  Future<void> backupEntriesToLocalStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final entriesJson = timeEntries.map((e) => e.toJson()).toList();
+      await prefs.setString('timeEntries', jsonEncode(entriesJson));
+      print('Backed up ${timeEntries.length} entries to local storage');
+    } catch (e) {
+      print('Error backing up entries to local storage: $e');
+    }
   }
 
   // Add a method to get the current elapsed time

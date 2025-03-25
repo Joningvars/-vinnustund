@@ -66,11 +66,8 @@ class _LoginScreenState extends State<LoginScreen>
         print('Login successful, user: ${userCredential.user?.uid}');
 
         if (mounted) {
-          // Navigate to the main app screen and remove all previous routes
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const TimeClockScreen()),
-            (route) => false,
-          );
+          // Navigate to the main screen using named route
+          Navigator.of(context).pushReplacementNamed(Routes.main);
         }
       } catch (e) {
         print('Login error: $e');

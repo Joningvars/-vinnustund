@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:timagatt/screens/auth/login_screen.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/main.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -187,7 +189,7 @@ class SettingsScreen extends StatelessWidget {
                     leading: const Icon(Icons.logout, color: Colors.red),
                     onTap: () {
                       HapticFeedback.mediumImpact();
-                      _logout(context);
+                      _signOut(context);
                     },
                   ),
                 ),
@@ -382,20 +384,14 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _logout(BuildContext context) async {
+  void _signOut(BuildContext context) async {
     try {
-      await AuthService().signOut();
+      await FirebaseAuth.instance.signOut();
 
-      // Navigate back to login screen and clear all previous routes
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
+      // Navigate to login screen using named route
+      Navigator.of(context).pushReplacementNamed(Routes.login);
     } catch (e) {
       print('Error signing out: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
     }
   }
 }

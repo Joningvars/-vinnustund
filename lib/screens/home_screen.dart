@@ -15,6 +15,15 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeClockProvider>(context);
 
+    // Add a recovery mechanism
+    if (provider.timeEntries.isEmpty && !provider.isRecoveryAttempted) {
+      // Try to recover entries from Firebase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        provider.mergeTimeEntries();
+        provider.isRecoveryAttempted = true;
+      });
+    }
+
     return Scaffold(
       body: SafeArea(
         child: StreamBuilder<List<TimeEntry>>(
