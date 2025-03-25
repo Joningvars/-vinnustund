@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyBTnTzop2TCqzF2k7bDX1ZNPeSWoflPhv4</string>
+	<string>AIzaSyDpttJbqBoV8E9OlA7xmxaBIQ2xO7p_y8M</string>
 	<key>GCM_SENDER_ID</key>
-	<string>960328995224</string>
+	<string>824971521193</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.timeClock</string>
+	<string>is.timagatt</string>
 	<key>PROJECT_ID</key>
-	<string>vinnustund-23c45</string>
+	<string>timagatt</string>
 	<key>STORAGE_BUCKET</key>
-	<string>vinnustund-23c45.firebasestorage.app</string>
+	<string>timagatt.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:960328995224:ios:e8332a7c3f3c888017dbed</string>
+	<string>1:824971521193:ios:ae34a0b9ca8b5f6de30db8</string>
 </dict>
 </plist>
