@@ -319,36 +319,35 @@ class AddTimeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                TextFormField(
                   controller: provider.descriptionController,
-                  style: TextStyle(
-                    color:
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey.shade100
-                            : Colors.grey.shade700,
-                    fontSize: 16,
-                  ),
                   decoration: InputDecoration(
-                    hintText: provider.translate('enterWorkDescription'),
-                    filled: true,
-
-                    fillColor:
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
+                    labelText: provider.translate('description'),
+                    hintText: provider.translate('workDescriptionHint'),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    contentPadding: const EdgeInsets.all(16),
-                    labelStyle: TextStyle(
-                      color:
-                          Theme.of(context).brightness == Brightness.dark
-                              ? Colors.grey.shade100
-                              : Colors.grey.shade700,
-                    ),
+                    counterText:
+                        '${provider.descriptionController.text.length}/200',
                   ),
                   maxLines: 3,
+                  maxLength: 200,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) {
+                    return Text(
+                      '$currentLength/$maxLength',
+                      style: TextStyle(
+                        color:
+                            currentLength >= maxLength!
+                                ? Colors.red
+                                : Colors.grey,
+                      ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 24),
@@ -499,6 +498,22 @@ class AddTimeScreen extends StatelessWidget {
   }
 
   void _showAddJobDialog(BuildContext context, TimeClockProvider provider) {
+    // Check if job limit is reached
+    if (provider.jobs.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.translate('jobLimitReached')),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
     final TextEditingController nameController = TextEditingController();
     Color selectedColor = Colors.blue;
 
@@ -552,20 +567,25 @@ class AddTimeScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Job name field
-                    TextField(
+                    TextFormField(
                       controller: nameController,
                       decoration: InputDecoration(
                         labelText: provider.translate('jobName'),
-                        filled: true,
-                        fillColor: Theme.of(
-                          context,
-                        ).colorScheme.surface.withOpacity(0.8),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        contentPadding: const EdgeInsets.all(16),
+                        counterText: '${nameController.text.length}/20',
                       ),
+                      maxLength: 20,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return provider.translate('enterJobName');
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        setState(() {});
+                      },
                     ),
                     const SizedBox(height: 24),
 

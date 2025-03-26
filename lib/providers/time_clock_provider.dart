@@ -26,12 +26,7 @@ class TimeClockProvider extends ChangeNotifier {
   TimeOfDay startTime = TimeOfDay(hour: 9, minute: 0);
   TimeOfDay endTime = TimeOfDay(hour: 17, minute: 0);
 
-  List<Job> jobs = [
-    Job(name: "Ntv", color: Colors.blue),
-    Job(name: "Livey", color: Colors.green),
-    Job(name: "Maintenance", color: Colors.orange),
-    Job(name: "Admin Work", color: Colors.purple),
-  ];
+  List<Job> jobs = [];
 
   Job? selectedJob;
   List<TimeEntry> timeEntries = [];
@@ -177,6 +172,11 @@ class TimeClockProvider extends ChangeNotifier {
       'resetPasswordDescription':
           'Enter your email to receive a password reset link',
       'resetPassword': 'Reset Password',
+      'defaultJob1': 'Work 1',
+      'defaultJob2': 'Work 2',
+      'defaultJob3': 'Work 3',
+      'jobLimitReached':
+          'Maximum of 5 jobs reached. Please delete a job before adding a new one.',
     },
     'is': {
       'home': 'Heim',
@@ -312,6 +312,11 @@ class TimeClockProvider extends ChangeNotifier {
       'resetPasswordDescription':
           'Sláðu inn netfangið þitt til að fá lykilorðsstillingu',
       'resetPassword': 'Endursetja lykilorð',
+      'defaultJob1': 'Verkefni 1',
+      'defaultJob2': 'Verkefni 2',
+      'defaultJob3': 'Verkefni 3',
+      'jobLimitReached':
+          'Hámarki 5 verkefna náð. Vinsamlegast eyddu verkefni áður en þú bætir við nýju.',
     },
   };
 
@@ -1076,8 +1081,35 @@ class TimeClockProvider extends ChangeNotifier {
 
   void setLocale(Locale newLocale) {
     locale = newLocale;
+
+    // Save the locale preference
+    _saveLocalePreference();
+
+    // Update job names based on new language
+    updateJobNamesForLanguage();
+
     notifyListeners();
-    saveData();
+  }
+
+  void _saveLocalePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('languageCode', locale.languageCode);
+    prefs.setString('countryCode', locale.countryCode ?? '');
+  }
+
+  void updateJobNamesForLanguage() {
+    // Only update default job names (the first three jobs)
+    for (int i = 0; i < jobs.length && i < 3; i++) {
+      String translationKey = 'defaultJob${i + 1}';
+      if (translations[locale.languageCode]?.containsKey(translationKey) ==
+          true) {
+        jobs[i] = Job(
+          id: jobs[i].id,
+          name: translate(translationKey),
+          color: jobs[i].color,
+        );
+      }
+    }
   }
 
   String translate(String key) {
@@ -1091,6 +1123,25 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   void addJob(String name, Color color) {
+    // Check if we've reached the job limit (5)
+    if (jobs.length >= 5) {
+      // Don't add more jobs and notify the user
+      if (context != null) {
+        ScaffoldMessenger.of(context!).showSnackBar(
+          SnackBar(
+            content: Text(translate('jobLimitReached')),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
+    }
+
     final newJob = Job(name: name, color: color);
     jobs.add(newJob);
 

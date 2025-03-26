@@ -364,7 +364,17 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Job name field
-                    TextField(
+                    TextFormField(
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return provider.translate('enterJobName');
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        setState(() {});
+                      },
+                      maxLength: 20,
                       controller: nameController,
                       decoration: InputDecoration(
                         labelText: provider.translate('jobName'),
