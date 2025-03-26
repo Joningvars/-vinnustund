@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/models/job.dart';
+import 'package:timagatt/screens/export_screen.dart';
 import 'package:timagatt/screens/home_screen.dart';
 import 'package:timagatt/screens/add_time_screen.dart';
 import 'package:timagatt/screens/history_screen.dart';
@@ -23,6 +24,8 @@ import 'package:timagatt/localization/app_localizations.dart';
 import 'package:timagatt/screens/splash_screen.dart';
 import 'package:timagatt/utils/theme/darkmode.dart';
 import 'package:timagatt/utils/theme/lightmode.dart';
+import 'package:flutter/services.dart';
+import 'package:timagatt/widgets/custom_nav_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -643,41 +646,84 @@ class _TimeClockScreenState extends State<TimeClockScreen>
           HomeScreen(),
           AddTimeScreen(),
           HistoryScreen(),
+          ExportScreen(),
           SettingsScreen(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: provider.selectedTabIndex,
-        onDestinationSelected: (index) {
+      bottomNavigationBar: CustomNavBar(
+        currentIndex: provider.selectedTabIndex,
+        onTap: (index) {
           // Dismiss keyboard when switching tabs
           FocusScope.of(context).unfocus();
-
-          // Update the selected tab index in the provider
           provider.setSelectedTabIndex(index);
         },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
-            label: provider.translate('home'),
+        activeColor: Theme.of(context).primaryColor,
+        inactiveColor: Colors.grey,
+        indicatorColor: Theme.of(context).primaryColor,
+        indicatorHeight: 1,
+        items: [
+          CustomNavBarItem(
+            title: provider.translate('home'),
+            icon: Icons.home_outlined,
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.add_circle_outline),
-            selectedIcon: const Icon(Icons.add_circle),
-            label: provider.translate('addTime'),
+          CustomNavBarItem(
+            title: provider.translate('add'),
+            icon: Icons.add_circle_outline,
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.history_outlined),
-            selectedIcon: const Icon(Icons.history),
-            label: provider.translate('history'),
+          CustomNavBarItem(
+            title: provider.translate('history'),
+            icon: Icons.history_outlined,
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
-            label: provider.translate('settings'),
+          CustomNavBarItem(
+            title: provider.translate('export'),
+            icon: Icons.file_present_outlined,
+          ),
+          CustomNavBarItem(
+            title: provider.translate('settings'),
+            icon: Icons.settings_outlined,
           ),
         ],
       ),
     );
+  }
+}
+
+class NavBarIndicatorPainter extends CustomPainter {
+  final int position;
+  final int itemCount;
+  final Color color;
+
+  NavBarIndicatorPainter({
+    required this.position,
+    required this.itemCount,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+
+    final itemWidth = size.width / itemCount;
+    final indicatorWidth = itemWidth - 16;
+
+    final left = position * itemWidth + (itemWidth - indicatorWidth) / 2;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, 0, indicatorWidth, 2),
+        const Radius.circular(1),
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(NavBarIndicatorPainter oldDelegate) {
+    return position != oldDelegate.position ||
+        color != oldDelegate.color ||
+        itemCount != oldDelegate.itemCount;
   }
 }

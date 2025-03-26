@@ -6,6 +6,7 @@ import 'package:timagatt/widgets/dashboard/hours_progress.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:timagatt/services/pdf_export_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -106,7 +107,7 @@ class HomeScreen extends StatelessWidget {
                   // Job selector
                   _buildJobSelector(provider, context),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
                   // Clock in/out section with integrated break button
                   ClockButton(
@@ -331,169 +332,109 @@ class HomeScreen extends StatelessWidget {
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+            return AlertDialog(
+              title: Text(
+                provider.translate('createJob'),
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      provider.translate('createJob'),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
-                    const SizedBox(height: 24),
-
-                    // Job name field
-                    TextFormField(
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return provider.translate('enterJobName');
-                        }
-                        return null;
-                      },
-                      onChanged: (value) {
-                        setState(() {});
-                      },
-                      maxLength: 20,
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: provider.translate('jobName'),
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.all(16),
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: provider.translate('jobName'),
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Color selector
-                    Text(
-                      provider.translate('selectColor'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children:
-                          colors.map((color) {
-                            final isSelected = selectedColor == color;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  selectedColor = color;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color:
-                                        isSelected
-                                            ? Colors.white
-                                            : Colors.transparent,
-                                    width: 3,
-                                  ),
-                                  boxShadow:
+                  ),
+                  const SizedBox(height: 16),
+                  Text(provider.translate('selectColor')),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children:
+                        colors.map((color) {
+                          final isSelected = selectedColor == color;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selectedColor = color;
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color:
                                       isSelected
-                                          ? [
-                                            BoxShadow(
-                                              color: color.withOpacity(0.4),
-                                              blurRadius: 8,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                          : null,
+                                          ? Colors.white
+                                          : Colors.transparent,
+                                  width: 3,
                                 ),
-                                child:
+                                boxShadow:
                                     isSelected
-                                        ? const Icon(
-                                          Icons.check,
-                                          color: Colors.white,
-                                          size: 24,
-                                        )
+                                        ? [
+                                          BoxShadow(
+                                            color: color.withOpacity(0.4),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
                                         : null,
                               ),
-                            );
-                          }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Text(
-                            provider.translate('cancel'),
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.bold,
+                              child:
+                                  isSelected
+                                      ? const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 24,
+                                      )
+                                      : null,
                             ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            if (nameController.text.trim().isNotEmpty) {
-                              provider.addJob(
-                                nameController.text.trim(),
-                                selectedColor,
-                              );
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(provider.translate('create')),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                          );
+                        }).toList(),
+                  ),
+                ],
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    provider.translate('cancel'),
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (nameController.text.isNotEmpty) {
+                      provider.addJob(nameController.text, selectedColor);
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: Text(
+                    provider.translate('create'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -700,5 +641,10 @@ class HomeScreen extends StatelessWidget {
       return (monthlyTarget / 4.33).round();
     }
     return monthlyTarget; // For 'Month'
+  }
+
+  void _exportToPdf(BuildContext context, TimeClockProvider provider) async {
+    final pdfService = PdfExportService(provider);
+    await pdfService.exportTimeEntries(context, provider.selectedPeriod);
   }
 }

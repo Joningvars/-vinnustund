@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/utils/routes.dart';
+import 'package:timagatt/screens/export_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -191,7 +192,6 @@ class SettingsScreen extends StatelessWidget {
                     },
                   ),
                 ),
-                const SizedBox(height: 8),
               ],
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/screens/export_screen.dart';
 import 'package:timagatt/screens/home_screen.dart';
 import 'package:timagatt/screens/add_time_screen.dart';
 import 'package:timagatt/screens/history_screen.dart';
@@ -41,6 +42,7 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
           AddTimeScreen(),
           HistoryScreen(),
           SettingsScreen(),
+          ExportScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

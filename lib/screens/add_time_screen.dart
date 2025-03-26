@@ -28,7 +28,7 @@ class AddTimeScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
 
                 // Job selector
                 Row(
@@ -113,7 +113,7 @@ class AddTimeScreen extends StatelessWidget {
                       }).toList(),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
 
                 // Time range selector
                 Card(
@@ -182,7 +182,7 @@ class AddTimeScreen extends StatelessWidget {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
@@ -287,7 +287,7 @@ class AddTimeScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             const Icon(Icons.timelapse),
@@ -308,7 +308,7 @@ class AddTimeScreen extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
                 // Description field
                 Text(
@@ -350,7 +350,7 @@ class AddTimeScreen extends StatelessWidget {
                   },
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
                 // Add button
                 SizedBox(

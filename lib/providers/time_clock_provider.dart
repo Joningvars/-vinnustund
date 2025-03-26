@@ -177,6 +177,26 @@ class TimeClockProvider extends ChangeNotifier {
       'defaultJob3': 'Work 3',
       'jobLimitReached':
           'Maximum of 5 jobs reached. Please delete a job before adding a new one.',
+      'exportToPdf': 'Export to PDF',
+      'timeReport': 'Time Report',
+      'summary': 'Summary',
+      'timeRange': 'Time Range',
+      'descriptions': 'Descriptions',
+      'noEntriesForExport': 'No entries to export for this period',
+      'exportComplete': 'Export Complete',
+      'exportCompleteMessage': 'Your time entries have been exported to PDF',
+      'view': 'View',
+      'share': 'Share',
+      'close': 'Close',
+      'exportError': 'Error exporting entries',
+      'startDate': 'Start Date',
+      'endDate': 'End Date',
+      'quickSelect': 'Quick Select',
+      'today': 'Today',
+      'thisWeek': 'This Week',
+      'thisMonth': 'This Month',
+      'export': 'Export',
+      'add': 'Add',
     },
     'is': {
       'home': 'Heim',
@@ -187,6 +207,8 @@ class TimeClockProvider extends ChangeNotifier {
       'totalHours': 'Heildar tímar',
       'clockIn': 'Stimpla inn',
       'clockOut': 'Stimpla út',
+      'clockInPDF': 'Inn',
+      'clockOutPDF': 'Út',
       'onBreak': 'Í pásu',
       'day': 'Dagur',
       'week': 'Vika',
@@ -275,8 +297,8 @@ class TimeClockProvider extends ChangeNotifier {
       'getStarted': 'Byrja',
       'developer': 'Þróunaraðili',
       'date': 'Dagsetning',
-      'filterByJob': 'Sía eftir starfi',
-      'allJobs': 'Sjá allt',
+      'filterByJob': 'Sía eftir verkefni',
+      'allJobs': 'Öll verkefni',
       'year': 'Ár',
       'selectDate': 'Veldu dagsetningu',
       'allDates': 'Allar dagsetningar',
@@ -312,11 +334,32 @@ class TimeClockProvider extends ChangeNotifier {
       'resetPasswordDescription':
           'Sláðu inn netfangið þitt til að fá lykilorðsstillingu',
       'resetPassword': 'Endursetja lykilorð',
-      'defaultJob1': 'Verkefni 1',
-      'defaultJob2': 'Verkefni 2',
-      'defaultJob3': 'Verkefni 3',
+      'defaultJob1': 'Verkefni A',
+      'defaultJob2': 'Verkefni B',
+      'defaultJob3': 'Verkefni C',
       'jobLimitReached':
           'Hámarki 5 verkefna náð. Vinsamlegast eyddu verkefni áður en þú bætir við nýju.',
+      'exportToPdf': 'Flytja út í PDF',
+      'timeReport': 'Tímaskýrsla',
+      'summary': 'Samantekt',
+      'timeRange': 'Tímabil',
+      'descriptions': 'Lýsingar',
+      'noEntriesForExport':
+          'Engar færslur til að flytja út fyrir þetta tímabil',
+      'exportComplete': 'Útflutningur lokið',
+      'exportCompleteMessage': 'Tímafærslur þínar hafa verið fluttar út í PDF',
+      'view': 'Skoða',
+      'share': 'Deila',
+      'close': 'Loka',
+      'exportError': 'Villa við útflutning færslna',
+      'startDate': 'Upphafsdagur',
+      'endDate': 'Lokadagur',
+      'quickSelect': 'Flýtival',
+      'today': 'Í dag',
+      'thisWeek': 'Þessi vika',
+      'thisMonth': 'Þessi mánuður',
+      'export': 'Flytja út',
+      'add': 'Bæta',
     },
   };
 
@@ -1218,8 +1261,11 @@ class TimeClockProvider extends ChangeNotifier {
   }
 
   void setSelectedTabIndex(int index) {
-    selectedTabIndex = index;
-    notifyListeners();
+    if (index >= 0 && index <= 4) {
+      // Update to allow index 4 (5 tabs total)
+      selectedTabIndex = index;
+      notifyListeners();
+    }
   }
 
   void setSelectedPeriod(String period) {
