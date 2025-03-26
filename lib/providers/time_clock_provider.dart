@@ -50,6 +50,8 @@ class TimeClockProvider extends ChangeNotifier {
       'totalHours': 'Total Hours',
       'clockIn': 'Clock In',
       'clockOut': 'Clock Out',
+      'clockInPDF': 'In',
+      'clockOutPDF': 'Out',
       'onBreak': 'On Break',
       'day': 'Day',
       'week': 'Week',
