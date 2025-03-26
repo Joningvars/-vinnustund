@@ -456,7 +456,7 @@ class TimeClockProvider extends ChangeNotifier {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -510,7 +510,6 @@ class TimeClockProvider extends ChangeNotifier {
                   decoration: InputDecoration(
                     hintText: translate('enterWorkDescription'),
                     filled: true,
-                    fillColor: Colors.grey.shade100,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
