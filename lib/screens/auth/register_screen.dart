@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:timagatt/services/auth_service.dart';
+import 'package:timagatt/utils/routes.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -29,25 +30,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
 
       try {
-        await _authService.registerWithEmailAndPassword(
+        final user = await _authService.registerWithEmailAndPassword(
           _email,
           _password,
           _name,
           context,
         );
-        // Registration successful - navigation is handled by the auth state listener
-        Navigator.pop(context); // Go back to login screen
+
+        if (user != null && mounted) {
+          // User is now automatically logged in
+
+          // Navigate to home screen and remove all previous routes
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil(Routes.main, (route) => false);
+        }
       } catch (e) {
-        setState(() {
-          _errorMessage =
-              e.toString().contains('email-already-in-use')
-                  ? 'Email already in use'
-                  : 'Registration failed: ${e.toString()}';
-        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          );
+        }
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
