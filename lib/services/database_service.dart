@@ -164,4 +164,19 @@ class DatabaseService {
       rethrow;
     }
   }
+
+  // Add this method to the DatabaseService class
+  Future<void> updateUserBreakState(
+    bool isOnBreak,
+    DateTime? breakStartTime,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'isOnBreak': isOnBreak,
+        'breakStartTime': breakStartTime?.toIso8601String() ?? '',
+      });
+    } catch (e) {
+      print('Error updating break state: $e');
+    }
+  }
 }

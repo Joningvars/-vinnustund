@@ -645,12 +645,50 @@ class TimeClockProvider extends ChangeNotifier {
     if (!isClockedIn) return;
 
     isOnBreak = !isOnBreak;
+
     if (isOnBreak) {
+      // Going on break - store the current time as break start time
       breakStartTime = DateTime.now();
     } else {
+      // Resuming from break - adjust the clockInTime to account for the break duration
+      if (breakStartTime != null) {
+        // Calculate break duration
+        final breakDuration = DateTime.now().difference(breakStartTime!);
+        // Add break duration to clockInTime to adjust for the break
+        clockInTime = clockInTime!.add(breakDuration);
+      }
       breakStartTime = null;
     }
+
+    // Only update the UI, don't save to database here
     notifyListeners();
+
+    // Don't call saveData() here as it's causing the issue with entries
+    // We'll save the break state separately
+    _saveBreakState();
+  }
+
+  // Update the _saveBreakState method to handle missing method
+  void _saveBreakState() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Save only the break-related state
+    prefs.setBool('isOnBreak', isOnBreak);
+    prefs.setString(
+      'breakStartTime',
+      breakStartTime != null ? breakStartTime!.toIso8601String() : '',
+    );
+
+    // If we have a Firebase user, update their break state
+    if (_databaseService != null && FirebaseAuth.instance.currentUser != null) {
+      try {
+        _databaseService!.updateUserBreakState(isOnBreak, breakStartTime);
+      } catch (e) {
+        print('Error updating break state: $e');
+        // Fallback to saving the entire state
+        saveData();
+      }
+    }
   }
 
   void startTimer() {

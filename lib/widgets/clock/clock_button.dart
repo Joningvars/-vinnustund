@@ -3,6 +3,7 @@ import 'package:timagatt/models/job.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 class ClockButton extends StatelessWidget {
   final bool isClockedIn;
@@ -129,6 +130,15 @@ class ClockButton extends StatelessWidget {
             ),
             Row(
               children: [
+                // Add timer display when clocked in
+                if (isClockedIn)
+                  TimerDisplay(
+                    startTime: provider.clockInTime,
+                    breakStartTime: provider.breakStartTime,
+                    isOnBreak: isOnBreak,
+                    textColor: textColor,
+                  ),
+
                 // Break button (only visible when clocked in)
                 if (isClockedIn)
                   GestureDetector(
@@ -157,6 +167,100 @@ class ClockButton extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// Create a stateful timer display widget
+class TimerDisplay extends StatefulWidget {
+  final DateTime? startTime;
+  final DateTime? breakStartTime;
+  final bool isOnBreak;
+  final Color textColor;
+
+  const TimerDisplay({
+    Key? key,
+    required this.startTime,
+    required this.breakStartTime,
+    required this.isOnBreak,
+    required this.textColor,
+  }) : super(key: key);
+
+  @override
+  State<TimerDisplay> createState() => _TimerDisplayState();
+}
+
+class _TimerDisplayState extends State<TimerDisplay> {
+  Timer? _timer;
+  String _timeText = "00:00:00";
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTimeText();
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(TimerDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateTimeText();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _updateTimeText();
+        });
+      }
+    });
+  }
+
+  void _updateTimeText() {
+    if (widget.startTime == null) {
+      _timeText = "00:00:00";
+      return;
+    }
+
+    Duration elapsed;
+    if (widget.isOnBreak && widget.breakStartTime != null) {
+      // If on break, show the elapsed time up to the break
+      elapsed = widget.breakStartTime!.difference(widget.startTime!);
+    } else {
+      // Otherwise show current elapsed time
+      elapsed = DateTime.now().difference(widget.startTime!);
+    }
+
+    // Format the elapsed time as HH:MM:SS
+    final hours = elapsed.inHours.toString().padLeft(2, '0');
+    final minutes = (elapsed.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+
+    _timeText = '$hours:$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+      child: Text(
+        _timeText,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: widget.textColor,
         ),
       ),
     );
