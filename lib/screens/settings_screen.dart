@@ -6,9 +6,34 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/utils/routes.dart';
 import 'package:timagatt/screens/export_screen.dart';
+import 'package:timagatt/screens/job/shared_jobs_screen.dart';
+import 'package:timagatt/screens/job/job_requests_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  _SettingsScreenState createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  int _pendingRequestCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPendingRequestCount();
+  }
+
+  Future<void> _loadPendingRequestCount() async {
+    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final count = await provider.getPendingRequestCount();
+    if (mounted) {
+      setState(() {
+        _pendingRequestCount = count;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +216,99 @@ class SettingsScreen extends StatelessWidget {
                       _signOut(context);
                     },
                   ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Shared Jobs button
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: ListTile(
+                    leading: const Icon(Icons.group_work),
+                    title: Text(provider.translate('sharedJobs')),
+                    subtitle: Text(provider.translate('manageSharedJobs')),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_pendingRequestCount > 0)
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              _pendingRequestCount.toString(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_ios, size: 16),
+                      ],
+                    ),
+                    onTap: () => _navigateToSharedJobs(context),
+                  ),
+                ),
+
+                if (_pendingRequestCount > 0)
+                  Card(
+                    margin: const EdgeInsets.only(top: 8),
+                    color: Colors.red.shade50,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.notifications_active,
+                        color: Colors.red,
+                      ),
+                      title: Text(provider.translate('pendingRequests')),
+                      subtitle: Text(
+                        provider
+                            .translate('pendingRequestsCount')
+                            .replaceAll(
+                              '{count}',
+                              _pendingRequestCount.toString(),
+                            ),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const JobRequestsScreen(),
+                          ),
+                        ).then((_) => _loadPendingRequestCount());
+                      },
+                    ),
+                  ),
+
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const JobRequestsScreen(),
+                      ),
+                    );
+                  },
+                  child: Text('View Job Requests'),
+                ),
+
+                // Add this button for testing
+                ElevatedButton(
+                  onPressed: () async {
+                    final provider = Provider.of<TimeClockProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await provider.checkForPendingRequests();
+                    await _loadPendingRequestCount();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Checked for pending requests')),
+                    );
+                  },
+                  child: Text('Check for Requests'),
                 ),
               ],
             ),
@@ -379,5 +497,12 @@ class SettingsScreen extends StatelessWidget {
     } catch (e) {
       print('Error signing out: $e');
     }
+  }
+
+  void _navigateToSharedJobs(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SharedJobsScreen()),
+    );
   }
 }

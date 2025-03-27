@@ -99,6 +99,8 @@ class _LoginScreenState extends State<LoginScreen>
 
       // Navigate to main screen
       if (mounted) {
+        await provider.clearLocalData();
+        await provider.loadData();
         Navigator.of(context).pushReplacementNamed(Routes.main);
       }
     } on FirebaseAuthException catch (e) {

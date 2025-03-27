@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
@@ -199,6 +200,22 @@ class TimeClockProvider extends ChangeNotifier {
       'thisMonth': 'This Month',
       'export': 'Export',
       'add': 'Add',
+      'sharedJobs': 'Shared Jobs',
+      'manageSharedJobs': 'Create or join shared jobs with others',
+      'joinJob': 'Join Job',
+      'enterCode': 'Enter connection code',
+      'publicJob': 'Public Job',
+      'publicJobDescription': 'Anyone with the code can join this job',
+      'privateJob': 'Private Job',
+      'privateJobDescription': 'Users must request permission to join',
+      'joinRequestSent': 'Join request sent',
+      'joinRequestPending': 'Your request to join this job is pending',
+      'approveRequest': 'Approve',
+      'denyRequest': 'Deny',
+      'pendingRequests': 'Pending Requests',
+      'noRequests': 'No pending requests',
+      'pendingRequestsCount': '{count} pending job requests',
+      'viewPendingRequests': 'View Pending Requests',
     },
     'is': {
       'home': 'Heim',
@@ -362,6 +379,24 @@ class TimeClockProvider extends ChangeNotifier {
       'thisMonth': 'Þessi mánuður',
       'export': 'Flytja út',
       'add': 'Bæta',
+      'sharedJobs': 'Sameiginleg verkefni',
+      'manageSharedJobs': 'Búa til eða tengjast sameiginlegum verkefnum',
+      'joinJob': 'Tengjast verkefni',
+      'enterCode': 'Sláðu inn tengikóða',
+      'publicJob': 'Opið verkefni',
+      'publicJobDescription': 'Allir með kóðann geta tengst þessu verkefni',
+      'privateJob': 'Lokað verkefni',
+      'privateJobDescription':
+          'Notendur þurfa að biðja um leyfi til að tengjast',
+      'joinRequestSent': 'Beiðni um aðgang send',
+      'joinRequestPending':
+          'Beiðni þín um að tengjast þessu verkefni er í vinnslu',
+      'approveRequest': 'Samþykkja',
+      'denyRequest': 'Hafna',
+      'pendingRequests': 'Óafgreiddar beiðnir',
+      'noRequests': 'Engar óafgreiddar beiðnir',
+      'pendingRequestsCount': '{count} óafgreiddar verkefnabeiðnir',
+      'viewPendingRequests': 'Skoða óafgreiddar beiðnir',
     },
   };
 
@@ -380,8 +415,15 @@ class TimeClockProvider extends ChangeNotifier {
   // Add this property to track recovery attempts
   bool isRecoveryAttempted = false;
 
+  // Add these properties to the TimeClockProvider class
+  bool isPaidUser = true; // This would be set based on subscription status
+  List<Job> sharedJobs = [];
+
+  Timer? _notificationTimer;
+
   TimeClockProvider() {
     _initializeProvider();
+    startNotificationChecks();
   }
 
   Future<void> _initializeProvider() async {
@@ -400,15 +442,26 @@ class TimeClockProvider extends ChangeNotifier {
   void calculateHoursWorkedThisWeek() {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    startOfWeek.subtract(
+      Duration(
+        hours: startOfWeek.hour,
+        minutes: startOfWeek.minute,
+        seconds: startOfWeek.second,
+      ),
+    );
+
+    print('Calculating hours from ${startOfWeek.toString()}');
 
     int totalMinutes = 0;
     for (var entry in timeEntries) {
       if (entry.clockInTime.isAfter(startOfWeek)) {
         totalMinutes += entry.duration.inMinutes;
+        print('Adding entry: ${entry.duration.inMinutes} minutes');
       }
     }
 
     hoursWorkedThisWeek = totalMinutes ~/ 60;
+    print('Total hours calculated: $hoursWorkedThisWeek');
     notifyListeners();
   }
 
@@ -1004,8 +1057,8 @@ class TimeClockProvider extends ChangeNotifier {
       // Make sure we have at least one job
       if (jobs.isEmpty) {
         jobs = [
-          Job(name: "Project Alpha", color: Colors.blue),
-          Job(name: "Client Beta", color: Colors.green),
+          Job(id: "1", name: "Project Alpha", color: Colors.blue),
+          Job(id: "2", name: "Client Beta", color: Colors.green),
         ];
       }
     }
@@ -1039,41 +1092,23 @@ class TimeClockProvider extends ChangeNotifier {
     if (_databaseService != null) {
       try {
         // Load jobs
-        final firestoreJobs = await _databaseService!.loadJobs();
-        if (firestoreJobs.isNotEmpty) {
-          jobs = firestoreJobs;
-        }
+        final loadedJobs = await _databaseService!.loadJobs();
 
-        // Load time entries
-        final firestoreEntries = await _databaseService!.loadTimeEntries();
-        if (firestoreEntries.isNotEmpty) {
-          timeEntries = firestoreEntries;
-        }
-
-        // Load user settings
-        final settings = await _databaseService!.loadUserSettings();
-        if (settings != null) {
-          locale = Locale(
-            settings['languageCode'] ?? 'en',
-            settings['countryCode'] ?? '',
+        // Debug logging
+        for (var job in loadedJobs) {
+          print(
+            'Loaded job: ${job.name}, color: ${job.color}, isShared: ${job.isShared}',
           );
-          use24HourFormat = settings['use24HourFormat'] ?? true;
-          targetHours = settings['targetHours'] ?? 173;
-
-          final themeModeStr = settings['themeMode'];
-          if (themeModeStr != null) {
-            if (themeModeStr.contains('dark')) {
-              themeMode = ThemeMode.dark;
-            } else if (themeModeStr.contains('light')) {
-              themeMode = ThemeMode.light;
-            } else {
-              themeMode = ThemeMode.system;
-            }
-          }
         }
+
+        jobs = loadedJobs;
+
+        // Separate shared jobs
+        sharedJobs = jobs.where((job) => job.isShared).toList();
+
+        notifyListeners();
       } catch (e) {
-        print('Error loading data from Firestore: $e');
-        // Continue with local data if Firestore fails
+        print('Error loading jobs: $e');
       }
     }
 
@@ -1224,7 +1259,7 @@ class TimeClockProvider extends ChangeNotifier {
       return;
     }
 
-    final newJob = Job(name: name, color: color);
+    final newJob = Job(id: '${jobs.length + 1}', name: name, color: color);
     jobs.add(newJob);
 
     // If this is the first job, select it
@@ -1250,52 +1285,37 @@ class TimeClockProvider extends ChangeNotifier {
     }
   }
 
-  void deleteJob(String jobId) {
-    // Don't allow deleting the job if it's currently selected and clocked in
-    if (isClockedIn && selectedJob?.id == jobId) {
-      if (context != null) {
-        ScaffoldMessenger.of(context!).showSnackBar(
-          SnackBar(
-            content: Text(translate('cannotDeleteActiveJob')),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+  Future<void> deleteJob(String jobId) async {
+    try {
+      final jobToDelete = jobs.firstWhere((job) => job.id == jobId);
+
+      if (_databaseService != null) {
+        // Use the new method to properly disconnect from shared jobs
+        await _databaseService!.deleteJob(jobId);
       }
-      return;
-    }
 
-    // Remove the job
-    jobs.removeWhere((job) => job.id == jobId);
+      // Remove from local jobs list
+      jobs.removeWhere((job) => job.id == jobId);
 
-    // If the deleted job was selected, select another job if available
-    if (selectedJob?.id == jobId) {
-      selectedJob = jobs.isNotEmpty ? jobs.first : null;
-    }
+      // Also remove from shared jobs list if it's there
+      sharedJobs.removeWhere((job) => job.id == jobId);
 
-    // Remove time entries associated with this job
-    timeEntries.removeWhere((entry) => entry.jobId == jobId);
+      // If this was the selected job, reset selection
+      if (selectedJob?.id == jobId) {
+        selectedJob = jobs.isNotEmpty ? jobs.first : null;
+      }
 
-    calculateHoursWorkedThisWeek();
-    notifyListeners();
-    saveData();
+      // Remove any time entries for this job
+      timeEntries.removeWhere((entry) => entry.jobId == jobId);
 
-    if (context != null) {
-      ScaffoldMessenger.of(context!).showSnackBar(
-        SnackBar(
-          content: Text(translate('jobDeleted')),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      // Save changes to local storage
+      await saveJobsToLocalStorage();
+      await saveTimeEntriesToLocalStorage();
+
+      notifyListeners();
+    } catch (e) {
+      print('Error deleting job: $e');
+      rethrow;
     }
   }
 
@@ -1707,5 +1727,362 @@ class TimeClockProvider extends ChangeNotifier {
     } catch (e) {
       print('Error saving time entry to Firebase: $e');
     }
+  }
+
+  // Add this method to generate a random connection code
+  String generateConnectionCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random();
+    return String.fromCharCodes(
+      Iterable.generate(
+        6,
+        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+      ),
+    );
+  }
+
+  // Add method to create a shared job
+  Future<Job> createSharedJob(
+    String name,
+    Color color, {
+    bool isPublic = true,
+  }) async {
+    if (!isPaidUser) {
+      throw Exception('Only paid users can create shared jobs');
+    }
+
+    final connectionCode = generateConnectionCode();
+    final job = Job(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      color: color,
+      creatorId: currentUserId,
+      connectionCode: connectionCode,
+      isShared: true,
+      connectedUsers: [currentUserId ?? ''],
+      isPublic: isPublic,
+    );
+
+    await _databaseService!.createSharedJob(job);
+
+    // Add to local jobs list
+    jobs.add(job);
+    notifyListeners();
+
+    return job;
+  }
+
+  // Add method to join a shared job
+  Future<Job?> joinJobByCode(String connectionCode) async {
+    try {
+      final job = await _databaseService!.joinJobByCode(connectionCode);
+
+      if (job != null) {
+        // Check if we already have this job locally
+        final existingJobIndex = jobs.indexWhere((j) => j.id == job.id);
+        if (existingJobIndex >= 0) {
+          // Update existing job
+          jobs[existingJobIndex] = job;
+        } else {
+          // Add new job
+          jobs.add(job);
+        }
+
+        notifyListeners();
+      }
+
+      return job;
+    } catch (e) {
+      print('Error joining job: $e');
+      rethrow;
+    }
+  }
+
+  // Add method to get all time entries for a shared job
+  Future<List<TimeEntry>> getSharedJobTimeEntries(String jobId) async {
+    try {
+      return await _databaseService!.getSharedJobTimeEntries(jobId);
+    } catch (e) {
+      print('Error getting shared job time entries: $e');
+      rethrow;
+    }
+  }
+
+  // Update the loadJobs method to identify shared jobs
+  Future<void> loadJobs() async {
+    try {
+      if (_databaseService != null) {
+        final loadedJobs = await _databaseService!.loadJobs();
+
+        // Debug logging
+        for (var job in loadedJobs) {
+          print(
+            'Loaded job: ${job.name}, color: ${job.color}, isShared: ${job.isShared}',
+          );
+        }
+
+        jobs = loadedJobs;
+
+        // Separate shared jobs
+        sharedJobs = jobs.where((job) => job.isShared).toList();
+
+        notifyListeners();
+      } else {
+        // Load from local storage
+        final prefs = await SharedPreferences.getInstance();
+        final jobsJson = prefs.getString('jobs');
+
+        if (jobsJson != null) {
+          final List<dynamic> decoded = jsonDecode(jobsJson);
+          jobs = decoded.map((item) => Job.fromJson(item)).toList();
+
+          // Separate shared jobs
+          sharedJobs = jobs.where((job) => job.isShared).toList();
+
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      print('Error loading jobs: $e');
+    }
+  }
+
+  // Add a method to request access to a private job
+  Future<void> requestJobAccess(String jobId, String connectionCode) async {
+    try {
+      await _databaseService!.requestJobAccess(jobId, connectionCode);
+    } catch (e) {
+      print('Error requesting job access: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingJoinRequests() async {
+    try {
+      return await _databaseService!.getPendingJoinRequests();
+    } catch (e) {
+      print('Error getting pending join requests: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> respondToJoinRequest(String requestId, bool approve) async {
+    try {
+      // First try with the current user's credentials
+      await _databaseService!.respondToJoinRequest(requestId, approve);
+    } catch (e) {
+      print('Error responding to join request: $e');
+
+      // If there's a permission error, try a different approach
+      if (e.toString().contains('permission-denied')) {
+        try {
+          // Get the request data first
+          final requests = await getPendingJoinRequests();
+          final request = requests.firstWhere((r) => r['id'] == requestId);
+
+          // Manually update the collections
+          if (approve) {
+            await _manuallyApproveRequest(request);
+          } else {
+            await _manuallyDenyRequest(requestId);
+          }
+        } catch (innerError) {
+          print('Error in fallback approach: $innerError');
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<int> getPendingRequestCount() async {
+    try {
+      final requests = await _databaseService!.getPendingJoinRequests();
+      return requests.length;
+    } catch (e) {
+      print('Error getting pending request count: $e');
+      return 0;
+    }
+  }
+
+  // Add this method to clear local data when switching accounts
+  Future<void> clearLocalData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // Reset provider state
+    jobs = [];
+    sharedJobs = [];
+    timeEntries = [];
+    selectedJob = null;
+
+    notifyListeners();
+  }
+
+  void startNotificationChecks() {
+    _notificationTimer?.cancel();
+    _notificationTimer = Timer.periodic(Duration(minutes: 1), (_) {
+      checkForPendingRequests();
+    });
+  }
+
+  Future<void> checkForPendingRequests() async {
+    if (_databaseService != null) {
+      try {
+        final count = await getPendingRequestCount();
+        if (count > 0) {
+          // Notify the UI that there are pending requests
+          notifyListeners();
+        }
+      } catch (e) {
+        print('Error checking for pending requests: $e');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<bool> checkIfJobIsPrivate(String connectionCode) async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .get();
+
+      if (!doc.exists) {
+        throw Exception('Invalid connection code');
+      }
+
+      final isPublic = doc.data()?['isPublic'] ?? true;
+      return !isPublic;
+    } catch (e) {
+      print('Error checking job privacy: $e');
+      rethrow;
+    }
+  }
+
+  // Add this method to delete a shared job
+  Future<void> deleteSharedJob(Job job) async {
+    if (job.connectionCode == null) {
+      throw Exception('This is not a shared job');
+    }
+
+    if (job.creatorId != currentUserId) {
+      throw Exception('Only the creator can delete this job');
+    }
+
+    try {
+      await _databaseService!.deleteSharedJob(job.id, job.connectionCode!);
+
+      // Remove from local jobs list
+      jobs.removeWhere((j) => j.id == job.id);
+      sharedJobs.removeWhere((j) => j.id == job.id);
+
+      // If this was the selected job, reset selection
+      if (selectedJob?.id == job.id) {
+        selectedJob = jobs.isNotEmpty ? jobs.first : null;
+      }
+
+      notifyListeners();
+    } catch (e) {
+      print('Error deleting shared job: $e');
+      rethrow;
+    }
+  }
+
+  // Add these methods to handle manual approval/denial
+  Future<void> _manuallyApproveRequest(Map<String, dynamic> request) async {
+    try {
+      // 1. Update the request status
+      await FirebaseFirestore.instance
+          .collection('joinRequests')
+          .doc(request['id'])
+          .update({'status': 'approved'});
+
+      // 2. Get the job data
+      final sharedJobDoc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(request['connectionCode'])
+              .get();
+
+      if (!sharedJobDoc.exists) {
+        throw Exception('Shared job not found');
+      }
+
+      final sharedJobData = sharedJobDoc.data()!;
+
+      // 3. Create a job for the requester
+      final job = Job(
+        id: request['jobId'],
+        name: sharedJobData['name'],
+        color: Color(sharedJobData['color']),
+        creatorId: sharedJobData['creatorId'],
+        connectionCode: request['connectionCode'],
+        isShared: true,
+        isPublic: sharedJobData['isPublic'] ?? true,
+      );
+
+      // 4. Add the job to the requester's jobs collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(request['requesterId'])
+          .collection('jobs')
+          .doc(job.id)
+          .set(job.toJson());
+
+      // 5. Update the shared job's connected users list
+      List<String> connectedUsers = List<String>.from(
+        sharedJobData['connectedUsers'] ?? [],
+      );
+
+      if (!connectedUsers.contains(request['requesterId'])) {
+        connectedUsers.add(request['requesterId']);
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(request['connectionCode'])
+            .update({'connectedUsers': connectedUsers});
+      }
+
+      print('Manual approval completed successfully');
+    } catch (e) {
+      print('Error in manual approval: $e');
+      throw e;
+    }
+  }
+
+  Future<void> _manuallyDenyRequest(String requestId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('joinRequests')
+          .doc(requestId)
+          .update({'status': 'denied'});
+
+      print('Manual denial completed successfully');
+    } catch (e) {
+      print('Error in manual denial: $e');
+      throw e;
+    }
+  }
+
+  // Add these methods to save data to local storage
+  Future<void> saveJobsToLocalStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jobsJson = jsonEncode(jobs.map((job) => job.toJson()).toList());
+    await prefs.setString('jobs', jobsJson);
+  }
+
+  Future<void> saveTimeEntriesToLocalStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final entriesJson = jsonEncode(
+      timeEntries.map((entry) => entry.toJson()).toList(),
+    );
+    await prefs.setString('timeEntries', entriesJson);
   }
 }

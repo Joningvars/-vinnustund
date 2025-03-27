@@ -140,10 +140,10 @@ class _TimeClockScreenState extends State<TimeClockScreen>
 
   // For job tracking
   final List<Job> _jobs = [
-    Job(name: "Project Alpha", color: Colors.blue),
-    Job(name: "Client Beta", color: Colors.green),
-    Job(name: "Maintenance", color: Colors.orange),
-    Job(name: "Admin Work", color: Colors.purple),
+    Job(id: "1", name: "Project Alpha", color: Colors.blue),
+    Job(id: "2", name: "Client Beta", color: Colors.green),
+    Job(id: "3", name: "Maintenance", color: Colors.orange),
+    Job(id: "4", name: "Admin Work", color: Colors.purple),
   ];
 
   Job? _selectedJob;
@@ -431,6 +431,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
                     onPressed: () {
                       if (nameController.text.isNotEmpty) {
                         final newJob = Job(
+                          id: '${_jobs.length + 1}',
                           name: nameController.text,
                           description:
                               descController.text.isEmpty

@@ -11,6 +11,7 @@ class TimeEntry {
   final Duration duration;
   final String? description;
   final String date;
+  final String? userId;
 
   TimeEntry({
     String? id,
@@ -22,6 +23,7 @@ class TimeEntry {
     required this.duration,
     this.description,
     String? date,
+    this.userId,
   }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
        date = date ?? DateFormat('yyyy-MM-dd').format(clockInTime);
 
@@ -60,6 +62,7 @@ class TimeEntry {
       'duration': duration.inMinutes,
       'description': description ?? '',
       'date': date,
+      'userId': userId,
     };
   }
 
@@ -74,6 +77,7 @@ class TimeEntry {
       duration: Duration(minutes: json['duration']),
       description: json['description'],
       date: json['date'],
+      userId: json['userId'],
     );
   }
 }

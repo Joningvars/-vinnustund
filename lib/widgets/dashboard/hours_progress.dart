@@ -72,6 +72,12 @@ class HoursProgress extends StatelessWidget {
         provider.jobs.map((job) {
           final hours = jobHoursConverted[job.id] ?? 0;
           final percentage = totalHours > 0 ? hours / totalHours : 0.0;
+
+          // Debug logging
+          print(
+            'Job: ${job.name}, ID: ${job.id}, Color: ${job.color}, Hours: $hours',
+          );
+
           return {'job': job, 'hours': hours, 'percentage': percentage};
         }).toList();
 
