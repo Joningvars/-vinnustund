@@ -377,14 +377,20 @@ class _JobsScreenState extends State<JobsScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(timeEntriesProvider.translate('jobs')),
+        title: Text(
+          timeEntriesProvider.translate('jobs'),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           tabs: [
             Tab(text: timeEntriesProvider.translate('myJobs')),
-            Tab(text: timeEntriesProvider.translate('sharedJobs')),
-            Tab(text: timeEntriesProvider.translate('createJob')),
+            Tab(text: timeEntriesProvider.translate('sharedJobsSelectButton')),
+            Tab(text: timeEntriesProvider.translate('createNewJob')),
             Tab(text: timeEntriesProvider.translate('joinJob')),
           ],
           indicatorColor: theme.colorScheme.primary,
@@ -411,6 +417,7 @@ class _JobsScreenState extends State<JobsScreen>
       floatingActionButton:
           _tabController.index <= 1
               ? FloatingActionButton(
+                backgroundColor: theme.colorScheme.primary,
                 onPressed: () {
                   if (_tabController.index == 0) {
                     // For My Jobs tab
@@ -420,7 +427,7 @@ class _JobsScreenState extends State<JobsScreen>
                     _tabController.animateTo(2); // Navigate to Create Job tab
                   }
                 },
-                child: const Icon(Icons.add),
+                child: const Icon(Icons.add, color: Colors.white),
                 tooltip: timeEntriesProvider.translate('addJob'),
               )
               : null,
@@ -554,99 +561,151 @@ class _JobsScreenState extends State<JobsScreen>
     ThemeData theme,
   ) {
     final codeController = TextEditingController();
-
-    if (!jobsProvider.isPaidUser) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text(
-                timeEntriesProvider.translate('sharedJobsPremiumFeature'),
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to upgrade screen
-                },
-                child: Text(timeEntriesProvider.translate('upgrade')),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final formKey = GlobalKey<FormState>();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24.0),
       child: Form(
-        key: _joinJobFormKey,
+        key: formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              timeEntriesProvider.translate('joinSharedJob'),
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              timeEntriesProvider.translate('enterCodeToJoin'),
-              style: theme.textTheme.bodyMedium,
+            // Header with icon
+            Row(
+              children: [
+                // Icon in semi-transparent circle
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.link_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    timeEntriesProvider.translate('joinSharedJob'),
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
-            TextField(
+
+            // Connection code explanation
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color:
+                    isDarkMode
+                        ? theme.colorScheme.surface
+                        : theme.colorScheme.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: theme.colorScheme.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          timeEntriesProvider.translate('enterConnectionCode'),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    timeEntriesProvider.translate('askJobCreatorForCode'),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Code input field
+            TextFormField(
               controller: codeController,
               decoration: InputDecoration(
                 labelText: timeEntriesProvider.translate('connectionCode'),
-                hintText: 'ABC123',
+                hintText: 'ABC-123',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                prefixIcon: const Icon(Icons.vpn_key_rounded),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.content_paste_rounded),
+                  tooltip: 'Paste from clipboard',
+                  onPressed: () async {
+                    final data = await Clipboard.getData('text/plain');
+                    if (data?.text != null) {
+                      codeController.text = data!.text!.trim();
+                    }
+                  },
+                ),
               ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return timeEntriesProvider.translate('jobCodeRequired');
+                }
+                return null;
+              },
               textCapitalization: TextCapitalization.characters,
-              style: const TextStyle(letterSpacing: 2),
+              style: const TextStyle(letterSpacing: 1.5),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
+
+            // Join button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                child: Text(
+                  timeEntriesProvider.translate('joinJob'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 onPressed: () {
-                  if (codeController.text.isNotEmpty) {
-                    jobsProvider.joinSharedJob(codeController.text);
+                  if (formKey.currentState!.validate()) {
+                    if (codeController.text.isNotEmpty) {
+                      jobsProvider.joinSharedJob(codeController.text);
 
-                    // Navigate to shared jobs tab
-                    _navigateToTab(1);
+                      // Navigate to shared jobs tab
+                      _navigateToTab(1);
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text(timeEntriesProvider.translate('join')),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: theme.colorScheme.primary.withOpacity(0.7),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    timeEntriesProvider.translate('sharedJobInfo'),
-                    style: theme.textTheme.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
               ),
             ),
           ],
@@ -1137,8 +1196,8 @@ class _JobsScreenState extends State<JobsScreen>
                 ),
                 const SizedBox(height: 12),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 12,
+                  spacing: 6,
+                  runSpacing: 8,
                   children:
                       _colorOptions.map((color) {
                         final isSelected = selectedColor.value == color.value;
@@ -1149,8 +1208,8 @@ class _JobsScreenState extends State<JobsScreen>
                             });
                           },
                           child: Container(
-                            width: 48,
-                            height: 48,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               color: color,
                               shape: BoxShape.circle,
@@ -1158,16 +1217,16 @@ class _JobsScreenState extends State<JobsScreen>
                                   isSelected
                                       ? Border.all(
                                         color: Colors.white,
-                                        width: 3,
+                                        width: 2,
                                       )
                                       : null,
                               boxShadow:
                                   isSelected
                                       ? [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
-                                          blurRadius: 8,
-                                          spreadRadius: 1,
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 4,
+                                          spreadRadius: 0.5,
                                         ),
                                       ]
                                       : null,
@@ -1177,6 +1236,7 @@ class _JobsScreenState extends State<JobsScreen>
                                     ? const Icon(
                                       Icons.check,
                                       color: Colors.white,
+                                      size: 16,
                                     )
                                     : null,
                           ),

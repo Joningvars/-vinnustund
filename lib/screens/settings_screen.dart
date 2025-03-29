@@ -157,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '${provider.targetHours} hrs',
+                              '${provider.targetHours} ${provider.translate('hours')}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),

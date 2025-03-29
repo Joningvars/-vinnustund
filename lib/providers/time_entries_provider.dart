@@ -623,7 +623,7 @@ class TimeEntriesProvider extends BaseProvider {
       ];
 
       for (var job in defaultJobs) {
-        _jobsProvider!.addJob(job.name, job.color);
+        _jobsProvider!.addJob(job.name, job.color, null);
       }
     }
 

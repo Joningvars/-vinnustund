@@ -235,7 +235,6 @@ class HomeScreen extends StatelessWidget {
       context,
       listen: false,
     );
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -269,6 +268,7 @@ class HomeScreen extends StatelessWidget {
               ),
             );
           }),
+
           const AddJobButton(),
         ],
       ),
@@ -703,7 +703,11 @@ void _showAddJobDialog(BuildContext context, JobsProvider jobsProvider) {
               TextButton(
                 onPressed: () {
                   if (nameController.text.isNotEmpty) {
-                    jobsProvider.addJob(nameController.text, selectedColor);
+                    jobsProvider.addJob(
+                      nameController.text,
+                      selectedColor,
+                      null,
+                    );
                     Navigator.pop(context);
                   }
                 },

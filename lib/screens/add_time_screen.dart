@@ -397,7 +397,11 @@ class AddTimeScreen extends StatelessWidget {
                     );
 
                     // Add job to JobsProvider with the new signature
-                    jobsProvider.addJob(nameController.text, selectedColor);
+                    jobsProvider.addJob(
+                      nameController.text,
+                      selectedColor,
+                      null,
+                    );
 
                     // Set as selected job in TimeEntriesProvider
                     provider.setSelectedJob(newJob);

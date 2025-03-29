@@ -212,7 +212,7 @@ class SettingsProvider extends BaseProvider {
           'Ask the job creator for the connection code to join their shared job',
       'createSharedJobDescription':
           'Create a shared job to collaborate with your team',
-      'createNewJob': 'Create New Job',
+      'createNewJob': 'Create a new job',
       'jobNameRequired': 'Job name is required',
       'sharedJob': 'Shared Job',
       'sharedJobDescription':
@@ -248,6 +248,7 @@ class SettingsProvider extends BaseProvider {
       'month': 'Mánuður',
       'selectJob': 'Veldu verkefni',
       'recentEntries': 'Nýlegar færslur',
+      'createNewJob': 'Búa til nýtt verk',
       'viewAll': 'Sjá allt',
       'cannotChangeJob':
           'Ekki hægt að breyta verkefni á meðan þú ert stimplaður inn',
@@ -421,29 +422,30 @@ class SettingsProvider extends BaseProvider {
       'joinSharedJob': 'Tengjast sameiginlegu verkefni',
       'jobUpdated': 'Verki uppfært',
       'deleteJobConfirmation': 'Ertu viss um að þú viljir eyða þessu verki?',
-      'myJobs': 'My Jobs',
+      'myJobs': 'Mín verk',
       'addJob': 'Bæta verk',
       'join': 'Tengjast',
-      'createJobDescription': 'Create your first job to start tracking time',
-      'createFirstJob': 'Create First Job',
-      'noJobsYet': 'No jobs yet',
-      'sharedJobsPremiumFeature': 'Shared Jobs is a premium feature',
+      'createJobDescription':
+          'Búa til fyrsta verki til að byrja að fylgjast með tíma',
+      'createFirstJob': 'Búa til fyrsta verk',
+      'noJobsYet': 'Engin verk enn',
+      'sharedJobsPremiumFeature': 'Sameiginleg verk eru ítarlegur eiginleiki',
       'upgradeToAccessSharedJobs':
-          'Upgrade your account to create and join shared jobs with your team',
-      'upgrade': 'Upgrade',
-      'enterCodeToJoin': 'Enter the connection code to join a shared job',
+          'Uppfæra reikninginn til að búa til og tengjast sameiginlegum verkum',
+      'upgrade': 'Uppfæra',
+      'enterCodeToJoin':
+          'Sláðu inn tengikóða til að tengjast sameiginlegu verki',
       'connectionCode': 'Tengikóði',
       'sharedJobInfo':
-          'Ask the job creator for the connection code to join their shared job',
+          'Sæktu tengikóða frá verkstjóra til að tengjast verki þeirra',
       'createSharedJobDescription':
-          'Create a shared job to collaborate with your team',
-      'createNewJob': 'Create New Job',
-      'jobNameRequired': 'Job name is required',
-      'sharedJob': 'Shared Job',
+          'Búa til sameiginlegt verk til að vinna saman',
+      'jobNameRequired': 'Nafn verks er nauðsynlegt',
+      'sharedJob': 'Sameiginlegt verk',
       'sharedJobDescription':
-          'Allow others to join this job with a connection code',
-      'editJob': 'Edit Job',
-      'save': 'Save',
+          'Gera öllum kleift að tengjast verki með tengikóða',
+      'editJob': 'Breyta verki',
+      'save': 'Vista',
       'jobColor': 'Litur verks',
       'enterJobCode': 'Sláðu inn verkakóða',
       'jobCodeRequired': 'Verkakóði er nauðsynlegt',

@@ -7,6 +7,7 @@ import 'package:timagatt/providers/base_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class JobsProvider extends BaseProvider {
   List<Job> jobs = [];
@@ -82,23 +83,51 @@ class JobsProvider extends BaseProvider {
     notifyListeners();
   }
 
-  Future<void> addJob(String name, Color color, [String? description]) async {
-    final job = Job(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      description: description,
-      color: color,
-    );
+  Future<void> addJob(String name, Color color, String? description) async {
+    try {
+      final newJob = Job(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        color: color,
+        description: description,
+        isShared: false,
+        isPublic: true,
+        connectionCode: null,
+        creatorId: null,
+        connectedUsers: null,
+      );
 
-    jobs.add(job);
+      // Add to local list
+      jobs.add(newJob);
 
-    // Save to database if available
-    if (databaseService != null) {
-      await databaseService!.saveJob(job);
+      // Set as selected job if no job is selected
+      if (selectedJob == null) {
+        selectedJob = newJob;
+      }
+
+      notifyListeners();
+
+      // Save to database if authenticated
+      if (databaseService != null &&
+          FirebaseAuth.instance.currentUser != null) {
+        try {
+          await databaseService!.saveJob(newJob);
+        } catch (e) {
+          print('Error saving job to database: $e');
+          // Continue with local storage even if Firebase save fails
+        }
+      }
+
+      // Always save to local storage as a backup
+      try {
+        await saveJobsToLocalStorage();
+      } catch (e) {
+        print('Error saving job to local storage: $e');
+      }
+    } catch (e) {
+      print('Error adding job: $e');
+      // Handle error - maybe show a snackbar or dialog
     }
-
-    await saveJobsToLocalStorage();
-    notifyListeners();
   }
 
   Future<void> deleteJob(String jobId) async {
@@ -148,42 +177,46 @@ class JobsProvider extends BaseProvider {
   }
 
   // Shared jobs methods
-  Future<Job> createSharedJob(String name, Color color, bool isPublic) async {
-    final connectionCode = _generateConnectionCode();
+  Future<void> createSharedJob(String name, Color color, bool isPublic) async {
+    try {
+      if (!isPaidUser) return;
 
-    final job = Job(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      color: color,
-      creatorId: currentUserId,
-      connectionCode: connectionCode,
-      isShared: true,
-      connectedUsers: [currentUserId!],
-      isPublic: isPublic,
-    );
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    jobs.add(job);
-    sharedJobs.add(job);
+      // Generate a unique connection code
+      final connectionCode = _generateConnectionCode();
 
-    if (databaseService != null) {
-      await databaseService!.saveJob(job);
-      // Also save to shared jobs collection
-      await FirebaseFirestore.instance
-          .collection('sharedJobs')
-          .doc(connectionCode)
-          .set({
-            'jobId': job.id,
-            'name': job.name,
-            'color': job.color.value,
-            'creatorId': currentUserId,
-            'isPublic': isPublic,
-            'connectedUsers': [currentUserId],
-          });
+      final newJob = Job(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        color: color,
+        description: null,
+        isShared: true,
+        isPublic: isPublic,
+        connectionCode: connectionCode,
+        creatorId: user.uid,
+        connectedUsers: [user.uid],
+      );
+
+      // Add to local list
+      jobs.add(newJob);
+
+      // Set as selected job if no job is selected
+      if (selectedJob == null) {
+        selectedJob = newJob;
+      }
+
+      notifyListeners();
+
+      // Save to database
+      if (databaseService != null) {
+        await databaseService!.saveJob(newJob);
+      }
+    } catch (e) {
+      print('Error creating shared job: $e');
+      // Handle error
     }
-
-    await saveJobsToLocalStorage();
-    notifyListeners();
-    return job;
   }
 
   Future<Job?> joinJobByCode(String connectionCode) async {
@@ -335,11 +368,9 @@ class JobsProvider extends BaseProvider {
   String _generateConnectionCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
-    return String.fromCharCodes(
-      Iterable.generate(
-        6,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
-    );
+    return List.generate(
+      6,
+      (index) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 }
