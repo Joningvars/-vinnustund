@@ -27,6 +27,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if we have a job filter from arguments
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args.containsKey('jobId')) {
+      final jobId = args['jobId'] as String;
+      // Set the filter to show only entries for this job
+      setState(() {
+        _selectedJobId = jobId;
+      });
+    }
+  }
+
   Future<void> _selectDateRange(
     BuildContext context,
     TimeEntriesProvider provider,

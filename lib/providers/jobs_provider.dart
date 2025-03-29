@@ -328,21 +328,36 @@ class JobsProvider extends BaseProvider {
     String? description,
     required Color color,
   }) async {
-    final index = jobs.indexWhere((job) => job.id == id);
-    if (index != -1) {
-      jobs[index] = jobs[index].copyWith(
-        name: name,
-        description: description,
-        color: color,
-      );
+    try {
+      final index = jobs.indexWhere((job) => job.id == id);
+      if (index != -1) {
+        jobs[index] = jobs[index].copyWith(
+          name: name,
+          description: description,
+          color: color,
+        );
 
-      // Save to database if available
-      if (databaseService != null) {
-        await databaseService!.updateJob(jobs[index]);
+        // Save to database if available
+        if (databaseService != null &&
+            FirebaseAuth.instance.currentUser != null) {
+          try {
+            await databaseService!.updateJob(jobs[index]);
+          } catch (e) {
+            print('Error updating job in database: $e');
+          }
+        }
+
+        // Always save to local storage as backup
+        try {
+          await saveJobsToLocalStorage();
+        } catch (e) {
+          print('Error saving job to local storage: $e');
+        }
+
+        notifyListeners();
       }
-
-      await saveJobsToLocalStorage();
-      notifyListeners();
+    } catch (e) {
+      print('Error updating job: $e');
     }
   }
 

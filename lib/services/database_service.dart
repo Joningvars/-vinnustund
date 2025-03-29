@@ -774,6 +774,38 @@ class DatabaseService {
   }
 
   Future<void> updateJob(Job job) async {
-    await jobsCollection.doc(job.id).set(job.toJson());
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      print('Updating job in Firebase: ${job.id}, ${job.name}, ${job.color}');
+
+      // Update in the user's jobs collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('jobs')
+          .doc(job.id)
+          .set(job.toJson(), SetOptions(merge: true));
+
+      // If it's a shared job, also update in the shared jobs collection
+      if (job.isShared && job.connectionCode != null) {
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(job.connectionCode)
+            .update({
+              'name': job.name,
+              'color': job.color.value,
+              'description': job.description,
+            });
+      }
+
+      print('Job updated successfully in Firebase');
+    } catch (e) {
+      print('Error updating job in Firebase: $e');
+      rethrow;
+    }
   }
 }

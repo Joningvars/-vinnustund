@@ -23,6 +23,26 @@ class _JobsScreenState extends State<JobsScreen>
   Color _selectedColor = Colors.blue;
   Job? _editingJob;
 
+  // Define a single set of colors to use throughout the app
+  final List<Color> _colorOptions = [
+    Colors.blue,
+    Colors.red,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.amber,
+    Colors.cyan,
+    Colors.deepPurple,
+    Colors.lightBlue,
+    Colors.lime,
+    Colors.deepOrange,
+    Colors.greenAccent,
+    Colors.blueAccent,
+  ];
+
   // Add a TabController
   late TabController _tabController;
 
@@ -80,10 +100,16 @@ class _JobsScreenState extends State<JobsScreen>
   }
 
   void _showEditJobDialog(Job job) {
+    print('Editing job: ${job.id}, ${job.name}, ${job.color}');
+
+    // Set form values
     _nameController.text = job.name;
     _descriptionController.text = job.description ?? '';
-    _selectedColor = job.color;
-    _editingJob = job;
+
+    setState(() {
+      _selectedColor = job.color;
+      _editingJob = job;
+    });
 
     showModalBottomSheet(
       context: context,
@@ -205,103 +231,117 @@ class _JobsScreenState extends State<JobsScreen>
   }
 
   Widget _buildColorPicker() {
-    final colors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-      Colors.amber,
-      Colors.cyan,
-      Colors.deepPurple,
-      Colors.lightBlue,
-      Colors.lime,
-      Colors.deepOrange,
-    ];
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children:
-          colors.map((color) {
-            final isSelected = _selectedColor.value == color.value;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedColor = color;
-                });
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? Colors.white : Colors.transparent,
-                    width: 2,
+    return StatefulBuilder(
+      builder: (context, setStateLocal) {
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children:
+              _colorOptions.map((color) {
+                final isSelected = _selectedColor.value == color.value;
+                return GestureDetector(
+                  onTap: () {
+                    setStateLocal(() {
+                      _selectedColor = color;
+                    });
+                    // Also update the parent state
+                    setState(() {
+                      _selectedColor = color;
+                    });
+                  },
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        width: 2,
+                      ),
+                      boxShadow:
+                          isSelected
+                              ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                              : null,
+                    ),
+                    child:
+                        isSelected
+                            ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 20,
+                            )
+                            : null,
                   ),
-                  boxShadow:
-                      isSelected
-                          ? [
-                            BoxShadow(
-                              color: color.withOpacity(0.3),
-                              blurRadius: 4,
-                              spreadRadius: 0.5,
-                            ),
-                          ]
-                          : null,
-                ),
-                child:
-                    isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
+        );
+      },
     );
   }
 
   void _saveJob() {
-    final formKey = _editingJob != null ? _editJobFormKey : _addJobFormKey;
-    if (formKey.currentState!.validate()) {
-      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
-      final name = _nameController.text;
-      final description =
-          _descriptionController.text.isEmpty
-              ? null
-              : _descriptionController.text;
+    final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
 
-      if (_editingJob == null) {
-        // Add new job
-        jobsProvider.addJob(name, _selectedColor, description);
-      } else {
-        // Update existing job
+    if (_editingJob != null) {
+      // Editing existing job
+      if (_editJobFormKey.currentState!.validate()) {
+        print('Saving edited job: ${_editingJob!.id}');
+        print('New name: ${_nameController.text}');
+        print('New description: ${_descriptionController.text}');
+        print('New color: ${_selectedColor}');
+
         jobsProvider.updateJob(
           _editingJob!.id,
-          name: name,
-          description: description,
+          name: _nameController.text,
+          description:
+              _descriptionController.text.isEmpty
+                  ? null
+                  : _descriptionController.text,
           color: _selectedColor,
         );
-      }
 
-      Navigator.pop(context);
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            Provider.of<TimeEntriesProvider>(
-              context,
-              listen: false,
-            ).translate(_editingJob == null ? 'jobAdded' : 'jobUpdated'),
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(timeEntriesProvider.translate('jobUpdated')),
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
+        );
+
+        Navigator.pop(context);
+      }
+    } else {
+      // Adding new job
+      if (_addJobFormKey.currentState!.validate()) {
+        jobsProvider.addJob(
+          _nameController.text,
+          _selectedColor,
+          _descriptionController.text.isEmpty
+              ? null
+              : _descriptionController.text,
+        );
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(timeEntriesProvider.translate('jobAdded')),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -419,13 +459,8 @@ class _JobsScreenState extends State<JobsScreen>
               ? FloatingActionButton(
                 backgroundColor: theme.colorScheme.primary,
                 onPressed: () {
-                  if (_tabController.index == 0) {
-                    // For My Jobs tab
-                    _showAddJobDialog();
-                  } else if (_tabController.index == 1) {
-                    // For Shared Jobs tab
-                    _tabController.animateTo(2); // Navigate to Create Job tab
-                  }
+                  // Navigate to the Create Job tab (index 2) instead of showing a dialog
+                  _tabController.animateTo(2);
                 },
                 child: const Icon(Icons.add, color: Colors.white),
                 tooltip: timeEntriesProvider.translate('addJob'),
@@ -439,25 +474,133 @@ class _JobsScreenState extends State<JobsScreen>
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
-    final myJobs = jobsProvider.jobs.where((job) => !job.isShared).toList();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (myJobs.isEmpty)
-            _buildEmptyJobsState(timeEntriesProvider, theme)
-          else
-            ...myJobs.map(
-              (job) => _buildSlideableJobCard(
-                job,
-                theme,
-                Theme.of(context).brightness == Brightness.dark,
+    if (jobsProvider.jobs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.work_outline, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              timeEntriesProvider.translate('noJobsYet'),
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              timeEntriesProvider.translate('createJobDescription'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to Create Job tab
+                _tabController.animateTo(2);
+              },
+              icon: const Icon(Icons.add),
+              label: Text(timeEntriesProvider.translate('createFirstJob')),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             ),
-        ],
-      ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: jobsProvider.jobs.length,
+      itemBuilder: (context, index) {
+        final job = jobsProvider.jobs[index];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Job header
+              ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                leading: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: job.color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      job.name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  job.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                subtitle:
+                    job.description != null && job.description!.isNotEmpty
+                        ? Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            job.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                        : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Edit button
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                      onPressed: () {
+                        _showEditJobDialog(job);
+                      },
+                      tooltip: timeEntriesProvider.translate('editJob'),
+                    ),
+                    // View entries button
+                    IconButton(
+                      icon: Icon(
+                        Icons.visibility_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                      onPressed: () {
+                        // Navigate to history screen filtered by this job
+                        Navigator.pushNamed(
+                          context,
+                          '/history',
+                          arguments: {'jobId': job.id},
+                        );
+                      },
+                      tooltip: timeEntriesProvider.translate('viewEntries'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -814,300 +957,6 @@ class _JobsScreenState extends State<JobsScreen>
     );
   }
 
-  Widget _buildEmptyJobsState(
-    TimeEntriesProvider timeEntriesProvider,
-    ThemeData theme,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 32),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.work_outline,
-            size: 64,
-            color: theme.colorScheme.primary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            timeEntriesProvider.translate('noJobsYet'),
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            timeEntriesProvider.translate('createJobDescription'),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodySmall?.color,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _showAddJobDialog,
-            icon: const Icon(Icons.add),
-            label: Text(timeEntriesProvider.translate('createFirstJob')),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSlideableJobCard(Job job, ThemeData theme, bool isDark) {
-    return Slidable(
-      key: ValueKey(job.id),
-      endActionPane: ActionPane(
-        motion: const ScrollMotion(),
-        children: [
-          SlidableAction(
-            onPressed: (_) => _editJob(job),
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            icon: Icons.edit,
-            label: Provider.of<TimeEntriesProvider>(
-              context,
-              listen: false,
-            ).translate('edit'),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(12),
-              bottomLeft: Radius.circular(12),
-            ),
-          ),
-          SlidableAction(
-            onPressed: (_) => _confirmDeleteJob(job),
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            icon: Icons.delete,
-            label: Provider.of<TimeEntriesProvider>(
-              context,
-              listen: false,
-            ).translate('delete'),
-            borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(12),
-              bottomRight: Radius.circular(12),
-            ),
-          ),
-        ],
-      ),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: job.color.withOpacity(0.3), width: 1),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _editJob(job),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Color indicator with job initial
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: job.color,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: job.color.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      job.name.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Job details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (job.description != null &&
-                          job.description!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            job.description!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.textTheme.bodySmall?.color,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                // Slide indicator
-                Icon(
-                  Icons.swipe_left,
-                  color: theme.colorScheme.primary.withOpacity(0.5),
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCreateSharedJobDialog() {
-    final nameController = TextEditingController();
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-      context,
-      listen: false,
-    );
-    bool isPublic = true;
-    Color selectedColor = Colors.blue;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  title: Text(timeEntriesProvider.translate('createSharedJob')),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: InputDecoration(
-                            labelText: timeEntriesProvider.translate('jobName'),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(timeEntriesProvider.translate('jobColor')),
-                        const SizedBox(height: 8),
-                        _buildColorPickerDialog(selectedColor, (color) {
-                          setState(() => selectedColor = color);
-                        }),
-                        const SizedBox(height: 16),
-                        SwitchListTile(
-                          title: Text(
-                            timeEntriesProvider.translate('publicJob'),
-                          ),
-                          subtitle: Text(
-                            timeEntriesProvider.translate(
-                              'publicJobDescription',
-                            ),
-                          ),
-                          value: isPublic,
-                          onChanged:
-                              (value) => setState(() => isPublic = value),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(timeEntriesProvider.translate('cancel')),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        if (nameController.text.isNotEmpty) {
-                          Provider.of<JobsProvider>(
-                            context,
-                            listen: false,
-                          ).createSharedJob(
-                            nameController.text,
-                            selectedColor,
-                            isPublic,
-                          );
-                          Navigator.pop(context);
-                        }
-                      },
-                      child: Text(timeEntriesProvider.translate('create')),
-                    ),
-                  ],
-                ),
-          ),
-    );
-  }
-
-  Widget _buildColorPickerDialog(
-    Color currentColor,
-    Function(Color) onColorSelected,
-  ) {
-    final colors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-      Colors.amber,
-      Colors.cyan,
-    ];
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children:
-          colors.map((color) {
-            final isSelected = currentColor.value == color.value;
-            return GestureDetector(
-              onTap: () => onColorSelected(color),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? Colors.white : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-                child:
-                    isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
-              ),
-            );
-          }).toList(),
-    );
-  }
-
   Widget _buildCreateJobTab(
     JobsProvider jobsProvider,
     TimeEntriesProvider timeEntriesProvider,
@@ -1121,27 +970,6 @@ class _JobsScreenState extends State<JobsScreen>
     Color selectedColor = Colors.blue;
     bool isShared = false;
     bool isPublic = true;
-
-    final _colorOptions = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-      Colors.amber,
-      Colors.cyan,
-      Colors.deepPurple,
-      Colors.lightBlue,
-      Colors.lime,
-      Colors.deepOrange,
-      Colors.brown,
-      Colors.blueGrey,
-      Colors.greenAccent,
-      Colors.blueAccent,
-    ];
 
     return StatefulBuilder(
       builder: (context, setStateLocal) {

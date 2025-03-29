@@ -230,6 +230,7 @@ class SettingsProvider extends BaseProvider {
       'askJobCreatorForCode':
           'Ask the job creator for the connection code to their shared job',
       'sharedJobsSelectButton': 'Shared Jobs',
+      'viewEntries': 'View Entries',
     },
     'is': {
       'home': 'Heim',
@@ -458,6 +459,7 @@ class SettingsProvider extends BaseProvider {
       'askJobCreatorForCode':
           'Biddu verkstjóra um tengikóða til að tengjast verki þeirra',
       'sharedJobsSelectButton': 'Sameiginleg verk',
+      'viewEntries': 'Skoða Færslur',
     },
   };
 
