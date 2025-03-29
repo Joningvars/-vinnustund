@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/services/database_service.dart';
 
 class JobRequestsScreen extends StatefulWidget {
@@ -30,7 +31,7 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
     });
 
     try {
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
       final requests = await provider.getPendingJoinRequests();
 
       setState(() {
@@ -51,7 +52,7 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
     });
 
     try {
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
       await provider.respondToJoinRequest(requestId, approve);
 
       // Remove the request from the list
@@ -85,11 +86,11 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(provider.translate('pendingRequests')),
+        title: Text(settingsProvider.translate('pendingRequests')),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadRequests),
         ],
@@ -105,7 +106,7 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
                 ),
               )
               : _requests.isEmpty
-              ? Center(child: Text(provider.translate('noRequests')))
+              ? Center(child: Text(settingsProvider.translate('noRequests')))
               : ListView.builder(
                 itemCount: _requests.length,
                 padding: const EdgeInsets.all(16),
@@ -140,7 +141,7 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
   }
 
   Widget _buildRequestCard(Map<String, dynamic> request) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final timestamp = request['timestamp'] as Timestamp?;
     final date =
         timestamp != null
@@ -206,14 +207,14 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
                 TextButton.icon(
                   onPressed: () => _respondToRequest(request['id'], false),
                   icon: const Icon(Icons.close, color: Colors.red),
-                  label: Text(provider.translate('denyRequest')),
+                  label: Text(settingsProvider.translate('denyRequest')),
                   style: TextButton.styleFrom(foregroundColor: Colors.red),
                 ),
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () => _respondToRequest(request['id'], true),
                   icon: const Icon(Icons.check),
-                  label: Text(provider.translate('approveRequest')),
+                  label: Text(settingsProvider.translate('approveRequest')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -229,24 +230,36 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
 
   Future<String> _getUserName(String userId) async {
     try {
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
-      if (provider.currentUserId == null) {
-        return 'Unknown user';
-      }
-      final db = DatabaseService(uid: provider.currentUserId!);
-      final userData = await db.getUserData(userId);
+      final userData = await Provider.of<SharedJobsProvider>(
+        context,
+        listen: false,
+      ).databaseService?.getUserData(userId);
       return userData?['name'] ?? 'Unknown user';
     } catch (e) {
-      print('Error getting user name: $e');
       return 'Unknown user';
     }
   }
 
   Future<String> _getJobName(String jobId) async {
     try {
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
-      final job = provider.jobs.firstWhere((job) => job.id == jobId);
-      return job.name;
+      final jobDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(
+                Provider.of<SharedJobsProvider>(
+                  context,
+                  listen: false,
+                ).currentUserId,
+              )
+              .collection('jobs')
+              .doc(jobId)
+              .get();
+
+      if (jobDoc.exists) {
+        final data = jobDoc.data();
+        return data?['name'] ?? 'Unknown job';
+      }
+      return 'Unknown job';
     } catch (e) {
       return 'Unknown job';
     }

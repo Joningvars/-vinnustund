@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/models/time_entry.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/screens/export_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,8 +16,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  DateTime? _startDate;
-  DateTime? _endDate;
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _endDate = DateTime.now();
   String? _selectedJobId;
   final FocusNode _focusNode = FocusNode();
 
@@ -26,72 +29,73 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _selectDateRange(
     BuildContext context,
-    TimeClockProvider provider,
+    TimeEntriesProvider provider,
   ) async {
     HapticFeedback.selectionClick();
 
-    FocusScope.of(context).unfocus();
+    final initialDateRange = DateTimeRange(start: _startDate, end: _endDate);
 
-    final ThemeData theme = Theme.of(context);
-    final Color primaryColor = theme.colorScheme.primary;
-
-    DateTimeRange initialRange = DateTimeRange(
-      start: _startDate ?? DateTime.now().subtract(const Duration(days: 7)),
-      end: _endDate ?? DateTime.now(),
-    );
-
-    final DateTimeRange? picked = await showDateRangePicker(
+    final pickedDateRange = await showDateRangePicker(
       context: context,
-      initialDateRange: initialRange,
+      initialDateRange: initialDateRange,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      builder: (context, child) {
-        return Theme(
-          data: theme.copyWith(
-            colorScheme: theme.colorScheme.copyWith(primary: primaryColor),
-          ),
-          child: child!,
-        );
-      },
+      lastDate: DateTime.now(),
+      locale: provider.locale,
     );
 
-    if (picked != null) {
+    if (pickedDateRange != null) {
       setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
+        _startDate = pickedDateRange.start;
+        _endDate = pickedDateRange.end;
       });
     }
   }
 
   void _clearFilters() {
     setState(() {
-      _startDate = null;
-      _endDate = null;
+      _startDate = DateTime.now().subtract(const Duration(days: 7));
+      _endDate = DateTime.now();
       _selectedJobId = null;
     });
   }
 
+  // Navigate to export screen with current filters
+  void _navigateToExport(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => ExportScreen(
+              startDate: _startDate,
+              endDate: _endDate,
+              jobId: _selectedJobId,
+            ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
-    List<TimeEntry> entries = provider.timeEntries;
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final jobsProvider = Provider.of<JobsProvider>(context);
+    List<TimeEntry> entries = timeEntriesProvider.timeEntries;
 
-    // Apply date range filter
-    if (_startDate != null && _endDate != null) {
-      entries =
-          entries.where((entry) {
-            return entry.clockInTime.isAfter(_startDate!) &&
-                entry.clockInTime.isBefore(
-                  _endDate!.add(const Duration(days: 1)),
-                );
-          }).toList();
-    }
+    // Filter entries by date range and job
+    entries =
+        entries.where((entry) {
+          return entry.clockInTime.isAfter(_startDate) &&
+              entry.clockInTime.isBefore(_endDate.add(const Duration(days: 1)));
+        }).toList();
 
-    // Apply job filter
-    if (_selectedJobId != null) {
+    // Apply job filter if selected
+    if (_selectedJobId != null && _selectedJobId != 'all') {
       entries =
           entries.where((entry) => entry.jobId == _selectedJobId).toList();
     }
+
+    // Sort entries by date (newest first)
+    entries.sort((a, b) => b.clockInTime.compareTo(a.clockInTime));
 
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
@@ -118,10 +122,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
         entriesByDate.keys.toList()..sort((a, b) => b.compareTo(a));
 
     // Format date range for display
-    String dateRangeText = provider.translate('allDates');
-    if (_startDate != null && _endDate != null) {
-      final startFormatted = DateFormat('MMM d, yyyy').format(_startDate!);
-      final endFormatted = DateFormat('MMM d, yyyy').format(_endDate!);
+    String dateRangeText = timeEntriesProvider.translate('allDates');
+    if (_startDate != DateTime.now().subtract(const Duration(days: 7)) ||
+        _endDate != DateTime.now()) {
+      final startFormatted = DateFormat('MMM d, yyyy').format(_startDate);
+      final endFormatted = DateFormat('MMM d, yyyy').format(_endDate);
       dateRangeText = '$startFormatted - $endFormatted';
     }
 
@@ -133,25 +138,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title section - exactly like home screen
+              // Title section with export button
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      provider.translate('history'),
+                      timeEntriesProvider.translate('history'),
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    // Clear filters button with X icon
-                    if (_startDate != null || _selectedJobId != null)
+                    // Export button
+                    if (_startDate !=
+                            DateTime.now().subtract(const Duration(days: 7)) ||
+                        _selectedJobId != null)
                       IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: _clearFilters,
-                        tooltip: provider.translate('clearFilters'),
+                        icon: const Icon(Icons.file_present_outlined),
+                        onPressed: () => _navigateToExport(context),
                       ),
                   ],
                 ),
@@ -165,7 +171,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   children: [
                     // Date range button
                     InkWell(
-                      onTap: () => _selectDateRange(context, provider),
+                      onTap:
+                          () => _selectDateRange(context, timeEntriesProvider),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -194,7 +201,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          provider.translate('filterByJob'),
+                          timeEntriesProvider.translate('filterByJob'),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -202,54 +209,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                         // Total hours display
                         Text(
-                          '$totalFilteredHours ${provider.translate('klst')} $totalFilteredRemainingMinutes ${provider.translate('mín')}',
+                          '$totalFilteredHours ${timeEntriesProvider.translate('klst')} $totalFilteredRemainingMinutes ${timeEntriesProvider.translate('mín')}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
 
-                    // Job selection - exactly like home screen
-                    SizedBox(
-                      height: 40,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        shrinkWrap: true,
-                        children: [
-                          // All jobs button
-                          _buildPeriodButton(
-                            provider.translate('allJobs'),
-                            _selectedJobId == null,
-                            () {
-                              setState(() {
-                                _selectedJobId = null;
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Job buttons - using the same style as home page
-                          ...provider.jobs.map((job) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _buildJobButton(
-                                job.name,
-                                _selectedJobId == job.id,
-                                job.color,
-                                () {
-                                  setState(() {
-                                    _selectedJobId =
-                                        _selectedJobId == job.id
-                                            ? null
-                                            : job.id;
-                                  });
-                                },
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
+                    // Job selection - exactly like home page
+                    _buildJobFilter(),
                   ],
                 ),
               ),
@@ -262,7 +230,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     entriesByDate.isEmpty
                         ? Center(
                           child: Text(
-                            provider.translate('noEntries'),
+                            timeEntriesProvider.translate('noEntries'),
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         )
@@ -290,14 +258,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      provider.formatDate(DateTime.parse(date)),
+                                      timeEntriesProvider.formatDate(
+                                        DateTime.parse(date),
+                                      ),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
                                     ),
                                     Text(
-                                      '$totalHours ${provider.translate('klst')} $remainingMinutes ${provider.translate('mín')}',
+                                      '$totalHours ${timeEntriesProvider.translate('klst')} $remainingMinutes ${timeEntriesProvider.translate('mín')}',
                                       style: TextStyle(
                                         color: Colors.grey[600],
                                         fontWeight: FontWeight.w500,
@@ -345,9 +315,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                     ),
                                                     const SizedBox(height: 16),
                                                     Text(
-                                                      provider.translate(
-                                                        'deleteEntry',
-                                                      ),
+                                                      timeEntriesProvider
+                                                          .translate(
+                                                            'deleteEntry',
+                                                          ),
                                                       style: const TextStyle(
                                                         fontSize: 20,
                                                         fontWeight:
@@ -356,9 +327,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                     ),
                                                     const SizedBox(height: 8),
                                                     Text(
-                                                      provider.translate(
-                                                        'deleteEntryConfirm',
-                                                      ),
+                                                      timeEntriesProvider
+                                                          .translate(
+                                                            'deleteEntryConfirm',
+                                                          ),
                                                       textAlign:
                                                           TextAlign.center,
                                                       style: TextStyle(
@@ -400,7 +372,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                                   ),
                                                             ),
                                                             child: Text(
-                                                              provider
+                                                              timeEntriesProvider
                                                                   .translate(
                                                                     'cancel',
                                                                   ),
@@ -440,7 +412,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                                   ),
                                                             ),
                                                             child: Text(
-                                                              provider
+                                                              timeEntriesProvider
                                                                   .translate(
                                                                     'delete',
                                                                   ),
@@ -456,7 +428,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       );
                                     },
                                     onDismissed: (direction) {
-                                      provider.deleteTimeEntry(entry.id);
+                                      timeEntriesProvider.deleteTimeEntry(
+                                        entry.id,
+                                      );
                                     },
                                     child: Card(
                                       margin: const EdgeInsets.only(bottom: 8),
@@ -506,7 +480,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  '${provider.formatTime(entry.clockInTime)} - ${provider.formatTime(entry.clockOutTime)}',
+                                                  '${timeEntriesProvider.formatTime(entry.clockInTime)} - ${timeEntriesProvider.formatTime(entry.clockOutTime)}',
                                                   style: TextStyle(
                                                     color: Colors.grey[600],
                                                   ),
@@ -556,6 +530,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildQuickSelectButton(String text, VoidCallback onTap) {
+    return Expanded(
+      child: Material(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(8),
+          splashColor: Theme.of(context).primaryColor.withOpacity(0.1),
+          highlightColor: Theme.of(context).primaryColor.withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // Period button widget that exactly matches the home page style
   Widget _buildPeriodButton(String text, bool isSelected, VoidCallback onTap) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -596,44 +604,90 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // Job button widget that exactly matches the home page style
-  Widget _buildJobButton(
-    String text,
-    bool isSelected,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color:
-              isSelected
-                  ? color.withOpacity(0.2)
-                  : isDarkMode
-                  ? Colors.grey.shade900
-                  : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey.shade300,
-            width: 1,
+  // Job filter widget
+  Widget _buildJobFilter() {
+    final jobsProvider = Provider.of<JobsProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildJobFilterButton(
+            timeEntriesProvider.translate('allJobs'),
+            null,
+            _selectedJobId == null,
           ),
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
+          ...jobsProvider.jobs.map((job) {
+            return _buildJobFilterButton(
+              job.name,
+              job.id,
+              _selectedJobId == job.id,
+              job.color,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobFilterButton(
+    String text,
+    String? jobId,
+    bool isSelected, [
+    Color? jobColor,
+  ]) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedJobId = jobId;
+          });
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
             color:
                 isSelected
-                    ? color
-                    : isDarkMode
-                    ? Colors.grey.shade100
-                    : Colors.grey.shade700,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ? (jobColor?.withOpacity(0.2) ??
+                        Theme.of(context).primaryColor.withOpacity(0.1))
+                    : Colors.grey.shade100,
+            border: Border.all(
+              color:
+                  isSelected
+                      ? (jobColor ?? Theme.of(context).primaryColor)
+                      : Colors.grey.shade300,
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (jobColor != null) ...[
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: jobColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                text,
+                style: TextStyle(
+                  color:
+                      isSelected
+                          ? (jobColor ?? Theme.of(context).primaryColor)
+                          : Colors.grey.shade700,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
           ),
         ),
       ),

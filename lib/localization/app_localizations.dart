@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 
 class AppLocalizations {
   final Locale locale;
@@ -17,9 +18,9 @@ class AppLocalizations {
       _AppLocalizationsDelegate();
 
   // This method will be called from every widget which needs a localized text
-  String translate(String key) {
-    // Use the translations from TimeClockProvider
-    final provider = TimeClockProvider();
+  String translate(String key, BuildContext context) {
+    // Use the translations from SettingsProvider instead of TimeClockProvider
+    final provider = Provider.of<SettingsProvider>(context, listen: false);
     return provider.translations[locale.languageCode]?[key] ?? key;
   }
 }

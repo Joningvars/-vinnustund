@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/models/job.dart';
 
-class HoursProgress extends StatelessWidget {
-  final int hoursWorked;
+class HoursProgress extends StatefulWidget {
+  final double hoursWorked;
   final int targetHours;
   final String period;
 
@@ -16,74 +17,101 @@ class HoursProgress extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+  State<HoursProgress> createState() => _HoursProgressState();
+}
 
-    // Calculate job hours directly from the time entries
-    final now = DateTime.now();
-    DateTime startDate;
+class _HoursProgressState extends State<HoursProgress>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _progressAnimation;
+  double _oldProgress = 0.0;
 
-    switch (period) {
-      case 'Day':
-        startDate = DateTime(now.year, now.month, now.day);
-        break;
-      case 'Week':
-        startDate = now.subtract(const Duration(days: 7));
-        break;
-      case 'Month':
-        startDate = DateTime(now.year, now.month, 1);
-        break;
-      default:
-        startDate = DateTime(now.year, now.month, now.day);
-    }
-
-    // Calculate hours by job for the selected period
-    final Map<String, int> jobHours = {};
-    int totalMinutes = 0;
-
-    for (var entry in provider.timeEntries) {
-      if (entry.clockInTime.isAfter(startDate)) {
-        // Add to job-specific hours
-        if (!jobHours.containsKey(entry.jobId)) {
-          jobHours[entry.jobId] = 0;
-        }
-        jobHours[entry.jobId] =
-            jobHours[entry.jobId]! + entry.duration.inMinutes;
-
-        // Add to total minutes
-        totalMinutes += entry.duration.inMinutes;
-      }
-    }
-
-    // Convert minutes to hours
-    final totalHours = totalMinutes ~/ 60;
-    print('Total hours calculated: $totalHours');
-
-    // Convert job minutes to hours
-    final jobHoursConverted = Map<String, int>.fromEntries(
-      jobHours.entries.map((e) => MapEntry(e.key, e.value ~/ 60)),
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
     );
+    _updateAnimation();
+    _controller.forward();
+  }
 
-    // For the main progress indicator, use total hours
-    final mainProgress = (totalHours / targetHours).clamp(0.0, 1.0);
+  @override
+  void didUpdateWidget(HoursProgress oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hoursWorked != widget.hoursWorked ||
+        oldWidget.targetHours != widget.targetHours ||
+        oldWidget.period != widget.period) {
+      _updateAnimation();
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  void _updateAnimation() {
+    final progress =
+        widget.targetHours > 0
+            ? (widget.hoursWorked / widget.targetHours).clamp(0.0, 1.0)
+            : 0.0;
+    _progressAnimation = Tween<double>(
+      begin: _oldProgress,
+      end: progress,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _oldProgress = progress;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final timeProvider = Provider.of<TimeEntriesProvider>(context);
+    final jobsProvider = Provider.of<JobsProvider>(context);
+
+    // Calculate job hours
+    final jobHours = timeProvider.getHoursByJobInPeriod(
+      DateTime.now().subtract(Duration(days: 30)),
+      DateTime.now(),
+    );
 
     // Create a list of jobs with their hours and percentages
     final jobsWithPercentages =
-        provider.jobs.map((job) {
-          final hours = jobHoursConverted[job.id] ?? 0;
-          final percentage = totalHours > 0 ? hours / totalHours : 0.0;
-
-          // Debug logging
-          print(
-            'Job: ${job.name}, ID: ${job.id}, Color: ${job.color}, Hours: $hours',
+        jobHours.entries.map((entry) {
+          // Find the job by ID, first in regular jobs, then in shared jobs
+          Job? job = jobsProvider.jobs.firstWhere(
+            (j) => j.id == entry.key,
+            orElse:
+                () => Job(id: entry.key, name: 'Unknown', color: Colors.grey),
           );
 
-          return {'job': job, 'hours': hours, 'percentage': percentage};
+          // If job is still unknown, try to find it in shared jobs
+          if (job.name == 'Unknown' && jobsProvider.sharedJobs.isNotEmpty) {
+            final sharedJob = jobsProvider.sharedJobs.firstWhere(
+              (j) => j.id == entry.key,
+              orElse:
+                  () => Job(id: entry.key, name: 'Unknown', color: Colors.grey),
+            );
+            if (sharedJob.name != 'Unknown') {
+              job = sharedJob;
+            }
+          }
+
+          return {
+            'job': job,
+            'hours': entry.value,
+            'percentage':
+                widget.targetHours > 0
+                    ? (entry.value / widget.targetHours).clamp(0.0, 1.0)
+                    : 0.0,
+          };
         }).toList();
 
     // Sort jobs by hours (highest first)
     jobsWithPercentages.sort(
-      (a, b) => (b['hours'] as int).compareTo(a['hours'] as int),
+      (a, b) => (b['hours'] as double).compareTo(a['hours'] as double),
     );
 
     return Row(
@@ -100,21 +128,29 @@ class HoursProgress extends StatelessWidget {
                   SizedBox(
                     width: 180,
                     height: 180,
-                    child: AnimatedJobProgressPainter(
-                      progress: mainProgress,
-                      jobsWithPercentages: jobsWithPercentages,
-                      backgroundColor: Colors.grey.shade200,
+                    child: AnimatedBuilder(
+                      animation: _progressAnimation,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: JobProgressPainter(
+                            progress: _progressAnimation.value,
+                            jobsWithPercentages: jobsWithPercentages,
+                            backgroundColor: Colors.grey.shade200,
+                          ),
+                          child: Container(),
+                        );
+                      },
                     ),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TweenAnimationBuilder<int>(
-                        tween: IntTween(begin: 0, end: totalHours),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(begin: 0, end: widget.hoursWorked),
                         duration: const Duration(milliseconds: 750),
                         builder: (context, value, child) {
                           return Text(
-                            '$value',
+                            value.toStringAsFixed(1),
                             style: const TextStyle(
                               fontSize: 40,
                               fontWeight: FontWeight.bold,
@@ -123,7 +159,7 @@ class HoursProgress extends StatelessWidget {
                         },
                       ),
                       Text(
-                        '${provider.translate('of')} $targetHours ${provider.translate('hours')}',
+                        '${timeProvider.translate('of')} ${widget.targetHours} ${timeProvider.translate('hours')}',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.grey.shade600,
@@ -131,7 +167,7 @@ class HoursProgress extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        provider.getPeriodText(period),
+                        timeProvider.translate(widget.period.toLowerCase()),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade500,
@@ -143,8 +179,11 @@ class HoursProgress extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                provider.translate('totalHours'),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                timeProvider.translate('totalHours'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ],
           ),
@@ -157,7 +196,7 @@ class HoursProgress extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                provider.translate('hoursbyJob'),
+                timeProvider.translate('hoursbyJob'),
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade600,
@@ -167,71 +206,138 @@ class HoursProgress extends StatelessWidget {
               const SizedBox(height: 12),
               ...jobsWithPercentages.map((jobData) {
                 final job = jobData['job'] as Job;
-                final hours = jobData['hours'] as int;
+                final hours = jobData['hours'] as double;
+                final progressValue = jobData['percentage'] as double;
 
-                // Calculate progress relative to target hours instead of total hours
-                final progressValue = (hours / targetHours).clamp(0.0, 1.0);
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              value: progressValue,
-                              strokeWidth: 4,
-                              backgroundColor: Colors.grey.shade200,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                job.color,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: job.color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              job.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '$hours hrs',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                return AnimatedJobProgressItem(
+                  job: job,
+                  hours: hours,
+                  progress: progressValue,
                 );
               }),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class AnimatedJobProgressItem extends StatefulWidget {
+  final Job job;
+  final double hours;
+  final double progress;
+
+  const AnimatedJobProgressItem({
+    Key? key,
+    required this.job,
+    required this.hours,
+    required this.progress,
+  }) : super(key: key);
+
+  @override
+  State<AnimatedJobProgressItem> createState() =>
+      _AnimatedJobProgressItemState();
+}
+
+class _AnimatedJobProgressItemState extends State<AnimatedJobProgressItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _progressAnimation;
+  double _oldProgress = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+    _updateAnimation();
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(AnimatedJobProgressItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.progress != widget.progress) {
+      _updateAnimation();
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  void _updateAnimation() {
+    _progressAnimation = Tween<double>(
+      begin: _oldProgress,
+      end: widget.progress,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _oldProgress = widget.progress;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: AnimatedBuilder(
+                  animation: _progressAnimation,
+                  builder: (context, child) {
+                    return CircularProgressIndicator(
+                      value: _progressAnimation.value,
+                      strokeWidth: 4,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        widget.job.color,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: widget.job.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.job.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${widget.hours.toStringAsFixed(1)} hrs',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -253,7 +359,6 @@ class JobProgressPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
     final strokeWidth = 12.0;
-    final innerRadius = radius - strokeWidth / 2;
 
     // Draw background circle
     final backgroundPaint =
@@ -262,116 +367,70 @@ class JobProgressPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = strokeWidth;
 
-    canvas.drawCircle(center, innerRadius, backgroundPaint);
+    canvas.drawCircle(center, radius - strokeWidth / 2, backgroundPaint);
 
     // Draw colored segments for each job
     double startAngle =
         -90 * (3.14159 / 180); // Start from the top (in radians)
 
-    for (var jobData in jobsWithPercentages) {
-      final job = jobData['job'] as Job;
-      final percentage = jobData['percentage'] as double;
+    if (jobsWithPercentages.isNotEmpty) {
+      // Calculate total percentage to ensure we don't exceed the progress
+      double totalPercentage = 0;
+      for (final jobData in jobsWithPercentages) {
+        totalPercentage += (jobData['percentage'] as double);
+      }
 
-      if (percentage > 0) {
-        final sweepAngle = 2 * 3.14159 * percentage * progress;
+      // Scale factor to ensure we don't exceed the progress
+      final scaleFactor = totalPercentage > 0 ? progress / totalPercentage : 0;
 
-        final paint =
+      for (final jobData in jobsWithPercentages) {
+        final job = jobData['job'] as Job;
+        final percentage = (jobData['percentage'] as double) * scaleFactor;
+
+        final sweepAngle = percentage * 2 * 3.14159;
+
+        final jobPaint =
             Paint()
               ..color = job.color
               ..style = PaintingStyle.stroke
-              ..strokeWidth = strokeWidth
-              ..strokeCap = StrokeCap.butt;
+              ..strokeWidth = strokeWidth;
 
         canvas.drawArc(
-          Rect.fromCircle(center: center, radius: innerRadius),
+          Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
           startAngle,
           sweepAngle,
           false,
-          paint,
+          jobPaint,
         );
 
         startAngle += sweepAngle;
       }
+    } else {
+      // If no job data, just draw a single progress arc
+      final progressPaint =
+          Paint()
+            ..color =
+                progress < 0.3
+                    ? Colors.red
+                    : progress < 0.7
+                    ? Colors.orange
+                    : Colors.green
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strokeWidth;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
+        -90 * (3.14159 / 180),
+        progress * 2 * 3.14159,
+        false,
+        progressPaint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-// Add this class to create an animated progress painter
-class AnimatedJobProgressPainter extends StatefulWidget {
-  final List<Map<String, dynamic>> jobsWithPercentages;
-  final double progress;
-  final Color backgroundColor;
-
-  const AnimatedJobProgressPainter({
-    super.key,
-    required this.jobsWithPercentages,
-    required this.progress,
-    required this.backgroundColor,
-  });
-
-  @override
-  State<AnimatedJobProgressPainter> createState() =>
-      _AnimatedJobProgressPainterState();
-}
-
-class _AnimatedJobProgressPainterState extends State<AnimatedJobProgressPainter>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _progressAnimation;
-  double _oldProgress = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 750),
-    );
-    _progressAnimation = Tween<double>(
-      begin: 0.0,
-      end: widget.progress,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _oldProgress = widget.progress;
-    _controller.forward();
-  }
-
-  @override
-  void didUpdateWidget(AnimatedJobProgressPainter oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.progress != widget.progress) {
-      _oldProgress = oldWidget.progress;
-      _progressAnimation = Tween<double>(
-        begin: _oldProgress,
-        end: widget.progress,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-      _controller.reset();
-      _controller.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _progressAnimation,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: JobProgressPainter(
-            jobsWithPercentages: widget.jobsWithPercentages,
-            progress: _progressAnimation.value,
-            backgroundColor: widget.backgroundColor,
-          ),
-          child: Container(),
-        );
-      },
-    );
+  bool shouldRepaint(JobProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.backgroundColor != backgroundColor;
   }
 }

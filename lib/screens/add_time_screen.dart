@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/models/job.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/widgets/add_job_button.dart';
 
 class AddTimeScreen extends StatelessWidget {
   const AddTimeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<TimeEntriesProvider>(context);
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -31,86 +33,22 @@ class AddTimeScreen extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // Job selector
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      provider.translate('selectJob'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        provider.translate('selectJob'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _showAddJobDialog(context, provider),
-                      icon: const Icon(Icons.add_circle_outline, size: 16),
-                      label: Text(provider.translate('createJob')),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children:
-                      provider.jobs.map((job) {
-                        final isSelected = provider.selectedJob?.id == job.id;
-                        return GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            provider.setSelectedJob(job);
-                          },
-                          onLongPress: () {
-                            HapticFeedback.heavyImpact();
-                            _showDeleteJobConfirmation(context, provider, job);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOutCubic,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  isSelected
-                                      ? job.color.withOpacity(0.2)
-                                      : Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.grey.shade900
-                                      : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color:
-                                    isSelected
-                                        ? job.color
-                                        : Colors.grey.shade300,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              job.name,
-                              style: TextStyle(
-                                color:
-                                    isSelected
-                                        ? job.color
-                                        : Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Colors.grey.shade100
-                                        : Colors.grey.shade700,
-                                fontWeight:
-                                    isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                      const SizedBox(height: 8),
+                      _buildJobSelector(provider, context),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 8),
@@ -288,21 +226,7 @@ class AddTimeScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.timelapse),
-                            const SizedBox(width: 8),
-                            Text(
-                              provider.formatDuration(
-                                provider.calculateManualDuration(),
-                              ),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _buildTimeDisplay(provider),
                       ],
                     ),
                   ),
@@ -356,18 +280,7 @@ class AddTimeScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed:
-                        provider.selectedJob == null
-                            ? null // Disable button if no job selected
-                            : () {
-                              HapticFeedback.mediumImpact();
-
-                              // Ensure keyboard is dismissed
-                              FocusManager.instance.primaryFocus?.unfocus();
-
-                              // Just call _submitTimeEntry directly
-                              _submitTimeEntry(context, provider);
-                            },
+                    onPressed: () => _submitTimeEntry(context, provider),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Colors.white,
@@ -375,9 +288,7 @@ class AddTimeScreen extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      // Add disabled style
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      disabledForegroundColor: Colors.grey.shade600,
+                      minimumSize: const Size(double.infinity, 50),
                     ),
                     child: Text(
                       provider.translate('submit'),
@@ -398,314 +309,117 @@ class AddTimeScreen extends StatelessWidget {
 
   Future<void> _selectStartTime(
     BuildContext context,
-    TimeClockProvider provider,
+    TimeEntriesProvider provider,
   ) async {
-    HapticFeedback.selectionClick(); // Add light haptic feedback when opening time picker
+    HapticFeedback.selectionClick();
 
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: provider.startTime,
-      builder: (BuildContext context, Widget? child) {
-        return MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(alwaysUse24HourFormat: provider.use24HourFormat),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null && picked != provider.startTime) {
-      provider.setState(() {
-        provider.startTime = picked;
-      });
-
-      // Automatically show end time picker after selecting start time
-      _selectEndTime(context, provider);
+      provider.startTime = picked;
     }
   }
 
   Future<void> _selectEndTime(
     BuildContext context,
-    TimeClockProvider provider,
+    TimeEntriesProvider provider,
   ) async {
-    HapticFeedback.selectionClick(); // Add light haptic feedback when opening time picker
+    HapticFeedback.selectionClick();
 
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: provider.endTime,
-      builder: (BuildContext context, Widget? child) {
-        return MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(alwaysUse24HourFormat: provider.use24HourFormat),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null && picked != provider.endTime) {
-      provider.setState(() {
-        provider.endTime = picked;
-      });
+      provider.endTime = picked;
     }
   }
 
   Future<void> _selectDate(
     BuildContext context,
-    TimeClockProvider provider,
+    TimeEntriesProvider provider,
   ) async {
     HapticFeedback.selectionClick();
-
-    final ThemeData theme = Theme.of(context);
-    final Color primaryColor = theme.colorScheme.primary;
 
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: provider.selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: theme.colorScheme.copyWith(primary: primaryColor),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: child!,
-            ),
-          ),
-        );
-      },
     );
 
     if (picked != null && picked != provider.selectedDate) {
-      provider.setState(() {
-        provider.selectedDate = picked;
-      });
+      provider.selectedDate = picked;
     }
   }
 
-  void _showAddJobDialog(BuildContext context, TimeClockProvider provider) {
-    // Check if job limit is reached
-    if (provider.jobs.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.translate('jobLimitReached')),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-      return;
-    }
-
+  void _showAddJobDialog(BuildContext context, TimeEntriesProvider provider) {
     final TextEditingController nameController = TextEditingController();
     Color selectedColor = Colors.blue;
 
-    // List of colors to choose from
-    final List<Color> colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.amber,
-      Colors.indigo,
-    ];
+    // Get JobsProvider to add the job
+    final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+      builder:
+          (context) => AlertDialog(
+            title: Text(provider.translate('createJob')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: provider.translate('jobName'),
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      provider.translate('createJob'),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Job name field
-                    TextFormField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: provider.translate('jobName'),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        counterText: '${nameController.text.length}/20',
-                      ),
-                      maxLength: 20,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return provider.translate('enterJobName');
-                        }
-                        return null;
-                      },
-                      onChanged: (value) {
-                        setState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Color selector
-                    Text(
-                      provider.translate('selectColor'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children:
-                          colors.map((color) {
-                            final isSelected = selectedColor == color;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  selectedColor = color;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color:
-                                        isSelected
-                                            ? Colors.white
-                                            : Colors.transparent,
-                                    width: 3,
-                                  ),
-                                  boxShadow:
-                                      isSelected
-                                          ? [
-                                            BoxShadow(
-                                              color: color.withOpacity(0.4),
-                                              blurRadius: 8,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                          : null,
-                                ),
-                                child:
-                                    isSelected
-                                        ? const Icon(
-                                          Icons.check,
-                                          color: Colors.white,
-                                          size: 24,
-                                        )
-                                        : null,
-                              ),
-                            );
-                          }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Text(
-                            provider.translate('cancel'),
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            if (nameController.text.trim().isNotEmpty) {
-                              provider.addJob(
-                                nameController.text.trim(),
-                                selectedColor,
-                              );
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(provider.translate('create')),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                // Color picker UI...
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(provider.translate('cancel')),
               ),
-            );
-          },
-        );
-      },
+              ElevatedButton(
+                onPressed: () {
+                  if (nameController.text.isNotEmpty) {
+                    // Create a new Job object for the TimeEntriesProvider
+                    final newJob = Job(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      name: nameController.text,
+                      color: selectedColor,
+                    );
+
+                    // Add job to JobsProvider with the new signature
+                    jobsProvider.addJob(nameController.text, selectedColor);
+
+                    // Set as selected job in TimeEntriesProvider
+                    provider.setSelectedJob(newJob);
+
+                    Navigator.pop(context);
+                  }
+                },
+                child: Text(provider.translate('add')),
+              ),
+            ],
+          ),
     );
   }
 
-  void _showDeleteJobConfirmation(
+  void _showDeleteJobDialog(
     BuildContext context,
-    TimeClockProvider provider,
+    JobsProvider jobsProvider,
     Job job,
   ) {
+    // Unfocus any text field to dismiss keyboard
+    FocusScope.of(context).unfocus();
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -747,7 +461,7 @@ class AddTimeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  provider.translate('deleteJob'),
+                  jobsProvider.translate('deleteJob'),
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -756,7 +470,7 @@ class AddTimeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  provider.translate('deleteJobConfirm'),
+                  jobsProvider.translate('deleteJobConfirm'),
                   style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
                   textAlign: TextAlign.center,
                 ),
@@ -769,7 +483,7 @@ class AddTimeScreen extends StatelessWidget {
                         Navigator.of(context).pop();
                       },
                       child: Text(
-                        provider.translate('cancel'),
+                        jobsProvider.translate('cancel'),
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontWeight: FontWeight.bold,
@@ -778,7 +492,7 @@ class AddTimeScreen extends StatelessWidget {
                     ),
                     ElevatedButton(
                       onPressed: () {
-                        provider.deleteJob(job.id);
+                        jobsProvider.deleteJob(job.id);
                         Navigator.of(context).pop();
                       },
                       style: ElevatedButton.styleFrom(
@@ -792,7 +506,7 @@ class AddTimeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: Text(provider.translate('delete')),
+                      child: Text(jobsProvider.translate('delete')),
                     ),
                   ],
                 ),
@@ -804,13 +518,23 @@ class AddTimeScreen extends StatelessWidget {
     );
   }
 
-  void _submitTimeEntry(BuildContext context, TimeClockProvider provider) {
-    if (provider.selectedJob == null) return;
+  void _submitTimeEntry(BuildContext context, TimeEntriesProvider provider) {
+    if (provider.selectedJob == null) {
+      // Show a message to select a job
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.translate('selectJobFirst')),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     HapticFeedback.mediumImpact();
 
-    // Create DateTime objects for clock in and clock out times using the selected date
-    final clockInDateTime = DateTime(
+    // Create start and end DateTimes
+    final now = DateTime.now();
+    final start = DateTime(
       provider.selectedDate.year,
       provider.selectedDate.month,
       provider.selectedDate.day,
@@ -818,7 +542,7 @@ class AddTimeScreen extends StatelessWidget {
       provider.startTime.minute,
     );
 
-    DateTime clockOutDateTime = DateTime(
+    final end = DateTime(
       provider.selectedDate.year,
       provider.selectedDate.month,
       provider.selectedDate.day,
@@ -826,40 +550,231 @@ class AddTimeScreen extends StatelessWidget {
       provider.endTime.minute,
     );
 
-    // If end time is before start time, assume it's the next day
-    if (clockOutDateTime.isBefore(clockInDateTime)) {
-      clockOutDateTime = clockOutDateTime.add(const Duration(days: 1));
-    }
+    // Handle case where end time is on the next day
+    final adjustedEnd =
+        end.isBefore(start) ? end.add(const Duration(days: 1)) : end;
 
-    // Calculate duration
-    final duration = clockOutDateTime.difference(clockInDateTime);
-
-    // Add time entry
-    provider.addTimeEntry(
-      provider.selectedJob!,
-      clockInDateTime,
-      clockOutDateTime,
-      duration,
-      provider.descriptionController.text.isNotEmpty
-          ? provider.descriptionController.text
-          : null,
+    // Add the time entry
+    provider.addManualTimeEntry(
+      context,
+      start,
+      adjustedEnd,
+      provider.descriptionController.text,
     );
+
+    // Reset form
+    provider.descriptionController.clear();
 
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(provider.translate('timeEntryAdded')),
-        behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.green,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
       ),
     );
 
-    // Clear description
-    provider.descriptionController.clear();
+    // Navigate to home screen and update the UI
+    provider.calculateHoursWorkedThisWeek();
+    provider.notifyListeners();
 
-    // Navigate to home screen
+    // Navigate to home tab
     provider.setSelectedTabIndex(0);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Widget _buildJobSelector(TimeEntriesProvider provider, BuildContext context) {
+    final jobsProvider = Provider.of<JobsProvider>(context);
+
+    if (jobsProvider.jobs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: ElevatedButton.icon(
+          onPressed: () => _showAddJobDialog(context, provider),
+          icon: const Icon(Icons.add),
+          label: Text(provider.translate('createJob')),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ...jobsProvider.jobs.map((job) {
+          final isSelected = provider.selectedJob?.id == job.id;
+          return GestureDetector(
+            onLongPress: () => _showDeleteJobDialog(context, jobsProvider, job),
+            child: AnimatedJobButton(
+              job: job,
+              isSelected: isSelected,
+              onTap: () {
+                provider.setSelectedJob(job);
+              },
+            ),
+          );
+        }),
+        // Add job button
+        if (jobsProvider.jobs.length < 5) // Limit to 5 jobs
+          const AddJobButton(),
+      ],
+    );
+  }
+
+  Widget _buildTimeDisplay(TimeEntriesProvider provider) {
+    // Calculate duration between start and end time
+    final startDateTime = DateTime(
+      provider.selectedDate.year,
+      provider.selectedDate.month,
+      provider.selectedDate.day,
+      provider.startTime.hour,
+      provider.startTime.minute,
+    );
+
+    final endDateTime = DateTime(
+      provider.selectedDate.year,
+      provider.selectedDate.month,
+      provider.selectedDate.day,
+      provider.endTime.hour,
+      provider.endTime.minute,
+    );
+
+    // Handle case where end time is on the next day
+    final adjustedEndDateTime =
+        endDateTime.isBefore(startDateTime)
+            ? endDateTime.add(const Duration(days: 1))
+            : endDateTime;
+
+    final duration = adjustedEndDateTime.difference(startDateTime);
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          const Icon(Icons.access_time),
+          const SizedBox(width: 8),
+          Text(
+            '$hours ${provider.translate('klst')} $minutes ${provider.translate('mín')}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AnimatedJobButton extends StatefulWidget {
+  final Job job;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const AnimatedJobButton({
+    Key? key,
+    required this.job,
+    required this.isSelected,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  State<AnimatedJobButton> createState() => _AnimatedJobButtonState();
+}
+
+class _AnimatedJobButtonState extends State<AnimatedJobButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) {
+        _controller.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _controller.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color:
+                    widget.isSelected
+                        ? widget.job.color.withOpacity(0.2)
+                        : Colors.grey.shade100,
+                border: Border.all(
+                  color:
+                      widget.isSelected
+                          ? widget.job.color
+                          : Colors.grey.shade300,
+                  width: 1,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: widget.job.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.job.name,
+                    style: TextStyle(
+                      color:
+                          widget.isSelected
+                              ? widget.job.color
+                              : Colors.grey.shade700,
+                      fontWeight:
+                          widget.isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

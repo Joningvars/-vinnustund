@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 
 class AuthService {
   // Use a singleton pattern to ensure only one instance exists
@@ -60,7 +60,7 @@ class AuthService {
       });
 
       // Initialize user data
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
+      final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
       await provider.initializeNewUser();
 
       return userCredential;

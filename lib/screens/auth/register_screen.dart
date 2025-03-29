@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:timagatt/utils/routes.dart';
 
@@ -63,7 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<SettingsProvider>(context);
     return Scaffold(
       appBar: AppBar(title: Text(provider.translate('register'))),
       body: SafeArea(

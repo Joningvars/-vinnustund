@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:timagatt/widgets/app_logo.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 
 import '../../utils/routes.dart';
 
@@ -53,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Map Firebase error codes to user-friendly messages
   String _getErrorMessage(FirebaseAuthException e) {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<SettingsProvider>(context, listen: false);
 
     switch (e.code) {
       case 'invalid-email':
@@ -76,7 +78,15 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _signIn() async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
 
     // Validate form
     if (!_formKey.currentState!.validate()) {
@@ -94,13 +104,11 @@ class _LoginScreenState extends State<LoginScreen>
         password: _password,
       );
 
-      // Set flag to indicate coming from login
-      provider.isComingFromLogin = true;
-
       // Navigate to main screen
       if (mounted) {
-        await provider.clearLocalData();
-        await provider.loadData();
+        // Load data from providers
+        await jobsProvider.loadJobs();
+        await timeEntriesProvider.loadTimeEntries();
         Navigator.of(context).pushReplacementNamed(Routes.main);
       }
     } on FirebaseAuthException catch (e) {
@@ -110,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       // Show error in snackbar with haptic feedback
       if (mounted) {
-        HapticFeedback.mediumImpact(); // Add haptic feedback for errors
+        HapticFeedback.mediumImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_errorMessage!),
@@ -120,15 +128,13 @@ class _LoginScreenState extends State<LoginScreen>
               borderRadius: BorderRadius.circular(10),
             ),
             margin: const EdgeInsets.all(16),
-            duration: const Duration(
-              seconds: 4,
-            ), // Give users more time to read
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
       setState(() {
-        _errorMessage = provider.translate('unknownError');
+        _errorMessage = settingsProvider.translate('unknownError');
       });
     } finally {
       if (mounted) {
@@ -141,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<SettingsProvider>(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
@@ -466,7 +472,7 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _showResetPasswordDialog(TimeClockProvider provider) {
+  void _showResetPasswordDialog(SettingsProvider provider) {
     String resetEmail = '';
     final formKey = GlobalKey<FormState>();
 

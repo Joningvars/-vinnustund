@@ -9,6 +9,7 @@ import 'package:timagatt/screens/export_screen.dart';
 import 'package:timagatt/screens/home_screen.dart';
 import 'package:timagatt/screens/add_time_screen.dart';
 import 'package:timagatt/screens/history_screen.dart';
+import 'package:timagatt/screens/jobs_screen.dart';
 import 'package:timagatt/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
@@ -26,6 +27,13 @@ import 'package:timagatt/utils/theme/darkmode.dart';
 import 'package:timagatt/utils/theme/lightmode.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/widgets/custom_nav_bar.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+
+// Add this line to define the navigatorKey
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,13 +51,55 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final showOnboarding = prefs.getBool('showOnboarding') ?? true;
 
-  // Create and initialize the provider
-  final provider = TimeClockProvider();
-  await provider.initializeApp();
+  // Initialize providers
+  final settingsProvider = SettingsProvider();
+  final timeEntriesProvider = TimeEntriesProvider();
+  final jobsProvider = JobsProvider();
+  final sharedJobsProvider = SharedJobsProvider();
+
+  // Initialize providers
+  await settingsProvider.initializeApp();
+  await timeEntriesProvider.initializeApp();
+  await jobsProvider.initializeApp();
+  await sharedJobsProvider.initializeApp();
+
+  // Connect the providers
+  sharedJobsProvider.setSettingsProvider(settingsProvider);
+  timeEntriesProvider.setSettingsProvider(settingsProvider);
+  timeEntriesProvider.setJobsProvider(jobsProvider);
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: provider,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProxyProvider<SettingsProvider, TimeEntriesProvider>(
+          create: (context) => TimeEntriesProvider(),
+          update: (context, settingsProvider, timeEntriesProvider) {
+            timeEntriesProvider ??= TimeEntriesProvider();
+            timeEntriesProvider.setSettingsProvider(settingsProvider);
+            return timeEntriesProvider;
+          },
+        ),
+        ChangeNotifierProxyProvider2<
+          SettingsProvider,
+          TimeEntriesProvider,
+          JobsProvider
+        >(
+          create: (context) => JobsProvider(),
+          update: (
+            context,
+            settingsProvider,
+            timeEntriesProvider,
+            jobsProvider,
+          ) {
+            jobsProvider ??= JobsProvider();
+            jobsProvider.setSettingsProvider(settingsProvider);
+            jobsProvider.setTimeEntriesProvider(timeEntriesProvider);
+            return jobsProvider;
+          },
+        ),
+        ChangeNotifierProvider.value(value: sharedJobsProvider),
+      ],
       child: MyApp(showOnboarding: showOnboarding),
     ),
   );
@@ -62,14 +112,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return MaterialApp(
       title: 'Tímagátt',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
-      themeMode: provider.themeMode,
+      themeMode: settingsProvider.themeMode,
       navigatorKey: navigatorKey,
 
       // Add localization support
@@ -83,7 +133,7 @@ class MyApp extends StatelessWidget {
         Locale('en', ''), // English
         Locale('is', ''), // Icelandic
       ],
-      locale: provider.locale,
+      locale: settingsProvider.locale,
 
       // Define all routes
       routes: {
@@ -95,6 +145,7 @@ class MyApp extends StatelessWidget {
         Routes.addTime: (context) => const AddTimeScreen(),
         Routes.history: (context) => const HistoryScreen(),
         Routes.settings: (context) => const SettingsScreen(),
+        '/jobs': (context) => const JobsScreen(),
       },
 
       // Determine initial route
@@ -105,7 +156,7 @@ class MyApp extends StatelessWidget {
         if (settings.name == Routes.main) {
           // Force home tab when navigating to main screen
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            provider.notifyListeners();
+            settingsProvider.notifyListeners();
           });
           return MaterialPageRoute(builder: (_) => const TimeClockScreen());
         }
@@ -637,26 +688,25 @@ class _TimeClockScreenState extends State<TimeClockScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
-    provider.context = context;
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
       body: IndexedStack(
-        index: provider.selectedTabIndex,
+        index: settingsProvider.selectedTabIndex,
         children: const [
           HomeScreen(),
           AddTimeScreen(),
           HistoryScreen(),
-          ExportScreen(),
+          JobsScreen(),
           SettingsScreen(),
         ],
       ),
       bottomNavigationBar: CustomNavBar(
-        currentIndex: provider.selectedTabIndex,
+        currentIndex: settingsProvider.selectedTabIndex,
         onTap: (index) {
           // Dismiss keyboard when switching tabs
           FocusScope.of(context).unfocus();
-          provider.setSelectedTabIndex(index);
+          settingsProvider.setSelectedTabIndex(index);
         },
         activeColor: Theme.of(context).primaryColor,
         inactiveColor: Colors.grey,
@@ -664,23 +714,23 @@ class _TimeClockScreenState extends State<TimeClockScreen>
         indicatorHeight: 1,
         items: [
           CustomNavBarItem(
-            title: provider.translate('home'),
+            title: settingsProvider.translate('home'),
             icon: Icons.home_outlined,
           ),
           CustomNavBarItem(
-            title: provider.translate('add'),
+            title: settingsProvider.translate('add'),
             icon: Icons.add_circle_outline,
           ),
           CustomNavBarItem(
-            title: provider.translate('history'),
+            title: settingsProvider.translate('history'),
             icon: Icons.history_outlined,
           ),
           CustomNavBarItem(
-            title: provider.translate('export'),
-            icon: Icons.file_present_outlined,
+            title: settingsProvider.translate('jobs'),
+            icon: Icons.work_history_outlined,
           ),
           CustomNavBarItem(
-            title: provider.translate('settings'),
+            title: settingsProvider.translate('settings'),
             icon: Icons.settings_outlined,
           ),
         ],

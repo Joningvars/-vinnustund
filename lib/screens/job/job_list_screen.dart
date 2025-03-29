@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/screens/job/shared_jobs_screen.dart';
 
@@ -14,14 +15,16 @@ class JobListScreen extends StatefulWidget {
 class _JobListScreenState extends State<JobListScreen> {
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+
     return Scaffold(
-      appBar: AppBar(title: Text('Job List')),
+      appBar: AppBar(title: Text(settingsProvider.translate('jobs'))),
       body: _buildJobList(),
     );
   }
 
   Widget _buildJobList() {
-    return Consumer<TimeClockProvider>(
+    return Consumer<JobsProvider>(
       builder: (context, provider, child) {
         return Column(
           children: [
@@ -33,7 +36,7 @@ class _JobListScreenState extends State<JobListScreen> {
     );
   }
 
-  Widget _buildJobItems(TimeClockProvider provider) {
+  Widget _buildJobItems(JobsProvider provider) {
     return ListView.builder(
       itemCount: provider.jobs.length,
       itemBuilder: (context, index) {
@@ -65,7 +68,7 @@ class _JobListScreenState extends State<JobListScreen> {
   }
 
   Widget _buildSharedJobsButton(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -77,7 +80,7 @@ class _JobListScreenState extends State<JobListScreen> {
           );
         },
         icon: const Icon(Icons.group_work),
-        label: Text(provider.translate('sharedJobs')),
+        label: Text(settingsProvider.translate('sharedJobs')),
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),

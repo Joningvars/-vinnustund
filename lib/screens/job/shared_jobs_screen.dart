@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/models/job.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:badges/badges.dart' as badges;
@@ -60,7 +61,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   Future<void> _joinJob() async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
     final code = _codeController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
@@ -97,7 +98,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   Future<void> _createSharedJob() async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
@@ -210,7 +211,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   void _showDeleteConfirmation(Job job) {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
 
     showDialog(
       context: context,
@@ -249,7 +250,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<SharedJobsProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -335,7 +336,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                   ),
                 ElevatedButton(
                   onPressed: () async {
-                    final provider = Provider.of<TimeClockProvider>(
+                    final provider = Provider.of<SharedJobsProvider>(
                       context,
                       listen: false,
                     );
@@ -518,7 +519,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   Widget _buildSharedJobsList() {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<SharedJobsProvider>(context);
 
     return ListView.builder(
       itemCount: provider.sharedJobs.length,

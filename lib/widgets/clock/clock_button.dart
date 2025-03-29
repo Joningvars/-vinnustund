@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:intl/intl.dart';
 
 class ClockButton extends StatelessWidget {
   final bool isClockedIn;
@@ -23,7 +25,7 @@ class ClockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     // Define colors based on mode and state
@@ -83,8 +85,17 @@ class ClockButton extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
-        provider.context ??= context;
-        onPressed();
+
+        if (provider.isClockedIn) {
+          // Set the clock out time before showing the dialog
+          provider.clockOutTime = DateTime.now();
+
+          // Show confirmation dialog when clocking out
+          _showWorkDescriptionDialog(context);
+        } else {
+          // Just clock in directly
+          onPressed();
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -169,6 +180,197 @@ class ClockButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showWorkDescriptionDialog(BuildContext context) {
+    final TextEditingController descriptionController = TextEditingController();
+    final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
+
+    // Ensure keyboard is dismissed when dialog is shown
+    FocusScope.of(context).unfocus();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with icon
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.description_outlined,
+                    color: Colors.green.shade700,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  provider.translate('workDescription'),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+
+                // Subtitle
+                Text(
+                  provider.translate('workDescriptionHint'),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Text field
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    hintText: provider.translate('enterWorkDescription'),
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 24),
+
+                // Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+
+                        // Reset clock state without saving
+                        provider.isClockedIn = false;
+                        provider.clockInTime = null;
+                        provider.clockOutTime = null;
+                        provider.breakStartTime = null;
+                        provider.notifyListeners();
+
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        provider.translate('cancel'),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+
+                        // Check if required values are not null
+                        if (provider.selectedJob == null ||
+                            provider.clockInTime == null ||
+                            provider.clockOutTime == null) {
+                          // Show error message
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                provider.translate('errorSavingEntry'),
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          Navigator.of(context).pop();
+                          return;
+                        }
+
+                        // Create the time entry with description
+                        final entry = TimeEntry(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          jobId: provider.selectedJob!.id,
+                          jobName: provider.selectedJob!.name,
+                          jobColor: provider.selectedJob!.color,
+                          clockInTime: provider.clockInTime!,
+                          clockOutTime: provider.clockOutTime!,
+                          duration: provider.clockOutTime!.difference(
+                            provider.clockInTime!,
+                          ),
+                          description: descriptionController.text,
+                          date: DateFormat(
+                            'yyyy-MM-dd',
+                          ).format(provider.clockInTime!),
+                        );
+
+                        // Add to local list
+                        provider.timeEntries.add(entry);
+
+                        // Save to Firebase
+                        provider.saveTimeEntryToFirebase(entry);
+
+                        // Reset clock state
+                        provider.isClockedIn = false;
+                        provider.isOnBreak = false;
+                        provider.clockInTime = null;
+                        provider.clockOutTime = null;
+                        provider.breakStartTime = null;
+
+                        // Update calculations
+                        provider.calculateHoursWorkedThisWeek();
+
+                        // Notify listeners
+                        provider.notifyListeners();
+
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(provider.translate('submit')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

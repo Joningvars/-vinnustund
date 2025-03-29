@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
-import 'package:timagatt/screens/add_time_screen.dart';
-import 'package:timagatt/screens/export_screen.dart';
-import 'package:timagatt/screens/history_screen.dart';
-import 'package:timagatt/screens/settings_screen.dart';
-import 'package:timagatt/screens/time_clock_screen.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -45,14 +38,7 @@ class CustomNavBar extends StatelessWidget {
       top: false,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.transparent,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, -1),
-            ),
-          ],
+          color: Theme.of(context).scaffoldBackgroundColor,
         ),
         child: SafeArea(
           child: Stack(
@@ -73,7 +59,7 @@ class CustomNavBar extends StatelessWidget {
                         (MediaQuery.of(context).size.width / items.length) - 20,
                     height: indicatorHeight,
                     decoration: BoxDecoration(
-                      color: indicatorActiveColor, // Use the appropriate color
+                      color: indicatorActiveColor,
                       borderRadius: BorderRadius.circular(indicatorHeight / 2),
                     ),
                   ),

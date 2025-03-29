@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,10 +24,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadPendingRequestCount();
+    // Ensure settings are loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SettingsProvider>(context, listen: false).loadSettings();
+    });
   }
 
   Future<void> _loadPendingRequestCount() async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
     final count = await provider.getPendingRequestCount();
     if (mounted) {
       setState(() {
@@ -37,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<TimeEntriesProvider>(context);
 
     return GestureDetector(
       // Dismiss keyboard when tapping anywhere on the screen
@@ -103,20 +108,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 Card(
                   margin: EdgeInsets.zero,
-                  child: ListTile(
-                    title: Text(provider.translate('timeFormat')),
-                    subtitle: Text(
-                      provider.use24HourFormat
-                          ? provider.translate('hour24')
-                          : provider.translate('hour12'),
-                    ),
-                    trailing: Switch(
-                      value: provider.use24HourFormat,
-                      onChanged: (value) {
-                        HapticFeedback.selectionClick();
-                        provider.toggleTimeFormat();
-                      },
-                    ),
+                  child: Consumer<SettingsProvider>(
+                    builder: (context, settingsProvider, child) {
+                      return SwitchListTile(
+                        title: Text(provider.translate('timeFormat')),
+                        subtitle: Text(
+                          settingsProvider.use24HourFormat
+                              ? provider.translate('hour24')
+                              : provider.translate('hour12'),
+                        ),
+                        value: settingsProvider.use24HourFormat,
+                        onChanged: (value) {
+                          settingsProvider.setTimeFormat(value);
+                        },
+                      );
+                    },
                   ),
                 ),
 
@@ -298,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Add this button for testing
                 ElevatedButton(
                   onPressed: () async {
-                    final provider = Provider.of<TimeClockProvider>(
+                    final provider = Provider.of<TimeEntriesProvider>(
                       context,
                       listen: false,
                     );
@@ -332,7 +338,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showThemeSelector(BuildContext context, TimeClockProvider provider) {
+  void _showThemeSelector(BuildContext context, TimeEntriesProvider provider) {
     // Dismiss keyboard before showing bottom sheet
     FocusScope.of(context).unfocus();
 
@@ -407,7 +413,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showLanguageSelector(BuildContext context, TimeClockProvider provider) {
+  void _showLanguageSelector(
+    BuildContext context,
+    TimeEntriesProvider provider,
+  ) {
     // Dismiss keyboard before showing bottom sheet
     FocusScope.of(context).unfocus();
 

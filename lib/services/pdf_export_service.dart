@@ -9,9 +9,12 @@ import 'package:share_plus/share_plus.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/providers/time_clock_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 class PdfExportService {
-  final TimeClockProvider provider;
+  final TimeEntriesProvider provider;
 
   PdfExportService(this.provider);
 
@@ -374,81 +377,54 @@ class PdfExportService {
     return file;
   }
 
-  Future<void> exportTimeEntries(BuildContext context, String period) async {
-    // Get entries based on selected period
-    final now = DateTime.now();
-    DateTime startDate;
-    DateTime endDate = DateTime.now(); // Add end date for better filtering
+  Future<void> exportTimeEntries(
+    BuildContext context,
+    DateTime startDate,
+    DateTime endDate, {
+    bool includeBreaks = true,
+    bool groupByJob = true,
+    bool includeDescription = true,
+    String? jobId,
+  }) async {
+    // Adjust date ranges to include full days
+    final adjustedStartDate = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+      0,
+      0,
+      0,
+    );
+    final adjustedEndDate = DateTime(
+      endDate.year,
+      endDate.month,
+      endDate.day,
+      23,
+      59,
+      59,
+    );
 
-    switch (period) {
-      case 'Day':
-        startDate = DateTime(now.year, now.month, now.day);
-        endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-        break;
-      case 'Week':
-        // Get the start of the week (Monday)
-        startDate = now.subtract(Duration(days: now.weekday - 1));
-        startDate = DateTime(startDate.year, startDate.month, startDate.day);
-        endDate = startDate.add(
-          Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
-        );
-        break;
-      case 'Month':
-        startDate = DateTime(now.year, now.month, 1);
-        // Last day of the month
-        final nextMonth = now.month < 12 ? now.month + 1 : 1;
-        final nextYear = now.month < 12 ? now.year : now.year + 1;
-        endDate = DateTime(
-          nextYear,
-          nextMonth,
-          1,
-        ).subtract(Duration(seconds: 1));
-        break;
-      default:
-        startDate = DateTime(now.year, now.month, now.day);
-        endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-    }
-
-    // Add debug prints to help identify the issue
-    print('Exporting entries for period: $period');
-    print('Start date: $startDate');
-    print('End date: $endDate');
-    print('Total entries: ${provider.timeEntries.length}');
-
-    // Filter entries for the selected period with improved logic
-    final entries =
+    // Filter entries by date range and optionally by job
+    final filteredEntries =
         provider.timeEntries.where((entry) {
+          // Check if entry is within date range
           final entryDate = entry.clockInTime;
-          final isAfterStart =
-              entryDate.isAfter(startDate) ||
-              entryDate.isAtSameMomentAs(startDate);
-          final isBeforeEnd =
-              entryDate.isBefore(endDate) ||
-              entryDate.isAtSameMomentAs(endDate);
+          final isInDateRange =
+              entryDate.isAfter(adjustedStartDate) &&
+              (entry.clockOutTime?.isBefore(adjustedEndDate) ??
+                  entryDate.isBefore(adjustedEndDate));
 
-          final included = isAfterStart && isBeforeEnd;
+          // If jobId is specified, filter by job
+          final isMatchingJob = jobId == null || entry.jobId == jobId;
 
-          // Debug print for each entry
-          print('Entry date: $entryDate, included: $included');
-
-          return included;
+          return isInDateRange && isMatchingJob;
         }).toList();
 
-    print('Filtered entries count: ${entries.length}');
+    // Sort entries by date
+    filteredEntries.sort((a, b) => a.clockInTime.compareTo(b.clockInTime));
 
-    if (entries.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.translate('noEntriesForExport')),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-      return;
+    if (filteredEntries.isEmpty) {
+      throw Exception(provider.translate('noEntriesForExport'));
     }
 
     // Show loading indicator
@@ -463,26 +439,12 @@ class PdfExportService {
       String periodString;
       final dateFormat = DateFormat.yMMMd(provider.locale.languageCode);
 
-      switch (period) {
-        case 'Day':
-          periodString = dateFormat.format(now);
-          break;
-        case 'Week':
-          final endOfWeek = startDate.add(Duration(days: 6));
-          periodString =
-              '${dateFormat.format(startDate)} - ${dateFormat.format(endOfWeek)}';
-          break;
-        case 'Month':
-          periodString = DateFormat.yMMMM(
-            provider.locale.languageCode,
-          ).format(now);
-          break;
-        default:
-          periodString = dateFormat.format(now);
-      }
+      // Format date range for the report title
+      periodString =
+          '${dateFormat.format(startDate)} - ${dateFormat.format(endDate)}';
 
       // Generate PDF
-      final file = await generateTimeEntriesPdf(entries, periodString);
+      final file = await generateTimeEntriesPdf(filteredEntries, periodString);
 
       // Close loading dialog
       Navigator.of(context).pop();
@@ -670,4 +632,345 @@ class PdfExportService {
       );
     }
   }
+
+  Future<String?> generateTimeReport(
+    BuildContext context,
+    List<TimeEntry> entries,
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    // Filter entries by date range
+    final filteredEntries =
+        entries.where((entry) {
+          return entry.clockInTime.isAfter(startDate) &&
+              entry.clockInTime.isBefore(endDate.add(const Duration(days: 1)));
+        }).toList();
+
+    // Sort entries by date
+    filteredEntries.sort((a, b) => a.clockInTime.compareTo(b.clockInTime));
+
+    // Check if there are entries to export
+    if (filteredEntries.isEmpty) {
+      return null;
+    }
+
+    // Generate period string for the report
+    final dateFormat = DateFormat.yMMMd(provider.locale.languageCode);
+    final periodString =
+        '${dateFormat.format(startDate)} - ${dateFormat.format(endDate)}';
+
+    // Load the app logo
+    final ByteData logoData = await rootBundle.load('assets/icons/logo.png');
+    final Uint8List logoBytes = logoData.buffer.asUint8List();
+    final pw.MemoryImage logoImage = pw.MemoryImage(logoBytes);
+
+    // Define theme colors
+    final primaryColor = PdfColor.fromHex('#4CAF50'); // Green primary color
+    final accentColor = PdfColor.fromHex('#2196F3'); // Blue accent color
+    final backgroundColor = PdfColor.fromHex(
+      '#F5F5F5',
+    ); // Light gray background
+
+    // Generate PDF document
+    final pdf = pw.Document();
+
+    // Add content to PDF
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        header: (pw.Context context) {
+          return pw.Container(
+            padding: const pw.EdgeInsets.only(bottom: 16),
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(color: primaryColor, width: 2),
+              ),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Row(
+                  children: [
+                    pw.Container(
+                      width: 40,
+                      height: 40,
+                      child: pw.Image(logoImage),
+                    ),
+                    pw.SizedBox(width: 12),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Tímagátt',
+                          style: pw.TextStyle(
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
+                        pw.Text(
+                          provider.translate('timeReport'),
+                          style: pw.TextStyle(fontSize: 14, color: accentColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      DateTime.now().toString().substring(0, 10),
+                      style: const pw.TextStyle(fontSize: 12),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      periodString,
+                      style: const pw.TextStyle(
+                        fontSize: 12,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+        build: (pw.Context context) {
+          return [
+            // Summary section
+            pw.Container(
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                color: backgroundColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+                border: pw.Border.all(color: primaryColor.lighter, width: 1),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    provider.translate('summary'),
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: primaryColor,
+                    ),
+                  ),
+                  pw.SizedBox(height: 12),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        '${provider.translate('totalHours')}:',
+                        style: const pw.TextStyle(fontSize: 14),
+                      ),
+                      pw.Text(
+                        _calculateTotalHours(filteredEntries),
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        '${provider.translate('entries')}:',
+                        style: const pw.TextStyle(fontSize: 14),
+                      ),
+                      pw.Text(
+                        filteredEntries.length.toString(),
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 24),
+
+            // Entries table
+            pw.Text(
+              provider.translate('entries'),
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+            pw.SizedBox(height: 12),
+            _buildDetailedTimeEntriesTable(
+              filteredEntries,
+              primaryColor,
+              accentColor,
+            ),
+          ];
+        },
+      ),
+    );
+
+    // Save the PDF file
+    final output = await getTemporaryDirectory();
+    final file = File(
+      '${output.path}/time_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+    );
+    await file.writeAsBytes(await pdf.save());
+
+    return file.path;
+  }
+
+  // Helper method to build a more detailed time entries table with rounded corners
+  pw.Widget _buildDetailedTimeEntriesTable(
+    List<TimeEntry> entries,
+    PdfColor primaryColor,
+    PdfColor accentColor,
+  ) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+        border: pw.Border.all(color: primaryColor.lighter, width: 1),
+      ),
+      child: pw.ClipRRect(
+        horizontalRadius: 8,
+        verticalRadius: 8,
+        child: pw.Table(
+          border: pw.TableBorder.symmetric(
+            inside: const pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+          ),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(2), // Date
+            1: const pw.FlexColumnWidth(3), // Job
+            2: const pw.FlexColumnWidth(2), // Start
+            3: const pw.FlexColumnWidth(2), // End
+            4: const pw.FlexColumnWidth(1), // Hours
+          },
+          children: [
+            // Header row
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: primaryColor.lighter),
+              children: [
+                _buildTableCell(
+                  provider.translate('date'),
+                  isHeader: true,
+                  textColor: primaryColor.darker,
+                ),
+                _buildTableCell(
+                  provider.translate('selectJob'),
+                  isHeader: true,
+                  textColor: primaryColor.darker,
+                ),
+                _buildTableCell(
+                  provider.translate('clockInPDF'),
+                  isHeader: true,
+                  textColor: primaryColor.darker,
+                ),
+                _buildTableCell(
+                  provider.translate('clockOutPDF'),
+                  isHeader: true,
+                  textColor: primaryColor.darker,
+                ),
+                _buildTableCell(
+                  provider.translate('hours'),
+                  isHeader: true,
+                  textColor: primaryColor.darker,
+                ),
+              ],
+            ),
+            // Data rows
+            ...entries.map((entry) {
+              final hours = entry.duration.inMinutes / 60;
+              final hoursStr = hours.toStringAsFixed(1);
+
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(
+                  color:
+                      entries.indexOf(entry) % 2 == 0
+                          ? PdfColors.white
+                          : PdfColor.fromHex('#F9F9F9'),
+                ),
+                children: [
+                  _buildTableCell(
+                    DateFormat('MMM d, yyyy').format(entry.clockInTime),
+                  ),
+                  _buildTableCell(entry.jobName),
+                  _buildTableCell(
+                    DateFormat('h:mm a').format(entry.clockInTime),
+                  ),
+                  _buildTableCell(
+                    DateFormat('h:mm a').format(entry.clockOutTime),
+                  ),
+                  _buildTableCell(
+                    hoursStr,
+                    alignment: pw.Alignment.centerRight,
+                    textColor: accentColor,
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build a table cell with optional text color
+  pw.Widget _buildTableCell(
+    String text, {
+    bool isHeader = false,
+    pw.Alignment alignment = pw.Alignment.centerLeft,
+    PdfColor? textColor,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Align(
+        alignment: alignment,
+        child: pw.Text(
+          text,
+          style: pw.TextStyle(
+            fontWeight: isHeader ? pw.FontWeight.bold : null,
+            color: textColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper method to calculate total hours
+  String _calculateTotalHours(List<TimeEntry> entries) {
+    int totalMinutes = 0;
+    for (var entry in entries) {
+      totalMinutes += entry.duration.inMinutes;
+    }
+
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+
+    return '$hours ${provider.translate('klst')} $minutes ${provider.translate('mín')}';
+  }
+}
+
+// Add extension methods for PdfColor to provide lighter and darker variants
+extension PdfColorExtension on PdfColor {
+  PdfColor get lighter => PdfColor(
+    math.min(1, this.red / 255 + 0.2),
+    math.min(1, this.green / 255 + 0.2),
+    math.min(1, this.blue / 255 + 0.2),
+  );
+
+  PdfColor get darker => PdfColor(
+    math.max(0, this.red / 255 - 0.2),
+    math.max(0, this.green / 255 - 0.2),
+    math.max(0, this.blue / 255 - 0.2),
+  );
 }

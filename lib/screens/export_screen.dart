@@ -3,46 +3,77 @@ import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:timagatt/services/pdf_export_service.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
 
 class ExportScreen extends StatefulWidget {
-  const ExportScreen({super.key});
+  final DateTime startDate;
+  final DateTime endDate;
+  final String? jobId;
+
+  const ExportScreen({
+    Key? key,
+    required this.startDate,
+    required this.endDate,
+    this.jobId,
+  }) : super(key: key);
 
   @override
   State<ExportScreen> createState() => _ExportScreenState();
 }
 
 class _ExportScreenState extends State<ExportScreen> {
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
-  String? _selectedJobId;
   bool _isExporting = false;
-  String _selectedPeriod = 'Day';
+  String? _exportError;
+  bool _includeBreaks = true;
+  bool _groupByJob = true;
+  bool _includeDescription = true;
+  String? selectedJobId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with the date range passed from history screen
+    _startDate = widget.startDate;
+    _endDate = widget.endDate;
+    selectedJobId = widget.jobId;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          timeEntriesProvider.translate('exportToPdf'),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                provider.translate('exportToPdf'),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
               // Date range selector
               Text(
-                provider.translate('timeRange'),
+                timeEntriesProvider.translate('timeRange'),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -66,7 +97,7 @@ class _ExportScreenState extends State<ExportScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${provider.translate('startDate')}: ${DateFormat.yMMMd(provider.locale.languageCode).format(_startDate)}',
+                        '${timeEntriesProvider.translate('startDate')}: ${DateFormat.yMMMd(timeEntriesProvider.locale.languageCode).format(_startDate)}',
                         style: TextStyle(
                           fontSize: 16,
                           color: isDarkMode ? Colors.white : Colors.black87,
@@ -102,7 +133,7 @@ class _ExportScreenState extends State<ExportScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${provider.translate('endDate')}: ${DateFormat.yMMMd(provider.locale.languageCode).format(_endDate)}',
+                        '${timeEntriesProvider.translate('endDate')}: ${DateFormat.yMMMd(timeEntriesProvider.locale.languageCode).format(_endDate)}',
                         style: TextStyle(
                           fontSize: 16,
                           color: isDarkMode ? Colors.white : Colors.black87,
@@ -123,67 +154,12 @@ class _ExportScreenState extends State<ExportScreen> {
               const SizedBox(height: 24),
 
               // Job filter
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    provider.translate('filterByJob'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // All jobs button
-                  _buildJobFilterButton(
-                    'all',
-                    provider.translate('allJobs'),
-                    null,
-                  ),
-
-                  // Individual job buttons
-                  ...provider.jobs.map(
-                    (job) => _buildJobFilterButton(job.id, job.name, job.color),
-                  ),
-                ],
-              ),
+              _buildJobFilter(),
 
               const SizedBox(height: 32),
 
               // Quick date range buttons
-              Text(
-                provider.translate('quickSelect'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Quick select buttons
-              Container(
-                padding: const EdgeInsets.only(
-                  left: 4,
-                  right: 4,
-                  top: 2,
-                  bottom: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardTheme.color,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    _buildPeriodButton('Day', provider.translate('today')),
-                    _buildPeriodButton('Week', provider.translate('thisWeek')),
-                    _buildPeriodButton(
-                      'Month',
-                      provider.translate('thisMonth'),
-                    ),
-                  ],
-                ),
-              ),
+              _buildQuickSelectButtons(),
 
               const SizedBox(height: 40),
 
@@ -213,7 +189,7 @@ class _ExportScreenState extends State<ExportScreen> {
                             ),
                           )
                           : Text(
-                            provider.translate('exportToPdf'),
+                            timeEntriesProvider.translate('exportToPdf'),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -228,66 +204,126 @@ class _ExportScreenState extends State<ExportScreen> {
     );
   }
 
-  Widget _buildPeriodButton(String period, String label) {
-    final isSelected = _selectedPeriod == period;
-    return Expanded(
-      child: TextButton(
-        style: TextButton.styleFrom(
-          backgroundColor:
-              isSelected ? Theme.of(context).colorScheme.primary : null,
-          foregroundColor:
-              isSelected
-                  ? Colors.white
-                  : Theme.of(context).textTheme.bodyLarge?.color,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+  Widget _buildQuickSelectButtons() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          Provider.of<TimeEntriesProvider>(context).translate('quickSelect'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        onPressed: () {
-          setState(() {
-            _selectedPeriod = period;
-            _updateDateRangeForPeriod(period);
-          });
-        },
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildQuickSelectButton(
+              Provider.of<TimeEntriesProvider>(context).translate('today'),
+              () {
+                final now = DateTime.now();
+                setState(() {
+                  _startDate = DateTime(now.year, now.month, now.day);
+                  _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            _buildQuickSelectButton(
+              Provider.of<TimeEntriesProvider>(context).translate('thisWeek'),
+              () {
+                final now = DateTime.now();
+                // Find the first day of the week (Monday)
+                final firstDayOfWeek = now.subtract(
+                  Duration(days: now.weekday - 1),
+                );
+                // Find the last day of the week (Sunday)
+                final lastDayOfWeek = firstDayOfWeek.add(
+                  const Duration(days: 6),
+                );
+
+                setState(() {
+                  _startDate = DateTime(
+                    firstDayOfWeek.year,
+                    firstDayOfWeek.month,
+                    firstDayOfWeek.day,
+                  );
+                  _endDate = DateTime(
+                    lastDayOfWeek.year,
+                    lastDayOfWeek.month,
+                    lastDayOfWeek.day,
+                    23,
+                    59,
+                    59,
+                  );
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            _buildQuickSelectButton(
+              Provider.of<TimeEntriesProvider>(context).translate('thisMonth'),
+              () {
+                final now = DateTime.now();
+                // First day of current month
+                final firstDay = DateTime(now.year, now.month, 1);
+                // Last day of current month
+                final lastDay = DateTime(
+                  now.year,
+                  now.month + 1,
+                  0,
+                  23,
+                  59,
+                  59,
+                );
+
+                setState(() {
+                  _startDate = firstDay;
+                  _endDate = lastDay;
+                });
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickSelectButton(String text, VoidCallback onTap) {
+    return Expanded(
+      child: Material(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(8),
+          splashColor: Theme.of(context).primaryColor.withOpacity(0.1),
+          highlightColor: Theme.of(context).primaryColor.withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  void _updateDateRangeForPeriod(String period) {
-    final now = DateTime.now();
-
-    switch (period) {
-      case 'Day':
-        _startDate = DateTime(now.year, now.month, now.day);
-        _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-        break;
-      case 'Week':
-        // Get the start of the week (Monday)
-        final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-        _startDate = DateTime(
-          startOfWeek.year,
-          startOfWeek.month,
-          startOfWeek.day,
-        );
-        _endDate = _startDate.add(
-          const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
-        );
-        break;
-      case 'Month':
-        _startDate = DateTime(now.year, now.month, 1);
-        _endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-        break;
-    }
-  }
-
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
     final initialDate = isStartDate ? _startDate : _endDate;
     final firstDate = isStartDate ? DateTime(2020) : _startDate;
     final lastDate = isStartDate ? _endDate : DateTime.now();
@@ -297,7 +333,7 @@ class _ExportScreenState extends State<ExportScreen> {
       initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
-      locale: provider.locale,
+      locale: timeEntriesProvider.locale,
     );
 
     if (picked != null) {
@@ -312,102 +348,40 @@ class _ExportScreenState extends State<ExportScreen> {
   }
 
   Future<void> _exportToPdf() async {
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+
     setState(() {
       _isExporting = true;
+      _exportError = null;
     });
 
     try {
-      final pdfService = PdfExportService(provider);
-
-      // Filter entries by date range and job
-      final entries =
-          provider.timeEntries.where((entry) {
-            final isInDateRange =
-                (entry.clockInTime.isAfter(_startDate) ||
-                    entry.clockInTime.isAtSameMomentAs(_startDate)) &&
-                (entry.clockOutTime.isBefore(_endDate) ||
-                    entry.clockOutTime.isAtSameMomentAs(_endDate));
-
-            // Fix the job filter logic - "all" should include all jobs
-            final matchesJob =
-                _selectedJobId == 'all' || entry.jobId == _selectedJobId;
-
-            return isInDateRange && matchesJob;
-          }).toList();
-
-      if (entries.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.translate('noEntriesForExport')),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-        setState(() {
-          _isExporting = false;
-        });
-        return;
-      }
-
-      // Generate period string
-      final dateFormat = DateFormat.yMMMd(provider.locale.languageCode);
-      final periodString =
-          '${dateFormat.format(_startDate)} - ${dateFormat.format(_endDate)}';
-
-      // Generate and show PDF
-      final file = await pdfService.generateTimeEntriesPdf(
-        entries,
-        periodString,
+      final pdfService = PdfExportService(timeEntriesProvider);
+      await pdfService.exportTimeEntries(
+        context,
+        _startDate,
+        _endDate,
+        includeBreaks: _includeBreaks,
+        groupByJob: _groupByJob,
+        includeDescription: _includeDescription,
+        jobId: selectedJobId,
       );
 
-      // Show options dialog
       if (mounted) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(provider.translate('exportComplete')),
-                content: Text(provider.translate('exportCompleteMessage')),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      OpenFile.open(file.path);
-                    },
-                    child: Text(provider.translate('view')),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Share.shareXFiles([XFile(file.path)]);
-                    },
-                    child: Text(provider.translate('share')),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(provider.translate('close')),
-                  ),
-                ],
-              ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(timeEntriesProvider.translate('exportSuccess')),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.translate('exportError')),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      setState(() {
+        _exportError = e.toString();
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -417,73 +391,99 @@ class _ExportScreenState extends State<ExportScreen> {
     }
   }
 
-  Widget _buildJobFilterButton(String jobId, String jobName, Color? jobColor) {
-    final isSelected = _selectedJobId == jobId;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildJobFilter() {
+    final jobsProvider = Provider.of<JobsProvider>(context);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color:
-            isSelected
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Theme.of(context).cardTheme.color,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            setState(() {
-              _selectedJobId = jobId;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border:
-                  isSelected
-                      ? Border.all(
-                        color: Theme.of(context).colorScheme.primary,
-                        width: 1.5,
-                      )
-                      : null,
-            ),
-            child: Row(
-              children: [
-                if (jobColor != null)
-                  Container(
-                    width: 16,
-                    height: 16,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: jobColor,
-                      shape: BoxShape.circle,
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          Provider.of<TimeEntriesProvider>(context).translate('filterByJob'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildJobFilterButton(
+                Provider.of<TimeEntriesProvider>(context).translate('allJobs'),
+                null,
+                selectedJobId == null,
+              ),
+              ...jobsProvider.jobs.map((job) {
+                return Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: _buildJobFilterButton(
+                    job.name,
+                    job.id,
+                    selectedJobId == job.id,
+                    job.color,
                   ),
-                Expanded(
-                  child: Text(
-                    jobName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                      color:
-                          isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                    ),
-                  ),
-                ),
-                if (isSelected)
-                  Icon(
-                    Icons.check_circle,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 20,
-                  ),
-              ],
-            ),
+                );
+              }),
+            ],
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJobFilterButton(
+    String text,
+    String? jobId,
+    bool isSelected, [
+    Color? jobColor,
+  ]) {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          selectedJobId = jobId;
+        });
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? (jobColor?.withOpacity(0.2) ??
+                      Theme.of(context).primaryColor.withOpacity(0.1))
+                  : Colors.grey.shade100,
+          border: Border.all(
+            color:
+                isSelected
+                    ? (jobColor ?? Theme.of(context).primaryColor)
+                    : Colors.grey.shade300,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (jobColor != null) ...[
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: jobColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              text,
+              style: TextStyle(
+                color:
+                    isSelected
+                        ? (jobColor ?? Theme.of(context).primaryColor)
+                        : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
         ),
       ),
     );

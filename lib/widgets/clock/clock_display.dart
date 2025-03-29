@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 
 class ClockDisplay extends StatefulWidget {
   const ClockDisplay({super.key});
@@ -33,7 +33,7 @@ class _ClockDisplayState extends State<ClockDisplay> {
   void _updateTime() {
     if (!mounted) return;
 
-    final provider = Provider.of<TimeClockProvider>(context, listen: false);
+    final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
     final newTime = provider.getElapsedTimeString();
 
     if (newTime != _displayTime) {

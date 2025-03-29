@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/screens/export_screen.dart';
 import 'package:timagatt/screens/home_screen.dart';
 import 'package:timagatt/screens/add_time_screen.dart';
 import 'package:timagatt/screens/history_screen.dart';
 import 'package:timagatt/screens/settings_screen.dart';
+import 'package:timagatt/screens/jobs_screen.dart';
 
 class TimeClockScreen extends StatefulWidget {
   const TimeClockScreen({super.key});
@@ -20,7 +21,7 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
     super.initState();
     // Force home tab selection on initialization
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<TimeClockProvider>(context, listen: false);
+      final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
       // Only set to home if coming from login (not during normal navigation)
       if (provider.isComingFromLogin) {
         provider.selectedTabIndex = 0;
@@ -32,7 +33,7 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<TimeEntriesProvider>(context);
 
     return Scaffold(
       body: IndexedStack(
@@ -41,8 +42,8 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
           HomeScreen(),
           AddTimeScreen(),
           HistoryScreen(),
+          JobsScreen(),
           SettingsScreen(),
-          ExportScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -63,6 +64,10 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
           BottomNavigationBarItem(
             icon: const Icon(Icons.history),
             label: provider.translate('history'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.work_outline),
+            label: provider.translate('jobs'),
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.settings),

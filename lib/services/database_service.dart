@@ -19,6 +19,9 @@ class DatabaseService {
   CollectionReference get timeEntriesCollection =>
       userCollection.doc(uid).collection('timeEntries');
 
+  // Add this property at the top of the DatabaseService class
+  User? get currentUser => FirebaseAuth.instance.currentUser;
+
   // Save jobs to Firestore
   Future<void> saveJobs(List<Job> jobs) async {
     // Delete all existing jobs first
@@ -668,5 +671,109 @@ class DatabaseService {
       print('Error deleting job: $e');
       throw e;
     }
+  }
+
+  // Add this method to DatabaseService
+  Future<void> updateUserClockState({
+    bool? isClockedIn,
+    DateTime? clockInTime,
+    DateTime? clockOutTime,
+    String? jobId,
+  }) async {
+    try {
+      final data = {
+        'isClockedIn': isClockedIn,
+        if (clockInTime != null) 'clockInTime': clockInTime.toIso8601String(),
+        if (clockOutTime != null)
+          'clockOutTime': clockOutTime.toIso8601String(),
+        if (jobId != null) 'currentJobId': jobId,
+      };
+
+      await userCollection.doc(uid).update(data);
+    } catch (e) {
+      print('Error updating user clock state: $e');
+      rethrow;
+    }
+  }
+
+  // Add this method to delete a time entry
+  Future<void> deleteTimeEntry(String entryId) async {
+    try {
+      // Delete from user's collection
+      await timeEntriesCollection.doc(entryId).delete();
+
+      // Check if this was a shared job entry and delete from shared collection if needed
+      final sharedEntryQuery =
+          await _firestore
+              .collectionGroup('timeEntries')
+              .where('id', isEqualTo: entryId)
+              .where('userId', isEqualTo: uid)
+              .get();
+
+      for (var doc in sharedEntryQuery.docs) {
+        await doc.reference.delete();
+      }
+
+      print('Time entry deleted: $entryId');
+    } catch (e) {
+      print('Error deleting time entry: $e');
+      rethrow;
+    }
+  }
+
+  // Add these methods to DatabaseService
+  Future<int> getPendingRequestCount() async {
+    if (currentUser == null) return 0;
+
+    try {
+      final snapshot =
+          await _firestore
+              .collection('jobRequests')
+              .where('ownerId', isEqualTo: currentUser!.uid)
+              .where('status', isEqualTo: 'pending')
+              .get();
+
+      return snapshot.docs.length;
+    } catch (e) {
+      print('Error getting pending request count: $e');
+      return 0;
+    }
+  }
+
+  Future<void> checkForPendingRequests() async {
+    // This method just refreshes the pending requests
+    await getPendingRequestCount();
+  }
+
+  Stream<List<TimeEntry>> getTimeEntriesStream() {
+    if (currentUser == null) {
+      return Stream.value([]);
+    }
+
+    return _firestore
+        .collection('users')
+        .doc(currentUser!.uid)
+        .collection('timeEntries')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            return TimeEntry.fromFirestore(doc);
+          }).toList();
+        });
+  }
+
+  // Add this method to get the current user ID
+  String? getCurrentUserId() {
+    return FirebaseAuth.instance.currentUser?.uid;
+  }
+
+  // Add these methods to the DatabaseService class
+
+  Future<void> saveJob(Job job) async {
+    await jobsCollection.doc(job.id).set(job.toJson());
+  }
+
+  Future<void> updateJob(Job job) async {
+    await jobsCollection.doc(job.id).set(job.toJson());
   }
 }

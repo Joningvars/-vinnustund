@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TimeEntry {
   final String id;
@@ -78,6 +79,20 @@ class TimeEntry {
       description: json['description'],
       date: json['date'],
       userId: json['userId'],
+    );
+  }
+
+  static TimeEntry fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return TimeEntry(
+      id: data['id'] ?? doc.id,
+      jobId: data['jobId'] ?? '',
+      jobName: data['jobName'] ?? 'Unknown Job',
+      jobColor: Color(data['jobColor'] ?? Colors.grey.value),
+      clockInTime: DateTime.parse(data['clockInTime']),
+      clockOutTime: DateTime.parse(data['clockOutTime']),
+      duration: Duration(minutes: data['duration']),
+      description: data['description'] ?? '',
     );
   }
 }

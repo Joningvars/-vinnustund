@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/providers/time_clock_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/utils/routes.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -34,7 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TimeClockProvider>(context);
+    final provider = Provider.of<TimeEntriesProvider>(context);
 
     // Define pages with translations
     final List<OnboardingPage> pages = [
