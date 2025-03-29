@@ -391,7 +391,6 @@ class SettingsProvider extends BaseProvider {
       'startDate': 'Upphafsdagur',
       'endDate': 'Lokadagur',
       'quickSelect': 'Flýtival',
-      'today': 'Í dag',
       'thisWeek': 'Þessi vika',
       'thisMonth': 'Þessi mánuður',
       'export': 'Flytja út',

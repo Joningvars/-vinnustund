@@ -174,41 +174,68 @@ class DatabaseService {
   // Add this method to your DatabaseService class
   Future<void> saveTimeEntry(TimeEntry entry) async {
     try {
-      // Save the time entry to the user's collection
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      print('💾 Saving time entry with ID: ${entry.id}');
+      print(
+        '👤 Entry user info - userId: ${entry.userId}, userName: ${entry.userName}',
+      );
+
+      // If userName is null, try to get it from the user document
+      String? userName = entry.userName;
+      if (userName == null) {
+        print('🔍 userName is null, fetching from user document');
+        final userData = await getUserData(user.uid);
+        userName = userData?['name'];
+        print('👤 Retrieved userName from document: $userName');
+      }
+
+      // Create a new entry with the userName included
+      final updatedEntry = TimeEntry(
+        id: entry.id,
+        jobId: entry.jobId,
+        jobName: entry.jobName,
+        jobColor: entry.jobColor,
+        clockInTime: entry.clockInTime,
+        clockOutTime: entry.clockOutTime,
+        duration: entry.duration,
+        description: entry.description,
+        userId: entry.userId ?? user.uid,
+        userName: userName, // Use the retrieved userName
+      );
+
+      // Convert to JSON with the userName included
+      final data = updatedEntry.toJson();
+      print('💾 Saving entry with data: $data');
+
+      // Save to Firestore
       await _firestore
           .collection('users')
-          .doc(uid)
+          .doc(updatedEntry.userId ?? user.uid)
           .collection('timeEntries')
-          .doc(entry.id)
-          .set(entry.toJson());
+          .doc(updatedEntry.id)
+          .set(data);
 
-      // Check if this is for a shared job
-      final jobDoc = await jobsCollection.doc(entry.jobId).get();
-      if (jobDoc.exists) {
-        final jobData = jobDoc.data() as Map<String, dynamic>?;
-        final isShared = jobData?['isShared'] ?? false;
+      print('✅ Time entry saved successfully with userName: $userName');
 
-        if (isShared) {
-          final connectionCode = jobData?['connectionCode'];
-          if (connectionCode != null) {
-            // Add the userId to the entry for shared jobs
-            final sharedEntry = entry.toJson();
-            sharedEntry['userId'] = uid;
+      // For shared jobs, log that it was saved
+      final job =
+          await _firestore
+              .collection('users')
+              .doc(user.uid)
+              .collection('jobs')
+              .doc(entry.jobId)
+              .get();
 
-            // Also save to a global collection for shared jobs
-            await _firestore
-                .collection('sharedJobs')
-                .doc(connectionCode)
-                .collection('timeEntries')
-                .doc(entry.id)
-                .set(sharedEntry);
-
-            print('Time entry saved to shared job: ${entry.id}');
-          }
-        }
+      if (job.exists && job.data()?['isShared'] == true) {
+        print('Time entry saved to shared job: ${entry.id}');
       }
     } catch (e) {
-      print('Error saving time entry: $e');
+      print('❌ Error saving time entry: $e');
       rethrow;
     }
   }
@@ -553,15 +580,20 @@ class DatabaseService {
 
   // Add this method to the DatabaseService class
   Future<Map<String, dynamic>?> getUserData(String userId) async {
+    print('🔍 DatabaseService.getUserData called for userId: $userId');
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
+      print('📄 User document exists: ${doc.exists}');
       if (doc.exists) {
-        return doc.data();
+        final data = doc.data();
+        print('📄 User data: $data');
+        return data;
       }
+      print('⚠️ User document does not exist');
       return null;
     } catch (e) {
-      print('Error getting user data: $e');
-      return {'name': 'Unknown User'}; // Return a fallback value
+      print('❌ Error getting user data: $e');
+      return null;
     }
   }
 
@@ -805,6 +837,155 @@ class DatabaseService {
       print('Job updated successfully in Firebase');
     } catch (e) {
       print('Error updating job in Firebase: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<TimeEntry>> loadAllEntriesForJob(String jobId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('User not authenticated');
+    }
+
+    try {
+      // First, get the job to check if it's shared
+      final jobDoc =
+          await _firestore
+              .collection('users')
+              .doc(user.uid)
+              .collection('jobs')
+              .doc(jobId)
+              .get();
+
+      if (!jobDoc.exists) {
+        throw Exception('Job not found');
+      }
+
+      final job = Job.fromJson(jobDoc.data()!);
+
+      if (!job.isShared) {
+        // For non-shared jobs, just return the user's own entries
+        return await loadTimeEntriesForJob(jobId);
+      }
+
+      // For shared jobs, get entries from all connected users
+      final List<TimeEntry> allEntries = [];
+
+      // First add the creator's entries
+      if (job.creatorId != null) {
+        final creatorEntries =
+            await _firestore
+                .collection('users')
+                .doc(job.creatorId)
+                .collection('timeEntries')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        for (var doc in creatorEntries.docs) {
+          final entry = TimeEntry.fromFirestore(doc);
+          allEntries.add(entry);
+        }
+      }
+
+      // Then add entries from all connected users
+      if (job.connectedUsers != null) {
+        for (var userId in job.connectedUsers!) {
+          if (userId == job.creatorId) continue; // Skip creator, already added
+
+          final userEntries =
+              await _firestore
+                  .collection('users')
+                  .doc(userId)
+                  .collection('timeEntries')
+                  .where('jobId', isEqualTo: jobId)
+                  .get();
+
+          for (var doc in userEntries.docs) {
+            final entry = TimeEntry.fromFirestore(doc);
+            allEntries.add(entry);
+          }
+        }
+      }
+
+      return allEntries;
+    } catch (e) {
+      print('Error loading all entries for job $jobId: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, String>> getUserNames(List<String> userIds) async {
+    try {
+      final Map<String, String> userNames = {};
+
+      // Use a batch get to efficiently retrieve multiple users
+      final userDocs = await Future.wait(
+        userIds.map(
+          (userId) => _firestore.collection('users').doc(userId).get(),
+        ),
+      );
+
+      for (var doc in userDocs) {
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data()!;
+          // Use name field from the user document
+          userNames[doc.id] = data['name'] ?? 'Unknown User';
+        }
+      }
+
+      print('Retrieved user names: $userNames');
+      return userNames;
+    } catch (e) {
+      print('Error getting user names: $e');
+      return {};
+    }
+  }
+
+  Future<List<TimeEntry>> loadTimeEntriesForJob(String jobId) async {
+    if (currentUser == null) {
+      return [];
+    }
+
+    try {
+      final snapshot =
+          await _firestore
+              .collection('users')
+              .doc(currentUser!.uid)
+              .collection('timeEntries')
+              .where('jobId', isEqualTo: jobId)
+              .get();
+
+      return snapshot.docs.map((doc) => TimeEntry.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('Error loading time entries for job $jobId: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateTimeEntry(TimeEntry entry) async {
+    if (currentUser == null) {
+      throw Exception('User not authenticated');
+    }
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(entry.userId ?? currentUser!.uid)
+          .collection('timeEntries')
+          .doc(entry.id)
+          .update(entry.toJson());
+    } catch (e) {
+      print('Error updating time entry: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateUserProfile({required String name}) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({'name': name});
+      print('✅ User profile updated successfully');
+    } catch (e) {
+      print('❌ Error updating user profile: $e');
       rethrow;
     }
   }

@@ -42,10 +42,9 @@ class JobsProvider extends BaseProvider {
           );
         }
 
-        jobs = loadedJobs;
-
-        // Separate shared jobs
-        sharedJobs = jobs.where((job) => job.isShared).toList();
+        // Separate regular and shared jobs
+        jobs = loadedJobs.where((job) => !job.isShared).toList();
+        sharedJobs = loadedJobs.where((job) => job.isShared).toList();
 
         // Set a default selected job if none is selected
         if (selectedJob == null && jobs.isNotEmpty) {
@@ -60,10 +59,11 @@ class JobsProvider extends BaseProvider {
 
         if (jobsJson != null) {
           final List<dynamic> decoded = jsonDecode(jobsJson);
-          jobs = decoded.map((item) => Job.fromJson(item)).toList();
+          final loadedJobs = decoded.map((item) => Job.fromJson(item)).toList();
 
-          // Separate shared jobs
-          sharedJobs = jobs.where((job) => job.isShared).toList();
+          // Separate regular and shared jobs
+          jobs = loadedJobs.where((job) => !job.isShared).toList();
+          sharedJobs = loadedJobs.where((job) => job.isShared).toList();
 
           // Set a default selected job if none is selected
           if (selectedJob == null && jobs.isNotEmpty) {
@@ -97,7 +97,7 @@ class JobsProvider extends BaseProvider {
         connectedUsers: null,
       );
 
-      // Add to local list
+      // Add to local list - all jobs go in the main list for time entries
       jobs.add(newJob);
 
       // Set as selected job if no job is selected
@@ -114,7 +114,6 @@ class JobsProvider extends BaseProvider {
           await databaseService!.saveJob(newJob);
         } catch (e) {
           print('Error saving job to database: $e');
-          // Continue with local storage even if Firebase save fails
         }
       }
 
@@ -126,7 +125,6 @@ class JobsProvider extends BaseProvider {
       }
     } catch (e) {
       print('Error adding job: $e');
-      // Handle error - maybe show a snackbar or dialog
     }
   }
 
@@ -179,13 +177,18 @@ class JobsProvider extends BaseProvider {
   // Shared jobs methods
   Future<void> createSharedJob(String name, Color color, bool isPublic) async {
     try {
-      if (!isPaidUser) return;
+      if (!isPaidUser) {
+        throw Exception('Premium feature not available');
+      }
 
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
 
       // Generate a unique connection code
       final connectionCode = _generateConnectionCode();
+      print('Generated connection code: $connectionCode');
 
       final newJob = Job(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -199,23 +202,63 @@ class JobsProvider extends BaseProvider {
         connectedUsers: [user.uid],
       );
 
-      // Add to local list
+      print('Creating shared job: ${newJob.id}, ${newJob.name}');
+
+      // Add to main jobs list for time entries
       jobs.add(newJob);
+
+      // Also add to shared jobs list for display in shared tab
+      sharedJobs.add(newJob);
 
       // Set as selected job if no job is selected
       if (selectedJob == null) {
         selectedJob = newJob;
       }
 
-      notifyListeners();
-
       // Save to database
       if (databaseService != null) {
-        await databaseService!.saveJob(newJob);
+        try {
+          await databaseService!.saveJob(newJob);
+
+          // Also save to shared jobs collection in Firebase
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .set({
+                'jobId': newJob.id,
+                'name': newJob.name,
+                'color': newJob.color.value,
+                'description': newJob.description,
+                'creatorId': user.uid,
+                'isPublic': isPublic,
+                'connectedUsers': [user.uid],
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+        } catch (e) {
+          print('Error saving shared job to database: $e');
+          // Remove from lists if database save fails
+          jobs.removeWhere((j) => j.id == newJob.id);
+          sharedJobs.removeWhere((j) => j.id == newJob.id);
+          throw Exception('Failed to save shared job: $e');
+        }
       }
+
+      // Save to local storage
+      try {
+        await saveJobsToLocalStorage();
+      } catch (e) {
+        print('Error saving to local storage: $e');
+      }
+
+      // Notify listeners after all operations are complete
+      notifyListeners();
+
+      print(
+        'Created shared job successfully: ${newJob.id}, isShared: ${newJob.isShared}',
+      );
     } catch (e) {
       print('Error creating shared job: $e');
-      // Handle error
+      rethrow; // Rethrow to allow handling in the UI
     }
   }
 

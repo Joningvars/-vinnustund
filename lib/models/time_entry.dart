@@ -13,6 +13,7 @@ class TimeEntry {
   final String? description;
   final String date;
   final String? userId;
+  final String? userName;
 
   TimeEntry({
     String? id,
@@ -25,6 +26,7 @@ class TimeEntry {
     this.description,
     String? date,
     this.userId,
+    this.userName,
   }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
        date = date ?? DateFormat('yyyy-MM-dd').format(clockInTime);
 
@@ -64,6 +66,7 @@ class TimeEntry {
       'description': description ?? '',
       'date': date,
       'userId': userId,
+      'userName': userName,
     };
   }
 
@@ -79,6 +82,7 @@ class TimeEntry {
       description: json['description'],
       date: json['date'],
       userId: json['userId'],
+      userName: json['userName'],
     );
   }
 
@@ -93,6 +97,17 @@ class TimeEntry {
       clockOutTime: DateTime.parse(data['clockOutTime']),
       duration: Duration(minutes: data['duration']),
       description: data['description'] ?? '',
+      userId: data['userId'] ?? '',
+      userName: data['userName'] ?? '',
     );
   }
+
+  double get durationInHours {
+    if (clockOutTime == null) return 0;
+    final duration = clockOutTime!.difference(clockInTime);
+    return duration.inMinutes / 60;
+  }
+
+  DateTime get startTime => clockInTime;
+  DateTime get endTime => clockOutTime ?? DateTime.now();
 }

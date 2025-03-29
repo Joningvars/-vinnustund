@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/main.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class TimeEntriesProvider extends BaseProvider {
   List<TimeEntry> timeEntries = [];
@@ -43,6 +44,9 @@ class TimeEntriesProvider extends BaseProvider {
 
   // Add a flag to track if we're currently loading
   bool _isLoadingEntries = false;
+
+  // Add this field to store all job entries
+  final Map<String, List<TimeEntry>> _allJobEntries = {};
 
   @override
   void onUserAuthenticated() {
@@ -127,6 +131,9 @@ class TimeEntriesProvider extends BaseProvider {
           notifyListeners();
         }
       }
+
+      // After loading entries, update missing user names
+      await updateMissingUserNames();
     } catch (e) {
       print('Error loading time entries: $e');
     } finally {
@@ -229,6 +236,7 @@ class TimeEntriesProvider extends BaseProvider {
     _timer?.cancel();
 
     // Create a time entry
+    final currentUser = FirebaseAuth.instance.currentUser;
     final entry = TimeEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       jobId: selectedJob!.id,
@@ -238,6 +246,8 @@ class TimeEntriesProvider extends BaseProvider {
       clockOutTime: clockOutTime!,
       duration: clockOutTime!.difference(clockInTime!),
       description: description,
+      userId: currentUser?.uid,
+      userName: currentUser?.displayName ?? 'User',
     );
 
     timeEntries.add(entry);
@@ -438,9 +448,11 @@ class TimeEntriesProvider extends BaseProvider {
     return format.format(dt);
   }
 
-  void setSelectedJob(Job job) {
-    selectedJob = job;
-    notifyListeners();
+  void setSelectedJob(Job? job) {
+    if (job != null) {
+      selectedJob = job;
+      notifyListeners();
+    }
   }
 
   Duration calculateManualDuration() {
@@ -817,14 +829,35 @@ class TimeEntriesProvider extends BaseProvider {
     }
   }
 
-  // Add this method to save time entries to Firebase
-  Future<void> saveTimeEntryToFirebase(TimeEntry entry) async {
+  // Update this method to handle shared jobs
+  Future<void> saveTimeEntry(TimeEntry entry) async {
+    timeEntries.add(entry);
+    notifyListeners();
+
+    // Save to Firebase if available
     if (databaseService != null) {
-      await databaseService!.saveTimeEntry(entry);
-    } else {
-      // Fallback to local storage if Firebase is not available
-      await saveTimeEntriesToLocalStorage();
+      try {
+        // First, check if this is for a shared job
+        final jobsProvider = _jobsProvider;
+        if (jobsProvider != null) {
+          final job = jobsProvider.jobs.firstWhere(
+            (j) => j.id == entry.jobId,
+            orElse: () => Job(id: '', name: '', color: Colors.grey),
+          );
+
+          if (job.id.isNotEmpty && job.isShared) {
+            print('Saving time entry for shared job: ${job.id}');
+          }
+        }
+
+        await databaseService!.saveTimeEntry(entry);
+      } catch (e) {
+        print('Error saving time entry to Firebase: $e');
+      }
     }
+
+    // Always save to local storage as backup
+    await saveTimeEntriesToLocalStorage();
   }
 
   // Override notifyListeners to prevent excessive calculations
@@ -889,8 +922,7 @@ class TimeEntriesProvider extends BaseProvider {
               (entry) =>
                   entry.jobId == jobId &&
                   entry.clockInTime.isAfter(startDate) &&
-                  entry.clockInTime.isBefore(endDate) &&
-                  entry.clockOutTime != null,
+                  entry.clockInTime.isBefore(endDate),
             )
             .toList();
 
@@ -902,7 +934,7 @@ class TimeEntriesProvider extends BaseProvider {
 
     double totalHours = 0;
     for (var entry in entries) {
-      final duration = entry.clockOutTime!.difference(entry.clockInTime);
+      final duration = entry.clockOutTime.difference(entry.clockInTime);
       totalHours += duration.inMinutes / 60;
     }
 
@@ -912,4 +944,222 @@ class TimeEntriesProvider extends BaseProvider {
 
   // Add this method to efficiently check if there are any time entries
   bool get hasTimeEntries => timeEntries.isNotEmpty;
+
+  // Load all entries for a specific job (including entries from other users)
+  Future<void> loadAllEntriesForJob(String jobId) async {
+    if (databaseService == null) return;
+
+    try {
+      final entries = await databaseService!.loadAllEntriesForJob(jobId);
+
+      // Store these entries separately from the user's own entries
+      _allJobEntries[jobId] = entries;
+
+      notifyListeners();
+    } catch (e) {
+      print('Error loading all entries for job $jobId: $e');
+      rethrow;
+    }
+  }
+
+  // Get all entries for a specific job
+  List<TimeEntry> getAllEntriesForJob(String jobId) {
+    return _allJobEntries[jobId] ?? [];
+  }
+
+  // Get user names for a list of user IDs
+  Future<Map<String, String>> getUserNames(List<String> userIds) async {
+    if (databaseService == null) return {};
+
+    try {
+      final userNames = await databaseService!.getUserNames(userIds);
+      print('Got user names: $userNames for userIds: $userIds');
+      return userNames;
+    } catch (e) {
+      print('Error getting user names: $e');
+      return {};
+    }
+  }
+
+  // Add this method to update an existing time entry
+  Future<void> updateTimeEntry(TimeEntry updatedEntry) async {
+    // Find and update the entry in the local list
+    final index = timeEntries.indexWhere((e) => e.id == updatedEntry.id);
+    if (index >= 0) {
+      // Preserve the userName if it exists in the original entry
+      final existingUserName = timeEntries[index].userName;
+      if (existingUserName != null && updatedEntry.userName == null) {
+        updatedEntry = TimeEntry(
+          id: updatedEntry.id,
+          jobId: updatedEntry.jobId,
+          jobName: updatedEntry.jobName,
+          jobColor: updatedEntry.jobColor,
+          clockInTime: updatedEntry.clockInTime,
+          clockOutTime: updatedEntry.clockOutTime,
+          duration: updatedEntry.duration,
+          description: updatedEntry.description,
+          userId: updatedEntry.userId,
+          userName: existingUserName, // Preserve the existing userName
+        );
+      }
+
+      timeEntries[index] = updatedEntry;
+      notifyListeners();
+    }
+
+    // Update in Firebase
+    if (databaseService != null) {
+      try {
+        await databaseService!.updateTimeEntry(updatedEntry);
+      } catch (e) {
+        print('Error updating time entry: $e');
+        rethrow;
+      }
+    }
+
+    // Update in local storage
+    await saveTimeEntriesToLocalStorage();
+  }
+
+  Future<void> addTimeEntry(
+    Job job,
+    DateTime startTime,
+    DateTime endTime,
+    String? description,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Get user data to include the name
+      String? userName;
+      if (databaseService != null) {
+        final userData = await databaseService!.getUserData(user.uid);
+        userName = userData?['name'] ?? user.displayName;
+      }
+
+      final duration = endTime.difference(startTime);
+      final entry = TimeEntry(
+        jobId: job.id,
+        jobName: job.name,
+        jobColor: job.color,
+        clockInTime: startTime,
+        clockOutTime: endTime,
+        duration: duration,
+        description: description,
+        userId: user.uid,
+        userName: userName, // Include the user's name
+      );
+
+      timeEntries.add(entry);
+      notifyListeners();
+
+      // Save to Firebase
+      if (databaseService != null) {
+        await databaseService!.saveTimeEntry(entry);
+      }
+
+      // Save to local storage
+      await saveTimeEntriesToLocalStorage();
+    } catch (e) {
+      print('Error adding time entry: $e');
+      rethrow;
+    }
+  }
+
+  // Add this method to update userNames for entries that don't have them
+  Future<void> updateMissingUserNames() async {
+    if (databaseService == null) return;
+
+    // Get entries without userName
+    final entriesWithoutNames =
+        timeEntries.where((e) => e.userName == null).toList();
+    if (entriesWithoutNames.isEmpty) return;
+
+    // Get unique user IDs
+    final userIds = entriesWithoutNames.map((e) => e.userId).toSet().toList();
+    if (userIds.isEmpty) return;
+
+    // Get user names
+    final userNames = await getUserNames(userIds.cast<String>());
+
+    // Update entries
+    for (final entry in entriesWithoutNames) {
+      if (entry.userId != null && userNames.containsKey(entry.userId)) {
+        final updatedEntry = TimeEntry(
+          id: entry.id,
+          jobId: entry.jobId,
+          jobName: entry.jobName,
+          jobColor: entry.jobColor,
+          clockInTime: entry.clockInTime,
+          clockOutTime: entry.clockOutTime,
+          duration: entry.duration,
+          description: entry.description,
+          userId: entry.userId,
+          userName: userNames[entry.userId],
+        );
+
+        await updateTimeEntry(updatedEntry);
+      }
+    }
+  }
+
+  // When creating a time entry from clock in/out
+  Future<void> createTimeEntryFromClockIn() async {
+    if (clockInTime == null || clockOutTime == null || selectedJob == null) {
+      print('⚠️ Cannot create time entry: missing required data');
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      print(
+        '👤 Current user: ${user?.uid}, displayName: ${user?.displayName}, email: ${user?.email}',
+      );
+
+      if (user == null) {
+        print('❌ No authenticated user found');
+        return;
+      }
+
+      // Get the user's name from their profile
+      String? userName;
+      if (databaseService != null) {
+        print('🔍 Getting user data for ${user.uid}');
+        final userData = await databaseService!.getUserData(user.uid);
+        print('📄 User data retrieved: $userData');
+        userName = userData?['name']; // Get name from user document
+        print('👤 Using userName: $userName');
+      } else {
+        print('⚠️ Database service is null');
+      }
+
+      final duration = clockOutTime!.difference(clockInTime!);
+      final entry = TimeEntry(
+        jobId: selectedJob!.id,
+        jobName: selectedJob!.name,
+        jobColor: selectedJob!.color,
+        clockInTime: clockInTime!,
+        clockOutTime: clockOutTime!,
+        duration: duration,
+        description: descriptionController.text.trim(),
+        userId: user.uid,
+        userName: userName, // Include the user's name
+      );
+
+      timeEntries.add(entry);
+
+      // Save to Firebase
+      if (databaseService != null) {
+        await databaseService!.saveTimeEntry(entry);
+      }
+
+      // Save to local storage
+      await saveTimeEntriesToLocalStorage();
+
+      notifyListeners();
+    } catch (e) {
+      print('Error creating time entry: $e');
+    }
+  }
 }

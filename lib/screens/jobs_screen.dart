@@ -5,6 +5,8 @@ import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/screens/job_overview_screen.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({Key? key}) : super(key: key);
@@ -474,7 +476,11 @@ class _JobsScreenState extends State<JobsScreen>
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
-    if (jobsProvider.jobs.isEmpty) {
+    // Filter to only show non-shared jobs
+    final regularJobs =
+        jobsProvider.jobs.where((job) => !job.isShared).toList();
+
+    if (regularJobs.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -513,9 +519,9 @@ class _JobsScreenState extends State<JobsScreen>
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: jobsProvider.jobs.length,
+      itemCount: regularJobs.length,
       itemBuilder: (context, index) {
-        final job = jobsProvider.jobs[index];
+        final job = regularJobs[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           elevation: 2,
@@ -609,92 +615,209 @@ class _JobsScreenState extends State<JobsScreen>
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
-    final sharedJobs = jobsProvider.sharedJobs;
+    // Debug print to check shared jobs
+    print('Shared jobs count: ${jobsProvider.sharedJobs.length}');
+    for (var job in jobsProvider.sharedJobs) {
+      print('Shared job: ${job.id}, ${job.name}, isShared: ${job.isShared}');
+    }
 
-    if (!jobsProvider.isPaidUser) {
+    if (jobsProvider.sharedJobs.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text(
-                timeEntriesProvider.translate('sharedJobsPremiumFeature'),
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                timeEntriesProvider.translate('upgradeToAccessSharedJobs'),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodySmall?.color,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to upgrade screen
-                },
-                child: Text(timeEntriesProvider.translate('upgrade')),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.group_work_outlined,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              timeEntriesProvider.translate('noSharedJobs'),
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              timeEntriesProvider.translate('createSharedJobDescription'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    _tabController.animateTo(2); // Navigate to Create Job tab
+                  },
+                  icon: const Icon(Icons.add),
+                  label: Text(timeEntriesProvider.translate('createSharedJob')),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _tabController.animateTo(3); // Navigate to Join Job tab
+                  },
+                  icon: const Icon(Icons.link),
+                  label: Text(timeEntriesProvider.translate('joinSharedJob')),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       );
     }
 
-    return SingleChildScrollView(
+    // Get current user ID
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (sharedJobs.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Column(
+      itemCount: jobsProvider.sharedJobs.length,
+      itemBuilder: (context, index) {
+        final job = jobsProvider.sharedJobs[index];
+        final isCreator = job.creatorId == currentUserId;
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Job header
+              ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                leading: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: job.color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      job.name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  job.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                subtitle:
+                    job.description != null && job.description!.isNotEmpty
+                        ? Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            job.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                        : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.group_work_outlined,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      timeEntriesProvider.translate('noSharedJobs'),
-                      style: theme.textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      timeEntriesProvider.translate(
-                        'createSharedJobDescription',
+                    // Edit button - only for creator
+                    if (isCreator)
+                      IconButton(
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          color: theme.colorScheme.primary,
+                        ),
+                        onPressed: () {
+                          _showEditJobDialog(job);
+                        },
+                        tooltip: timeEntriesProvider.translate('editJob'),
                       ),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.textTheme.bodySmall?.color,
+                    // View entries button - for everyone
+                    IconButton(
+                      icon: Icon(
+                        Icons.visibility_outlined,
+                        color: theme.colorScheme.primary,
                       ),
-                      textAlign: TextAlign.center,
+                      onPressed: () {
+                        // Navigate to job overview screen for shared jobs
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => JobOverviewScreen(job: job),
+                          ),
+                        );
+                      },
+                      tooltip: timeEntriesProvider.translate('viewEntries'),
                     ),
                   ],
                 ),
               ),
-            )
-          else
-            ...sharedJobs.map(
-              (job) =>
-                  _buildSharedJobCard(job, theme, jobsProvider.currentUserId),
-            ),
-        ],
-      ),
+
+              // Connection code display - only for creator
+              if (isCreator && job.connectionCode != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.link,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Code: ${job.connectionCode}',
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 16),
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: job.connectionCode!),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                timeEntriesProvider.translate('copyCode'),
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        tooltip: timeEntriesProvider.translate('copyCode'),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -850,106 +973,6 @@ class _JobsScreenState extends State<JobsScreen>
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSharedJobCard(Job job, ThemeData theme, String? currentUserId) {
-    final isOwner = job.creatorId == currentUserId;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: job.color,
-                  child: Text(
-                    job.name.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (job.description != null &&
-                          job.description!.isNotEmpty)
-                        Text(
-                          job.description!,
-                          style: theme.textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                    ],
-                  ),
-                ),
-                if (isOwner)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _confirmDeleteJob(job),
-                    tooltip: Provider.of<TimeEntriesProvider>(
-                      context,
-                      listen: false,
-                    ).translate('delete'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.link, size: 16, color: theme.colorScheme.primary),
-                  const SizedBox(width: 4),
-                  Text(
-                    job.connectionCode ?? '',
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  job.isPublic ? Icons.public : Icons.lock_outline,
-                  size: 16,
-                  color: theme.textTheme.bodySmall?.color,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  Provider.of<TimeEntriesProvider>(
-                    context,
-                  ).translate(job.isPublic ? 'publicJob' : 'privateJob'),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
             ),
           ],
         ),
@@ -1131,48 +1154,56 @@ class _JobsScreenState extends State<JobsScreen>
                                 ? null
                                 : descriptionController.text;
 
-                        if (isShared && jobsProvider.isPaidUser) {
-                          jobsProvider.createSharedJob(
-                            name,
-                            selectedColor,
-                            isPublic,
-                          );
-                        } else {
-                          jobsProvider.addJob(name, selectedColor, description);
-                        }
+                        try {
+                          if (isShared && jobsProvider.isPaidUser) {
+                            // Create shared job
+                            jobsProvider.createSharedJob(
+                              name,
+                              selectedColor,
+                              isPublic,
+                            );
+                          } else {
+                            // Create regular job
+                            jobsProvider.addJob(
+                              name,
+                              selectedColor,
+                              description,
+                            );
+                          }
 
-                        // Clear form
-                        nameController.clear();
-                        descriptionController.clear();
-                        setStateLocal(() {
-                          selectedColor = Colors.blue;
-                          isShared = false;
-                          isPublic = true;
-                        });
+                          // Clear form
+                          nameController.clear();
+                          descriptionController.clear();
+                          setStateLocal(() {
+                            selectedColor = Colors.blue;
+                            isShared = false;
+                            isPublic = true;
+                          });
 
-                        // Show success message
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              timeEntriesProvider.translate('jobAdded'),
+                          // Show success message
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                timeEntriesProvider.translate('jobAdded'),
+                              ),
+                              backgroundColor: theme.colorScheme.primary,
                             ),
-                            backgroundColor: theme.colorScheme.primary,
-                          ),
-                        );
+                          );
 
-                        // Use the navigation method instead of direct tab controller access
-                        if (isShared) {
-                          // Close the current screen first
-                          Navigator.pop(context);
-
-                          // Then navigate to the shared jobs tab
-                          _navigateToTab(1);
-                        } else {
-                          // Close the current screen first
-                          Navigator.pop(context);
-
-                          // Then navigate to my jobs tab
-                          _navigateToTab(0);
+                          // Navigate to the appropriate tab
+                          if (isShared) {
+                            _tabController.animateTo(1); // Shared Jobs tab
+                          } else {
+                            _tabController.animateTo(0); // My Jobs tab
+                          }
+                        } catch (e) {
+                          // Show error message
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
                         }
                       }
                     },

@@ -236,42 +236,40 @@ class HomeScreen extends StatelessWidget {
       listen: false,
     );
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          ...jobsProvider.jobs.map((job) {
-            final isSelected = jobsProvider.selectedJob?.id == job.id;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: GestureDetector(
-                onLongPress:
-                    () => _showDeleteJobDialog(context, jobsProvider, job),
-                child: AnimatedJobButton(
-                  job: job,
-                  isSelected: isSelected,
-                  onTap: () {
-                    if (!timeEntriesProvider.isClockedIn) {
-                      jobsProvider.setSelectedJob(job);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            jobsProvider.translate('cannotChangeJob'),
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                ),
+    // Combine regular and shared jobs for selection
+    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+
+    return DropdownButtonFormField<Job>(
+      value:
+          timeEntriesProvider.selectedJob ??
+          (allJobs.isNotEmpty ? allJobs.first : null),
+      onChanged: (Job? newValue) {
+        if (newValue != null) {
+          timeEntriesProvider.selectedJob = newValue;
+          jobsProvider.setSelectedJob(newValue);
+        }
+      },
+      items:
+          allJobs.map<DropdownMenuItem<Job>>((Job job) {
+            return DropdownMenuItem<Job>(
+              value: job,
+              child: Row(
+                children: [
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: job.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(job.name),
+                ],
               ),
             );
-          }),
-
-          const AddJobButton(),
-        ],
-      ),
+          }).toList(),
+      // ... rest of your dropdown styling
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ClockButton extends StatelessWidget {
   final bool isClockedIn;
@@ -328,13 +329,11 @@ class ClockButton extends StatelessWidget {
                           date: DateFormat(
                             'yyyy-MM-dd',
                           ).format(provider.clockInTime!),
+                          userId: FirebaseAuth.instance.currentUser?.uid,
                         );
 
-                        // Add to local list
-                        provider.timeEntries.add(entry);
-
-                        // Save to Firebase
-                        provider.saveTimeEntryToFirebase(entry);
+                        // Save the entry (this handles adding to local list, saving to Firebase, and local storage)
+                        provider.saveTimeEntry(entry);
 
                         // Reset clock state
                         provider.isClockedIn = false;

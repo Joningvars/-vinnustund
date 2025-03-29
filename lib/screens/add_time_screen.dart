@@ -13,6 +13,11 @@ class AddTimeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeEntriesProvider>(context);
+    final jobsProvider = Provider.of<JobsProvider>(context);
+    final theme = Theme.of(context);
+
+    // Combine regular and shared jobs for selection
+    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -46,7 +51,51 @@ class AddTimeScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildJobSelector(provider, context),
+                      DropdownButtonFormField<Job>(
+                        value:
+                            provider.selectedJob ??
+                            (allJobs.isNotEmpty ? allJobs.first : null),
+                        onChanged: (Job? newValue) {
+                          if (newValue != null) {
+                            provider.setSelectedJob(newValue);
+                          }
+                        },
+                        items:
+                            allJobs.map<DropdownMenuItem<Job>>((Job job) {
+                              return DropdownMenuItem<Job>(
+                                value: job,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: job.color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(job.name),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null) {
+                            return provider.translate('selectJobError');
+                          }
+                          return null;
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -584,52 +633,6 @@ class AddTimeScreen extends StatelessWidget {
     // Navigate to home tab
     provider.setSelectedTabIndex(0);
     Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-
-  Widget _buildJobSelector(TimeEntriesProvider provider, BuildContext context) {
-    final jobsProvider = Provider.of<JobsProvider>(context);
-
-    if (jobsProvider.jobs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: ElevatedButton.icon(
-          onPressed: () => _showAddJobDialog(context, provider),
-          icon: const Icon(Icons.add),
-          label: Text(provider.translate('createJob')),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        ...jobsProvider.jobs.map((job) {
-          final isSelected = provider.selectedJob?.id == job.id;
-          return GestureDetector(
-            onLongPress: () => _showDeleteJobDialog(context, jobsProvider, job),
-            child: AnimatedJobButton(
-              job: job,
-              isSelected: isSelected,
-              onTap: () {
-                provider.setSelectedJob(job);
-              },
-            ),
-          );
-        }),
-        // Add job button
-        if (jobsProvider.jobs.length < 5) // Limit to 5 jobs
-          const AddJobButton(),
-      ],
-    );
   }
 
   Widget _buildTimeDisplay(TimeEntriesProvider provider) {
