@@ -349,6 +349,13 @@ class _JobsScreenState extends State<JobsScreen>
         Navigator.pop(context);
       }
     }
+
+    // After creating a shared job
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+      context,
+      listen: false,
+    );
+    sharedJobsProvider.listenToSharedJobs();
   }
 
   void _confirmDeleteJob(Job job) {
@@ -634,215 +641,31 @@ class _JobsScreenState extends State<JobsScreen>
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
-    // Debug print to check shared jobs
-    print('Shared jobs count: ${jobsProvider.sharedJobs.length}');
-    for (var job in jobsProvider.sharedJobs) {
-      print('Shared job: ${job.id}, ${job.name}, isShared: ${job.isShared}');
-    }
+    return Consumer<SharedJobsProvider>(
+      builder: (context, sharedJobsProvider, child) {
+        // Force rebuild when sharedJobs changes
+        final sharedJobs = sharedJobsProvider.sharedJobs;
 
-    if (jobsProvider.sharedJobs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        print('Building shared jobs tab with ${sharedJobs.length} jobs');
+
+        return Column(
           children: [
-            Icon(
-              Icons.group_work_outlined,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              timeEntriesProvider.translate('noSharedJobs'),
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              timeEntriesProvider.translate('createSharedJobDescription'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _tabController.animateTo(2); // Navigate to Create Job tab
-                  },
-                  icon: const Icon(Icons.add),
-                  label: Text(timeEntriesProvider.translate('createSharedJob')),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _tabController.animateTo(3); // Navigate to Join Job tab
-                  },
-                  icon: const Icon(Icons.link),
-                  label: Text(timeEntriesProvider.translate('joinSharedJob')),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ],
+            // Your existing UI elements
+
+            // Display the shared jobs list
+            Expanded(
+              child:
+                  sharedJobs.isEmpty
+                      ? Center(child: Text('No shared jobs found'))
+                      : ListView.builder(
+                        itemCount: sharedJobs.length,
+                        itemBuilder: (context, index) {
+                          final job = sharedJobs[index];
+                          return _buildJobItem(job);
+                        },
+                      ),
             ),
           ],
-        ),
-      );
-    }
-
-    // Get current user ID
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: jobsProvider.sharedJobs.length,
-      itemBuilder: (context, index) {
-        final job = jobsProvider.sharedJobs[index];
-        final isCreator = job.creatorId == currentUserId;
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Job header
-              ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: job.color,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      job.name.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                title: Text(
-                  job.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                subtitle:
-                    job.description != null && job.description!.isNotEmpty
-                        ? Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            job.description!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        )
-                        : null,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Edit button - only for creator
-                    if (isCreator)
-                      IconButton(
-                        icon: Icon(
-                          Icons.edit_outlined,
-                          color: theme.colorScheme.primary,
-                        ),
-                        onPressed: () {
-                          _showEditJobDialog(job);
-                        },
-                        tooltip: timeEntriesProvider.translate('editJob'),
-                      ),
-                    // View entries button - for everyone
-                    IconButton(
-                      icon: Icon(
-                        Icons.visibility_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                      onPressed: () {
-                        // Navigate to job overview screen for shared jobs
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => JobOverviewScreen(job: job),
-                          ),
-                        );
-                      },
-                      tooltip: timeEntriesProvider.translate('viewEntries'),
-                    ),
-                    // Delete button
-                    IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        _showDeleteJobDialog(job);
-                      },
-                      tooltip: timeEntriesProvider.translate('deleteJob'),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Connection code display - only for creator
-              if (isCreator && job.connectionCode != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.link,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Code: ${job.connectionCode}',
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.copy, size: 16),
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: job.connectionCode!),
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                timeEntriesProvider.translate('copyCode'),
-                              ),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        tooltip: timeEntriesProvider.translate('copyCode'),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
         );
       },
     );
@@ -1176,7 +999,7 @@ class _JobsScreenState extends State<JobsScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (createJobFormKey.currentState!.validate()) {
                         final name = nameController.text;
                         final description =
@@ -1187,7 +1010,12 @@ class _JobsScreenState extends State<JobsScreen>
                         try {
                           if (isShared && jobsProvider.isPaidUser) {
                             // Create shared job
-                            sharedJobsProvider.createSharedJob(
+                            final sharedJobsProvider =
+                                Provider.of<SharedJobsProvider>(
+                                  context,
+                                  listen: false,
+                                );
+                            await sharedJobsProvider.createSharedJob(
                               Job(
                                 id: '', // Empty string, will be set by the provider
                                 name: name,
@@ -1198,7 +1026,7 @@ class _JobsScreenState extends State<JobsScreen>
                             );
                           } else {
                             // Create regular job
-                            jobsProvider.addJob(
+                            await jobsProvider.addJob(
                               name,
                               selectedColor,
                               description,
@@ -1230,6 +1058,9 @@ class _JobsScreenState extends State<JobsScreen>
                           } else {
                             _tabController.animateTo(0); // My Jobs tab
                           }
+
+                          // After the job is created, refresh the shared jobs list
+                          await sharedJobsProvider.refreshSharedJobs();
                         } catch (e) {
                           // Show error message
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -1434,6 +1265,26 @@ class _JobsScreenState extends State<JobsScreen>
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
+    );
+  }
+
+  Widget _buildJobItem(Job job) {
+    return ListTile(
+      leading: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(color: job.color, shape: BoxShape.circle),
+      ),
+      title: Text(job.name),
+      subtitle: job.description != null ? Text(job.description!) : null,
+      trailing: job.isShared ? Icon(Icons.group, color: Colors.blue) : null,
+      onTap: () {
+        // Navigate to job details or select the job
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => JobOverviewScreen(job: job)),
+        );
+      },
     );
   }
 }

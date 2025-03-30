@@ -510,46 +510,64 @@ class TimeEntriesProvider extends BaseProvider {
   }
 
   double getHoursWorkedForSelectedJob() {
-    final now = DateTime.now();
-    DateTime startDate;
-
     switch (selectedPeriod) {
       case 'Day':
-        startDate = DateTime(now.year, now.month, now.day);
-        break;
+        return _getHoursWorkedToday();
       case 'Week':
-        // Get start of week (Monday)
-        startDate = now.subtract(Duration(days: now.weekday - 1));
-        startDate = DateTime(startDate.year, startDate.month, startDate.day);
-        break;
+        return _getHoursWorkedThisWeek();
       case 'Month':
-        startDate = DateTime(now.year, now.month, 1);
-        break;
       default:
-        startDate = DateTime(now.year, now.month, now.day);
+        return _getHoursWorkedThisMonth();
     }
+  }
 
-    // Filter entries by date and job
-    final filteredEntries =
-        timeEntries.where((entry) {
-          final isAfterStart =
-              entry.clockInTime.isAfter(startDate) ||
-              entry.clockInTime.isAtSameMomentAs(startDate);
-          final isBeforeNow = entry.clockInTime.isBefore(now);
-          final isSelectedJob =
-              _jobsProvider?.selectedJob == null ||
-              entry.jobId == _jobsProvider?.selectedJob?.id;
+  // Private helper methods with consistent calculation approach
+  double _getHoursWorkedToday() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-          return isAfterStart && isBeforeNow && isSelectedJob;
-        }).toList();
+    return timeEntries
+        .where((entry) {
+          final entryDate = DateTime.parse(entry.date);
+          return entryDate.year == today.year &&
+              entryDate.month == today.month &&
+              entryDate.day == today.day;
+        })
+        .fold(0.0, (sum, entry) => sum + entry.duration.inMinutes / 60);
+  }
 
-    // Calculate total hours
-    final totalMinutes = filteredEntries.fold<int>(
-      0,
-      (sum, entry) => sum + entry.duration.inMinutes,
+  double _getHoursWorkedThisWeek() {
+    // Use the same calculation method as the other periods for consistency
+    final now = DateTime.now();
+    final firstDayOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfWeek = DateTime(
+      firstDayOfWeek.year,
+      firstDayOfWeek.month,
+      firstDayOfWeek.day,
     );
 
-    return totalMinutes / 60.0;
+    return timeEntries
+        .where((entry) {
+          final entryDate = DateTime.parse(entry.date);
+          return entryDate.isAfter(
+            startOfWeek.subtract(const Duration(days: 1)),
+          );
+        })
+        .fold(0.0, (sum, entry) => sum + entry.duration.inMinutes / 60);
+  }
+
+  double _getHoursWorkedThisMonth() {
+    final now = DateTime.now();
+    final firstDayOfMonth = DateTime(now.year, now.month, 1);
+
+    return timeEntries
+        .where((entry) {
+          final entryDate = DateTime.parse(entry.date);
+          return entryDate.isAfter(
+            firstDayOfMonth.subtract(const Duration(days: 1)),
+          );
+        })
+        .fold(0.0, (sum, entry) => sum + entry.duration.inMinutes / 60);
   }
 
   void setSelectedTabIndex(int index) {

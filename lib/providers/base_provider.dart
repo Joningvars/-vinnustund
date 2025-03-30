@@ -29,4 +29,9 @@ class BaseProvider extends ChangeNotifier {
   void onUserLoggedOut() {}
 
   DatabaseService? get databaseService => _databaseService;
+
+  Future<void> initializeApp() async {
+    // Base implementation does nothing
+    // Subclasses can override this
+  }
 }

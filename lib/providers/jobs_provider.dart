@@ -19,6 +19,7 @@ class JobsProvider extends BaseProvider {
   SettingsProvider? _settingsProvider;
   TimeEntriesProvider? _timeEntriesProvider;
   DateTime? _lastSyncTime;
+  SharedJobsProvider? _sharedJobsProvider;
 
   @override
   void onUserAuthenticated() {
@@ -530,5 +531,37 @@ class JobsProvider extends BaseProvider {
 
     print('❌ Job not found anywhere: $jobId');
     return null;
+  }
+
+  Future<void> refreshAllJobs() async {
+    try {
+      await loadJobs();
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error refreshing jobs: $e');
+    }
+  }
+
+  void setSharedJobsProvider(SharedJobsProvider provider) {
+    _sharedJobsProvider = provider;
+    // Listen for changes in shared jobs
+    _sharedJobsProvider?.addListener(_onSharedJobsChanged);
+  }
+
+  void _onSharedJobsChanged() {
+    // When shared jobs change, refresh all jobs
+    loadJobs();
+  }
+
+  Future<Job?> createSharedJob(Job job) async {
+    try {
+      // Use the correct method signature based on your database service
+      final createdJob = await databaseService?.createSharedJob(job);
+
+      return createdJob;
+    } catch (e) {
+      print('Error creating shared job: $e');
+      return null;
+    }
   }
 }

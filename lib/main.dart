@@ -30,7 +30,6 @@ import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 
-// Add this line to define the navigatorKey
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -79,34 +78,10 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProxyProvider<SettingsProvider, TimeEntriesProvider>(
-          create: (context) => TimeEntriesProvider(),
-          update: (context, settingsProvider, timeEntriesProvider) {
-            timeEntriesProvider ??= TimeEntriesProvider();
-            timeEntriesProvider.setSettingsProvider(settingsProvider);
-            return timeEntriesProvider;
-          },
-        ),
-        ChangeNotifierProxyProvider2<
-          SettingsProvider,
-          TimeEntriesProvider,
-          JobsProvider
-        >(
-          create: (context) => JobsProvider(),
-          update: (
-            context,
-            settingsProvider,
-            timeEntriesProvider,
-            jobsProvider,
-          ) {
-            jobsProvider ??= JobsProvider();
-            jobsProvider.setSettingsProvider(settingsProvider);
-            jobsProvider.setTimeEntriesProvider(timeEntriesProvider);
-            return jobsProvider;
-          },
-        ),
-        ChangeNotifierProvider.value(value: sharedJobsProvider),
+        ChangeNotifierProvider(create: (_) => settingsProvider),
+        ChangeNotifierProvider(create: (_) => sharedJobsProvider),
+        ChangeNotifierProvider(create: (_) => jobsProvider),
+        ChangeNotifierProvider(create: (_) => timeEntriesProvider),
       ],
       child: MyApp(showOnboarding: showOnboarding),
     ),

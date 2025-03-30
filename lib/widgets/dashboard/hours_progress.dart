@@ -53,10 +53,13 @@ class _HoursProgressState extends State<HoursProgress>
         widget.targetHours > 0
             ? (widget.hoursWorked / widget.targetHours).clamp(0.0, 1.0)
             : 0.0;
+
     _progressAnimation = Tween<double>(
       begin: _oldProgress,
       end: progress,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    // Update old progress after animation is set up
     _oldProgress = progress;
   }
 

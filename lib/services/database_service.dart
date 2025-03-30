@@ -256,35 +256,40 @@ class DatabaseService {
   }
 
   // Add methods to handle shared jobs
-  Future<void> createSharedJob(Job job) async {
+  Future<Job?> createSharedJob(Job job) async {
     try {
-      // Save the job to the creator's jobs collection
-      await jobsCollection.doc(job.id).set({
-        'id': job.id,
+      // Create the job in Firestore
+      final docRef = await _firestore.collection('shared_jobs').add({
         'name': job.name,
         'color': job.color.value,
-        'creatorId': uid,
-        'connectionCode': job.connectionCode,
+        'description': job.description,
         'isShared': true,
-        'connectedUsers': [uid],
         'isPublic': job.isPublic,
-      });
-
-      // Also add to a global shared jobs collection for lookup by code
-      await _firestore.collection('sharedJobs').doc(job.connectionCode).set({
-        'jobId': job.id,
         'creatorId': uid,
-        'name': job.name,
-        'color': job.color.value,
-        'connectionCode': job.connectionCode,
         'connectedUsers': [uid],
-        'isPublic': job.isPublic,
+        'pendingRequests': [],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      print('Shared job created successfully with isPublic=${job.isPublic}');
+      // Create a new Job with the generated ID
+      final createdJob = Job(
+        id: docRef.id,
+        name: job.name,
+        color: job.color,
+        description: job.description,
+        isShared: true,
+        isPublic: job.isPublic,
+        creatorId: uid,
+        connectedUsers: [uid],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      return createdJob;
     } catch (e) {
       print('Error creating shared job: $e');
-      throw e;
+      return null;
     }
   }
 

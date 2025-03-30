@@ -18,6 +18,7 @@ class SharedJobsProvider extends BaseProvider {
   List<Job> jobs = [];
   List<Job> sharedJobs = [];
   SettingsProvider? _settingsProvider;
+  Map<String, String> _userNames = {};
 
   bool get isAuthenticated => currentUserId != null;
 
@@ -419,11 +420,12 @@ class SharedJobsProvider extends BaseProvider {
     return job;
   }
 
+  @override
   Future<void> initializeApp() async {
-    // Initialize shared jobs data
-    if (isAuthenticated) {
-      await getPendingJoinRequests();
-    }
+    await super.initializeApp();
+
+    // Start listening to shared jobs
+    listenToSharedJobs();
   }
 
   Future<void> saveJobsToLocalStorage() async {
@@ -479,6 +481,9 @@ class SharedJobsProvider extends BaseProvider {
 
       // Reload shared jobs
       await loadSharedJobs();
+
+      // After successfully creating a shared job
+      await refreshSharedJobs();
 
       return connectionCode;
     } catch (e) {
@@ -1041,5 +1046,65 @@ class SharedJobsProvider extends BaseProvider {
 
     // Reuse the existing implementation by calling the other method
     return addTimeEntryToSharedJob(entry, job.connectionCode!);
+  }
+
+  // Add this method to refresh shared jobs immediately after creation
+  Future<void> refreshSharedJobs() async {
+    if (!isAuthenticated) return;
+
+    try {
+      // Fetch shared jobs from Firestore
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .where('connectedUsers', arrayContains: currentUserId)
+              .get();
+
+      final updatedJobs =
+          snapshot.docs.map((doc) => Job.fromFirestore(doc)).toList();
+
+      // Update the shared jobs list
+      sharedJobs = updatedJobs;
+      notifyListeners();
+
+      print('📋 Refreshed shared jobs list: ${sharedJobs.length} jobs');
+    } catch (e) {
+      print('Error refreshing shared jobs: $e');
+    }
+  }
+
+  // Add this method to handle null user names safely
+  String? getUserNameSafely(String userId) {
+    try {
+      if (userId == null) return null;
+      final userName = _userNames[userId];
+      return userName;
+    } catch (e) {
+      print('Error getting user name for $userId: $e');
+      return null;
+    }
+  }
+
+  // Add this method to SharedJobsProvider
+  void listenToSharedJobs() {
+    if (!isAuthenticated || currentUserId == null) return;
+
+    print('🔄 Setting up shared jobs listener for user: $currentUserId');
+
+    // Listen to sharedJobs collection (note: no underscore)
+    FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .where('connectedUsers', arrayContains: currentUserId)
+        .snapshots()
+        .listen((snapshot) {
+          final updatedJobs =
+              snapshot.docs.map((doc) => Job.fromFirestore(doc)).toList();
+
+          print('📋 Received ${updatedJobs.length} shared jobs from Firestore');
+
+          // Update the shared jobs list
+          sharedJobs = updatedJobs;
+          notifyListeners();
+        });
   }
 }
