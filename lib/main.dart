@@ -29,6 +29,10 @@ import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:timagatt/screens/job_overview_screen.dart';
+import 'package:timagatt/providers/expenses_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/services/database_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -82,6 +86,20 @@ void main() async {
         ChangeNotifierProvider(create: (_) => sharedJobsProvider),
         ChangeNotifierProvider(create: (_) => jobsProvider),
         ChangeNotifierProvider(create: (_) => timeEntriesProvider),
+        Provider(
+          create:
+              (_) => DatabaseService(
+                uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+              ),
+        ),
+        ChangeNotifierProvider(
+          create:
+              (_) => ExpensesProvider(
+                DatabaseService(
+                  uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+                ),
+              ),
+        ),
       ],
       child: MyApp(showOnboarding: showOnboarding),
     ),
@@ -129,6 +147,10 @@ class MyApp extends StatelessWidget {
         Routes.history: (context) => const HistoryScreen(),
         Routes.settings: (context) => const SettingsScreen(),
         '/jobs': (context) => const JobsScreen(),
+        '/job-overview':
+            (context) => JobOverviewScreen(
+              job: ModalRoute.of(context)!.settings.arguments as Job,
+            ),
       },
 
       // Determine initial route
@@ -205,6 +227,9 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     // Initialize with some mock data
     _timeEntries.addAll([
       TimeEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        date: DateTime.now().subtract(const Duration(days: 1, hours: 8)),
+        userId: 'mock_user_id',
         clockInTime: DateTime.now().subtract(const Duration(days: 1, hours: 8)),
         clockOutTime: DateTime.now().subtract(const Duration(days: 1)),
         jobId: _jobs[0].id,
@@ -213,6 +238,9 @@ class _TimeClockScreenState extends State<TimeClockScreen>
         duration: Duration(hours: 8),
       ),
       TimeEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        date: DateTime.now().subtract(const Duration(days: 1)),
+        userId: 'mock_user_id',
         clockInTime: DateTime.now().subtract(const Duration(days: 1)),
         clockOutTime: DateTime.now().subtract(const Duration(days: 1)),
         jobId: _jobs[1].id,
@@ -277,6 +305,9 @@ class _TimeClockScreenState extends State<TimeClockScreen>
         _timeEntries.insert(
           0,
           TimeEntry(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            date: clockInTime!,
+            userId: 'mock_user_id',
             clockInTime: clockInTime!,
             clockOutTime: now,
             jobId: _selectedJob!.id,
@@ -472,6 +503,11 @@ class _TimeClockScreenState extends State<TimeClockScreen>
                                   ? null
                                   : descController.text,
                           color: selectedColor,
+                          isShared: false,
+                          isPublic: true,
+                          connectionCode: null,
+                          creatorId: null,
+                          connectedUsers: null,
                         );
 
                         setState(() {
@@ -572,6 +608,9 @@ class _TimeClockScreenState extends State<TimeClockScreen>
       _timeEntries.insert(
         0,
         TimeEntry(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          date: startDateTime,
+          userId: 'mock_user_id',
           clockInTime: startDateTime,
           clockOutTime: adjustedEndDateTime,
           jobId: _selectedJob!.id,

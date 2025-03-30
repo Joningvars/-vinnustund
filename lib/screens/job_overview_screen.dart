@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/models/job.dart';
-import 'package:timagatt/models/time_entry.dart';
-import 'package:timagatt/providers/jobs_provider.dart';
-import 'package:timagatt/providers/time_entries_provider.dart';
-import 'package:timagatt/providers/shared_jobs_provider.dart';
+import '../models/job.dart';
+import '../models/time_entry.dart';
+import '../models/expense.dart';
+import '../providers/jobs_provider.dart';
+import '../providers/time_entries_provider.dart';
+import '../providers/expenses_provider.dart';
+import '../services/database_service.dart';
+import '../widgets/time_entry_card.dart';
+import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -18,205 +21,215 @@ class JobOverviewScreen extends StatefulWidget {
   State<JobOverviewScreen> createState() => _JobOverviewScreenState();
 }
 
-class _JobOverviewScreenState extends State<JobOverviewScreen> {
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
-  DateTime _endDate = DateTime.now();
+class _JobOverviewScreenState extends State<JobOverviewScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  List<TimeEntry> _entries = [];
+  List<Expense> _expenses = [];
+  bool _isLoading = true;
+  DateTime? _startDate;
+  DateTime? _endDate;
   String? _selectedUserId;
   List<String> _userIds = [];
-  Map<String, String> _userNames = {};
-  bool _isLoading = true;
-  List<TimeEntry> _entries = [];
-  String? _error;
+  List<String> _userNames = [];
+  bool _isEditing = false;
+  List<TimeEntry> _entriesToDelete = [];
 
   @override
   void initState() {
     super.initState();
-    _loadEntries();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadData();
   }
 
-  Future<void> _loadEntries() async {
-    setState(() {
-      _isLoading = true;
-    });
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
     try {
-      final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
+      final databaseService = Provider.of<DatabaseService>(
+        context,
+        listen: false,
+      );
+      final entries = await databaseService.getTimeEntriesForJob(widget.job.id);
+      final expenses = await databaseService.getExpensesForJob(widget.job.id);
 
-      if (widget.job.isShared && widget.job.connectionCode != null) {
-        // For shared jobs, fetch entries from the shared job collection
-        print(
-          '🔍 Fetching entries for shared job: ${widget.job.name} with code: ${widget.job.connectionCode}',
-        );
-
-        final snapshot =
-            await FirebaseFirestore.instance
-                .collection('sharedJobs')
-                .doc(widget.job.connectionCode)
-                .collection('entries')
-                .orderBy('timestamp', descending: true)
-                .get();
-
-        print(
-          '📊 Found ${snapshot.docs.length} entries for shared job: ${widget.job.connectionCode}',
-        );
-
-        final entries =
-            snapshot.docs
-                .map((doc) {
-                  try {
-                    return TimeEntry.fromJson(doc.data());
-                  } catch (e) {
-                    print('❌ Error parsing entry: $e');
-                    return null;
-                  }
-                })
-                .where((entry) => entry != null)
-                .cast<TimeEntry>()
-                .toList();
-
-        setState(() {
-          _entries = entries;
-          _isLoading = false;
-        });
-      } else {
-        // For regular jobs, use the provider to get entries
-        final entries = await provider.getEntriesForJob(widget.job.id);
-        setState(() {
-          _entries = entries;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('❌ Error loading entries: $e');
       setState(() {
-        _isLoading = false;
+        _entries = entries;
+        _expenses = expenses;
+        _userIds = entries.map((e) => e.userId).toSet().toList();
+        _userNames =
+            entries.map((e) => e.userName ?? 'Unknown').toSet().toList();
       });
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
+
+  List<TimeEntry> _getFilteredEntries() {
+    var filtered = _entries;
+
+    if (_startDate != null) {
+      filtered = filtered.where((e) => e.date.isAfter(_startDate!)).toList();
+    }
+    if (_endDate != null) {
+      filtered = filtered.where((e) => e.date.isBefore(_endDate!)).toList();
+    }
+    if (_selectedUserId != null) {
+      filtered = filtered.where((e) => e.userId == _selectedUserId).toList();
+    }
+
+    return filtered;
   }
 
   Future<void> _selectDateRange() async {
-    final initialDateRange = DateTimeRange(start: _startDate, end: _endDate);
-
-    final pickedDateRange = await showDateRangePicker(
+    final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      initialDateRange: initialDateRange,
-      firstDate: DateTime(2020),
+      firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: widget.job.color,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      initialDateRange: DateTimeRange(
+        start: _startDate ?? DateTime.now().subtract(const Duration(days: 30)),
+        end: _endDate ?? DateTime.now(),
+      ),
     );
 
-    if (pickedDateRange != null) {
+    if (picked != null) {
       setState(() {
-        _startDate = pickedDateRange.start;
-        _endDate = pickedDateRange.end;
+        _startDate = picked.start;
+        _endDate = picked.end;
       });
     }
   }
 
-  Future<List<TimeEntry>> _fetchSharedJobEntries() async {
-    if (widget.job.connectionCode == null) {
-      return [];
-    }
+  Future<void> _addExpense() async {
+    final TextEditingController descriptionController = TextEditingController();
+    final TextEditingController amountController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
 
-    try {
-      final snapshot =
-          await FirebaseFirestore.instance
-              .collection('sharedJobs')
-              .doc(widget.job.connectionCode)
-              .collection('entries')
-              .orderBy('clockInTime', descending: true)
-              .get();
+    await showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              Provider.of<TimeEntriesProvider>(context).translate('addExpense'),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(
+                    labelText: Provider.of<TimeEntriesProvider>(
+                      context,
+                    ).translate('description'),
+                  ),
+                ),
+                TextField(
+                  controller: amountController,
+                  decoration: InputDecoration(
+                    labelText: Provider.of<TimeEntriesProvider>(
+                      context,
+                    ).translate('amount'),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                ListTile(
+                  title: Text(
+                    Provider.of<TimeEntriesProvider>(context).translate('date'),
+                  ),
+                  subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (date != null) {
+                      selectedDate = date;
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  Provider.of<TimeEntriesProvider>(context).translate('cancel'),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (descriptionController.text.isNotEmpty &&
+                      amountController.text.isNotEmpty) {
+                    final currentUser = FirebaseAuth.instance.currentUser;
+                    final expense = Expense(
+                      id: const Uuid().v4(),
+                      jobId: widget.job.id,
+                      description: descriptionController.text,
+                      amount: double.parse(amountController.text),
+                      date: selectedDate,
+                      userId: currentUser?.uid ?? '',
+                      userName: currentUser?.displayName ?? 'Unknown',
+                    );
 
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return TimeEntry(
-          id: data['id'],
-          jobId: data['jobId'],
-          jobName: data['jobName'],
-          jobColor: Color(data['jobColor']),
-          clockInTime: DateTime.parse(data['clockInTime']),
-          clockOutTime: DateTime.parse(data['clockOutTime']),
-          duration: Duration(minutes: data['duration']),
-          description: data['description'],
-          date: data['date'],
-          userId: data['userId'],
-          userName: data['userName'],
-        );
-      }).toList();
-    } catch (e) {
-      print('Error fetching shared job entries: $e');
-      return [];
-    }
+                    try {
+                      await Provider.of<ExpensesProvider>(
+                        context,
+                        listen: false,
+                      ).addExpense(expense);
+                      Navigator.pop(context);
+                      _loadData();
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            Provider.of<TimeEntriesProvider>(
+                              context,
+                            ).translate('errorSavingEntry'),
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Text(
+                  Provider.of<TimeEntriesProvider>(context).translate('add'),
+                ),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
-    final jobsProvider = Provider.of<JobsProvider>(context);
-    final theme = Theme.of(context);
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final isCreator = widget.job.creatorId == currentUserId;
-
-    // Format dates
-    final dateFormat = DateFormat.yMMMd();
-    final timeFormat = DateFormat.jm();
-
-    // Get filtered entries
-    final allEntries = timeEntriesProvider.getAllEntriesForJob(widget.job.id);
-
-    // Filter by date range
-    final entriesInDateRange =
-        allEntries.where((entry) {
-          return entry.clockInTime.isAfter(_startDate) &&
-              entry.clockInTime.isBefore(_endDate.add(const Duration(days: 1)));
-        }).toList();
-
-    // Filter by selected user if applicable
-    final entries =
-        _selectedUserId != null
-            ? entriesInDateRange
-                .where((e) => e.userId == _selectedUserId)
-                .toList()
-            : entriesInDateRange;
-
-    // Sort by date (newest first)
-    entries.sort((a, b) => b.clockInTime.compareTo(a.clockInTime));
-
-    // Calculate total hours
-    final totalHours = entries.fold<double>(
-      0,
-      (sum, entry) => sum + entry.durationInHours,
-    );
-
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.job.name),
-        backgroundColor: widget.job.color,
-        foregroundColor: Colors.white,
-        elevation: 0,
         actions: [
-          if (isCreator)
+          if (widget.job.creatorId == FirebaseAuth.instance.currentUser?.uid)
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: Icon(_isEditing ? Icons.check : Icons.edit),
               onPressed: () {
-                // Navigate to edit job screen
-                Navigator.pushNamed(
-                  context,
-                  '/edit_job',
-                  arguments: {'job': widget.job},
-                );
+                setState(() {
+                  if (_isEditing) {
+                    // Save changes
+                    _deleteSelectedEntries();
+                  }
+                  _isEditing = !_isEditing;
+                  if (!_isEditing) {
+                    _entriesToDelete.clear();
+                  }
+                });
               },
             ),
         ],
@@ -224,671 +237,370 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : _entries.isEmpty
-              ? Center(
-                child: Text(
-                  timeEntriesProvider.translate('noTimeEntries'),
-                  style: const TextStyle(fontSize: 16),
-                ),
-              )
-              : ListView.builder(
-                itemCount: _entries.length,
-                itemBuilder: (context, index) {
-                  final entry = _entries[index];
-                  return TimeEntryListItem(
-                    entry: entry,
-                    job: widget.job,
-                    showUserName: widget.job.isShared,
-                    onDelete: () => _loadEntries(),
-                  );
-                },
+              : Column(
+                children: [
+                  TabBar(
+                    controller: _tabController,
+                    tabs: const [
+                      Tab(text: 'Time Entries'),
+                      Tab(text: 'Expenses'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [_buildTimeEntriesTab(), _buildExpensesTab()],
+                    ),
+                  ),
+                ],
               ),
     );
   }
 
-  Widget _buildTimeEntriesList() {
-    if (widget.job.isShared) {
-      return FutureBuilder<List<TimeEntry>>(
-        future: Provider.of<TimeEntriesProvider>(
-          context,
-          listen: false,
-        ).fetchSharedJobTimeEntries(widget.job),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+  Widget _buildTimeEntriesTab() {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final filteredEntries = _getFilteredEntries();
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error loading time entries: ${snapshot.error}'),
-            );
-          }
-
-          final entries = snapshot.data ?? [];
-
-          if (entries.isEmpty) {
-            return Center(child: Text('No time entries yet'));
-          }
-
-          return ListView.builder(
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return TimeEntryListItem(
-                entry: entry,
-                job: widget.job,
-                showUserName: true, // Show who created the entry
-                onDelete: () => _loadEntries(),
-              );
-            },
-          );
-        },
-      );
-    } else {
-      // Regular job - show only the current user's entries
-      final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
-      final jobEntries = timeEntriesProvider.getEntriesForJob(widget.job.id);
-
-      if (jobEntries.isEmpty) {
-        return Center(child: Text('No time entries yet'));
-      }
-
-      return ListView.builder(
-        itemCount: jobEntries.length,
-        itemBuilder: (context, index) {
-          final entry = jobEntries[index];
-          return TimeEntryListItem(
-            entry: entry,
-            job: widget.job,
-            showUserName: false,
-            onDelete: () => _loadEntries(),
-          );
-        },
-      );
+    // Calculate total hours for filtered entries
+    double totalHours = 0;
+    for (var entry in filteredEntries) {
+      totalHours +=
+          entry.duration.inHours + (entry.duration.inMinutes % 60) / 60;
     }
-  }
 
-  void _showEditEntryDialog(TimeEntry entry) {
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-      context,
-      listen: false,
-    );
-
-    // Create controllers with initial values
-    final descriptionController = TextEditingController(
-      text: entry.description,
-    );
-
-    // Initial time values
-    TimeOfDay startTime = TimeOfDay(
-      hour: entry.clockInTime.hour,
-      minute: entry.clockInTime.minute,
-    );
-
-    TimeOfDay endTime = TimeOfDay(
-      hour: entry.clockOutTime?.hour ?? DateTime.now().hour,
-      minute: entry.clockOutTime?.minute ?? DateTime.now().minute,
-    );
-
-    // Selected date
-    DateTime selectedDate = DateTime(
-      entry.clockInTime.year,
-      entry.clockInTime.month,
-      entry.clockInTime.day,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(timeEntriesProvider.translate('editTimeEntry')),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Date picker
-                    ListTile(
-                      title: Text(timeEntriesProvider.translate('date')),
-                      subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (date != null) {
-                          setState(() {
-                            selectedDate = date;
-                          });
-                        }
-                      },
+    return Column(
+      children: [
+        // Filters row
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectDateRange,
+                  icon: const Icon(Icons.calendar_today, size: 18),
+                  label: Text(
+                    _startDate != null && _endDate != null
+                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
+                        : timeEntriesProvider.translate('selectDateRange'),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-
-                    const Divider(),
-
-                    // Start time picker
-                    ListTile(
-                      title: Text(timeEntriesProvider.translate('startTime')),
-                      subtitle: Text(startTime.format(context)),
-                      trailing: const Icon(Icons.access_time),
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: startTime,
-                        );
-                        if (time != null) {
-                          setState(() {
-                            startTime = time;
-                          });
-                        }
-                      },
-                    ),
-
-                    // End time picker
-                    ListTile(
-                      title: Text(timeEntriesProvider.translate('endTime')),
-                      subtitle: Text(endTime.format(context)),
-                      trailing: const Icon(Icons.access_time),
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: endTime,
-                        );
-                        if (time != null) {
-                          setState(() {
-                            endTime = time;
-                          });
-                        }
-                      },
-                    ),
-
-                    const Divider(),
-
-                    // Description field
-                    TextField(
-                      controller: descriptionController,
-                      decoration: InputDecoration(
-                        labelText: timeEntriesProvider.translate('description'),
-                        border: const OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(timeEntriesProvider.translate('cancel')),
+              const SizedBox(width: 8),
+              if (_userIds.isNotEmpty)
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedUserId,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                    ),
+                    hint: Text(timeEntriesProvider.translate('filterByUser')),
+                    items: [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text(timeEntriesProvider.translate('allUsers')),
+                      ),
+                      ..._userIds.asMap().entries.map((entry) {
+                        return DropdownMenuItem(
+                          value: entry.value,
+                          child: Text(_userNames[entry.key]),
+                        );
+                      }),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedUserId = value;
+                      });
+                    },
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Create updated entry
-                    final updatedEntry = TimeEntry(
-                      id: entry.id,
-                      jobId: entry.jobId,
-                      jobName: entry.jobName,
-                      jobColor: entry.jobColor,
-                      clockInTime: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        startTime.hour,
-                        startTime.minute,
-                      ),
-                      clockOutTime: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        endTime.hour,
-                        endTime.minute,
-                      ),
-                      duration: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        endTime.hour,
-                        endTime.minute,
-                      ).difference(
-                        DateTime(
-                          selectedDate.year,
-                          selectedDate.month,
-                          selectedDate.day,
-                          startTime.hour,
-                          startTime.minute,
-                        ),
-                      ),
-                      description: descriptionController.text,
-                      userId: entry.userId,
-                    );
+            ],
+          ),
+        ),
 
-                    try {
-                      await timeEntriesProvider.updateTimeEntry(updatedEntry);
-                      Navigator.pop(context);
-
-                      // Refresh data
-                      _loadEntries();
-
-                      // Show success message
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            timeEntriesProvider.translate('timeEntryUpdated'),
-                          ),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    } catch (e) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  child: Text(timeEntriesProvider.translate('save')),
+        // Total hours summary
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                timeEntriesProvider.translate('totalHours'),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
                 ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _confirmDeleteEntry(BuildContext context, TimeEntry entry) {
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-      context,
-      listen: false,
-    );
-
-    showDialog(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: Text(timeEntriesProvider.translate('deleteEntry')),
-            content: Text(timeEntriesProvider.translate('deleteEntryConfirm')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(timeEntriesProvider.translate('cancel')),
               ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(dialogContext);
-                  try {
-                    await timeEntriesProvider.deleteTimeEntry(entry.id);
-
-                    // Refresh data
-                    _loadEntries();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          timeEntriesProvider.translate('timeEntryDeleted'),
-                        ),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: Text(timeEntriesProvider.translate('delete')),
+              Text(
+                '${totalHours.toStringAsFixed(1)} ${timeEntriesProvider.translate('hours')}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
               ),
             ],
           ),
-    );
-  }
-}
-
-class TimeEntryListItem extends StatelessWidget {
-  final TimeEntry entry;
-  final Job job;
-  final bool showUserName;
-  final VoidCallback onDelete;
-
-  const TimeEntryListItem({
-    Key? key,
-    required this.entry,
-    required this.job,
-    this.showUserName = false,
-    required this.onDelete,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final dateFormat = DateFormat.yMMMd();
-    final timeFormat = DateFormat.jm();
-    final theme = Theme.of(context);
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final isOwnEntry = entry.userId == currentUserId;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: job.color,
-          child: Icon(Icons.access_time, color: Colors.white),
         ),
-        title: Row(
-          children: [
-            Text(
-              '${timeFormat.format(entry.clockInTime)} - ${entry.clockOutTime != null ? timeFormat.format(entry.clockOutTime!) : 'Now'}',
-              style: theme.textTheme.titleMedium,
-            ),
-            const Spacer(),
-            Text(
-              '${entry.durationInHours.toStringAsFixed(1)}h',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(dateFormat.format(entry.clockInTime)),
-            if (entry.description != null && entry.description!.isNotEmpty)
-              Text(
-                entry.description!,
-                style: theme.textTheme.bodySmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (showUserName && entry.userName != null)
-              Text(
-                'By: ${entry.userName}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-          ],
-        ),
-        trailing:
-            isOwnEntry
-                ? PopupMenuButton(
-                  itemBuilder:
-                      (context) => [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.edit,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Edit'),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              const Icon(Icons.delete, color: Colors.red),
-                              const SizedBox(width: 8),
-                              const Text('Delete'),
-                            ],
-                          ),
-                        ),
-                      ],
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _editTimeEntry(context, entry);
-                    } else if (value == 'delete') {
-                      _confirmDeleteEntry(context, entry);
-                    }
-                  },
-                )
-                : null,
-      ),
-    );
-  }
 
-  void _editTimeEntry(BuildContext context, TimeEntry entry) {
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-      context,
-      listen: false,
-    );
-    final descriptionController = TextEditingController(
-      text: entry.description,
-    );
+        const SizedBox(height: 16),
 
-    TimeOfDay startTime = TimeOfDay(
-      hour: entry.clockInTime.hour,
-      minute: entry.clockInTime.minute,
-    );
-
-    TimeOfDay endTime = TimeOfDay(
-      hour: entry.clockOutTime?.hour ?? DateTime.now().hour,
-      minute: entry.clockOutTime?.minute ?? DateTime.now().minute,
-    );
-
-    DateTime selectedDate = DateTime(
-      entry.clockInTime.year,
-      entry.clockInTime.month,
-      entry.clockInTime.day,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Edit Time Entry'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Date picker
-                    ListTile(
-                      title: const Text('Date'),
-                      subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (date != null) {
-                          setState(() {
-                            selectedDate = date;
-                          });
-                        }
-                      },
+        // Time entries list
+        Expanded(
+          child:
+              filteredEntries.isEmpty
+                  ? Center(
+                    child: Text(
+                      timeEntriesProvider.translate('noEntries'),
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
-                    const Divider(),
-                    // Start time picker
-                    ListTile(
-                      title: const Text('Start Time'),
-                      subtitle: Text(startTime.format(context)),
-                      trailing: const Icon(Icons.access_time),
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: startTime,
-                        );
-                        if (time != null) {
-                          setState(() {
-                            startTime = time;
-                          });
-                        }
-                      },
-                    ),
-                    // End time picker
-                    ListTile(
-                      title: const Text('End Time'),
-                      subtitle: Text(endTime.format(context)),
-                      trailing: const Icon(Icons.access_time),
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: endTime,
-                        );
-                        if (time != null) {
-                          setState(() {
-                            endTime = time;
-                          });
-                        }
-                      },
-                    ),
-                    const Divider(),
-                    // Description field
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Create updated entry
-                    final updatedEntry = TimeEntry(
-                      id: entry.id,
-                      jobId: entry.jobId,
-                      jobName: entry.jobName,
-                      jobColor: entry.jobColor,
-                      clockInTime: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        startTime.hour,
-                        startTime.minute,
-                      ),
-                      clockOutTime: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        endTime.hour,
-                        endTime.minute,
-                      ),
-                      duration: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        endTime.hour,
-                        endTime.minute,
-                      ).difference(
-                        DateTime(
-                          selectedDate.year,
-                          selectedDate.month,
-                          selectedDate.day,
-                          startTime.hour,
-                          startTime.minute,
-                        ),
-                      ),
-                      description: descriptionController.text,
-                      userId: entry.userId,
-                    );
-
-                    try {
-                      await timeEntriesProvider.updateTimeEntry(updatedEntry);
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Time entry updated'),
-                          backgroundColor: Colors.green,
-                        ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filteredEntries.length,
+                    itemBuilder: (context, index) {
+                      final entry = filteredEntries[index];
+                      return TimeEntryCard(
+                        entry: entry,
+                        isEditing: _isEditing,
+                        onDelete:
+                            _isEditing
+                                ? () {
+                                  setState(() {
+                                    if (_entriesToDelete.contains(entry)) {
+                                      _entriesToDelete.remove(entry);
+                                    } else {
+                                      _entriesToDelete.add(entry);
+                                    }
+                                  });
+                                }
+                                : null,
                       );
-                    } catch (e) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+                    },
+                  ),
+        ),
+      ],
     );
   }
 
-  void _confirmDeleteEntry(BuildContext context, TimeEntry entry) {
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-      context,
-      listen: false,
-    );
+  Widget _buildExpensesTab() {
+    final expensesProvider = Provider.of<ExpensesProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final filteredExpenses =
+        _expenses.where((e) {
+          if (_startDate != null && e.date.isBefore(_startDate!)) return false;
+          if (_endDate != null && e.date.isAfter(_endDate!)) return false;
+          if (_selectedUserId != null && e.userId != _selectedUserId)
+            return false;
+          return true;
+        }).toList();
 
-    showDialog(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: Text(timeEntriesProvider.translate('deleteEntry')),
-            content: Text(timeEntriesProvider.translate('deleteEntryConfirm')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(timeEntriesProvider.translate('cancel')),
+    // Format number with thousand separator
+    String formatAmount(double amount) {
+      final formatter = NumberFormat('#,##0', 'is_IS');
+      return '${formatter.format(amount)} kr';
+    }
+
+    return Column(
+      children: [
+        // Filters row
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectDateRange,
+                  icon: const Icon(Icons.calendar_today, size: 18),
+                  label: Text(
+                    _startDate != null && _endDate != null
+                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
+                        : timeEntriesProvider.translate('selectDateRange'),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(dialogContext);
-                  try {
-                    await timeEntriesProvider.deleteTimeEntry(entry.id);
-
-                    // Call the callback instead of _loadEntries
-                    onDelete();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          timeEntriesProvider.translate('timeEntryDeleted'),
-                        ),
-                        backgroundColor: Colors.green,
+              const SizedBox(width: 8),
+              if (_userIds.isNotEmpty)
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedUserId,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error: ${e.toString()}'),
-                        backgroundColor: Colors.red,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
                       ),
-                    );
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: Text(timeEntriesProvider.translate('delete')),
+                    ),
+                    hint: Text(timeEntriesProvider.translate('filterByUser')),
+                    items: [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text(timeEntriesProvider.translate('allUsers')),
+                      ),
+                      ..._userIds.asMap().entries.map((entry) {
+                        return DropdownMenuItem(
+                          value: entry.value,
+                          child: Text(_userNames[entry.key]),
+                        );
+                      }),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedUserId = value;
+                      });
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // Total expenses summary
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                timeEntriesProvider.translate('totalExpenses'),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+              Text(
+                formatAmount(
+                  filteredExpenses.fold(0.0, (sum, e) => sum + e.amount),
+                ),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
               ),
             ],
           ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Expenses list
+        Expanded(
+          child:
+              filteredExpenses.isEmpty
+                  ? Center(
+                    child: Text(
+                      timeEntriesProvider.translate('noExpenses'),
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filteredExpenses.length,
+                    itemBuilder: (context, index) {
+                      final expense = filteredExpenses[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ListTile(
+                          title: Text(
+                            expense.description,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${expense.userName ?? 'Unknown'} - ${DateFormat.yMMMd().format(expense.date)}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                          trailing: Text(
+                            formatAmount(expense.amount),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          onTap: () {
+                            // TODO: Add edit functionality
+                          },
+                        ),
+                      );
+                    },
+                  ),
+        ),
+
+        // Add expense button
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton.icon(
+            onPressed: _addExpense,
+            icon: const Icon(Icons.add),
+            label: Text(timeEntriesProvider.translate('addExpense')),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _deleteSelectedEntries() async {
+    if (_entriesToDelete.isEmpty) return;
+
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+
+    for (var entry in _entriesToDelete) {
+      await timeEntriesProvider.deleteTimeEntry(entry.id);
+    }
+
+    setState(() {
+      _entriesToDelete.clear();
+    });
   }
 }

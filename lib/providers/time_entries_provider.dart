@@ -238,8 +238,9 @@ class TimeEntriesProvider extends BaseProvider {
       clockOutTime: clockOutTime!,
       duration: clockOutTime!.difference(clockInTime!),
       description: description,
-      userId: currentUser?.uid,
+      userId: currentUser?.uid ?? '',
       userName: currentUser?.displayName ?? 'User',
+      date: clockInTime!,
     );
 
     timeEntries.add(entry);
@@ -321,7 +322,8 @@ class TimeEntriesProvider extends BaseProvider {
       clockOutTime: endTime,
       duration: endTime.difference(startTime),
       description: description,
-      userId: userId, // Add the user ID here
+      userId: userId ?? '',
+      date: startTime,
     );
 
     timeEntries.add(entry);
@@ -352,6 +354,28 @@ class TimeEntriesProvider extends BaseProvider {
       }
     } catch (e) {
       print('Error deleting from Firebase: $e');
+      // Continue with local deletion even if Firebase fails
+    }
+
+    // Always save to local storage
+    await saveTimeEntriesToLocalStorage();
+
+    // Update calculations
+    calculateHoursWorkedThisWeek();
+  }
+
+  // Add method to delete all time entries for a job
+  Future<void> deleteAllTimeEntriesForJob(String jobId) async {
+    // Remove all entries for this job from local list
+    timeEntries.removeWhere((entry) => entry.jobId == jobId);
+
+    try {
+      // Delete from Firebase if available
+      if (databaseService != null) {
+        await databaseService!.deleteAllTimeEntriesForJob(jobId);
+      }
+    } catch (e) {
+      print('Error deleting time entries from Firebase: $e');
       // Continue with local deletion even if Firebase fails
     }
 
@@ -523,15 +547,12 @@ class TimeEntriesProvider extends BaseProvider {
 
   // Private helper methods with consistent calculation approach
   double _getHoursWorkedToday() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
+    final today = DateTime.now();
     return timeEntries
         .where((entry) {
-          final entryDate = DateTime.parse(entry.date);
-          return entryDate.year == today.year &&
-              entryDate.month == today.month &&
-              entryDate.day == today.day;
+          return entry.date.year == today.year &&
+              entry.date.month == today.month &&
+              entry.date.day == today.day;
         })
         .fold(0.0, (sum, entry) => sum + entry.duration.inMinutes / 60);
   }
@@ -548,8 +569,7 @@ class TimeEntriesProvider extends BaseProvider {
 
     return timeEntries
         .where((entry) {
-          final entryDate = DateTime.parse(entry.date);
-          return entryDate.isAfter(
+          return entry.date.isAfter(
             startOfWeek.subtract(const Duration(days: 1)),
           );
         })
@@ -562,8 +582,7 @@ class TimeEntriesProvider extends BaseProvider {
 
     return timeEntries
         .where((entry) {
-          final entryDate = DateTime.parse(entry.date);
-          return entryDate.isAfter(
+          return entry.date.isAfter(
             firstDayOfMonth.subtract(const Duration(days: 1)),
           );
         })
@@ -698,15 +717,26 @@ class TimeEntriesProvider extends BaseProvider {
 
   // Add this method to the TimeEntriesProvider class
   Job? getJobById(String jobId) {
-    final jobsProvider = Provider.of<JobsProvider>(
-      navigatorKey.currentContext!,
-      listen: false,
+    if (_jobsProvider == null) return null;
+
+    // First check regular jobs
+    final regularJob = _jobsProvider!.jobs.firstWhere(
+      (job) => job.id == jobId,
+      orElse: () => Job(id: jobId, name: 'Unknown', color: Colors.grey),
     );
-    try {
-      return jobsProvider.jobs.firstWhere((job) => job.id == jobId);
-    } catch (e) {
-      return null; // Return null if job not found
+
+    // If job is still unknown, check shared jobs
+    if (regularJob.name == 'Unknown' && _jobsProvider!.sharedJobs.isNotEmpty) {
+      final sharedJob = _jobsProvider!.sharedJobs.firstWhere(
+        (job) => job.id == jobId,
+        orElse: () => Job(id: jobId, name: 'Unknown', color: Colors.grey),
+      );
+      if (sharedJob.name != 'Unknown') {
+        return sharedJob;
+      }
     }
+
+    return regularJob;
   }
 
   // Update the showDescriptionDialog method to match exactly the provided style
@@ -1006,7 +1036,8 @@ class TimeEntriesProvider extends BaseProvider {
           duration: updatedEntry.duration,
           description: updatedEntry.description,
           userId: updatedEntry.userId,
-          userName: existingUserName, // Preserve the existing userName
+          userName: existingUserName,
+          date: updatedEntry.clockInTime,
         );
       }
 
@@ -1142,6 +1173,7 @@ class TimeEntriesProvider extends BaseProvider {
     for (final entry in entriesWithoutNames) {
       if (entry.userId != null && userNames.containsKey(entry.userId)) {
         final updatedEntry = TimeEntry(
+          date: entry.date,
           id: entry.id,
           jobId: entry.jobId,
           jobName: entry.jobName,
@@ -1294,33 +1326,79 @@ class TimeEntriesProvider extends BaseProvider {
     }
   }
 
-  // Add this method to test if we can write to Firestore at all
+  // Add userId getter
+  String? get userId => FirebaseAuth.instance.currentUser?.uid;
+
+  // Add testFirestoreWrite method
   Future<bool> testFirestoreWrite(
     TimeEntry entry,
     String connectionCode,
   ) async {
     try {
-      print('TEST WRITE: Starting test write');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
 
-      // Create a simple test document
-      final testData = {
-        'testId': entry.id,
-        'jobName': entry.jobName,
-        'timestamp': FieldValue.serverTimestamp(),
-        'testField': 'This is a test entry',
-      };
-
-      // Write to a test collection
       await FirebaseFirestore.instance
-          .collection('testCollection')
+          .collection('sharedJobs')
+          .doc(connectionCode)
+          .collection('timeEntries')
           .doc(entry.id)
-          .set(testData);
+          .set(entry.toJson());
 
-      print('TEST WRITE: Successfully wrote test document');
       return true;
     } catch (e) {
-      print('TEST WRITE: Error writing test document: $e');
+      print('Error testing Firestore write: $e');
       return false;
+    }
+  }
+
+  // Add methods for calculating hours worked
+  double getHoursWorkedForJob(String jobId) {
+    return timeEntries
+        .where((entry) => entry.jobId == jobId)
+        .fold(0.0, (sum, entry) => sum + entry.duration.inHours);
+  }
+
+  Future<double> getHoursWorkedForSharedJob(String connectionCode) async {
+    try {
+      print('🔍 Getting hours worked for shared job: $connectionCode');
+
+      // First verify the shared job exists
+      final jobDoc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .get();
+
+      if (!jobDoc.exists) {
+        print('❌ Shared job not found: $connectionCode');
+        return 0.0;
+      }
+
+      // Get all entries for this shared job
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .collection('entries')
+              .get();
+
+      print('📊 Found ${snapshot.docs.length} entries for shared job');
+
+      double totalHours = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['duration'] != null) {
+          final duration = Duration(minutes: data['duration']);
+          totalHours += duration.inMinutes / 60;
+        }
+      }
+
+      print('⏱️ Total hours for shared job: $totalHours');
+      return totalHours;
+    } catch (e) {
+      print('❌ Error getting hours worked for shared job: $e');
+      return 0.0;
     }
   }
 }

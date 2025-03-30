@@ -326,10 +326,8 @@ class ClockButton extends StatelessWidget {
                             provider.clockInTime!,
                           ),
                           description: descriptionController.text,
-                          date: DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(provider.clockInTime!),
-                          userId: FirebaseAuth.instance.currentUser?.uid,
+                          date: provider.clockInTime!,
+                          userId: FirebaseAuth.instance.currentUser?.uid ?? '',
                         );
 
                         // Save the entry (this handles adding to local list, saving to Firebase, and local storage)

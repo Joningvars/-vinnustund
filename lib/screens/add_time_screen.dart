@@ -17,6 +17,21 @@ class AddTimeScreen extends StatefulWidget {
 
 class _AddTimeScreenState extends State<AddTimeScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Set default selected job when screen is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+      final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+
+      if (allJobs.isNotEmpty && provider.selectedJob == null) {
+        provider.setSelectedJob(allJobs.first);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeEntriesProvider>(context);
     final jobsProvider = Provider.of<JobsProvider>(context);
@@ -58,9 +73,12 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<Job>(
-                        value:
-                            provider.selectedJob ??
-                            (allJobs.isNotEmpty ? allJobs.first : null),
+                        value: allJobs.firstWhere(
+                          (job) =>
+                              job.id ==
+                              (provider.selectedJob?.id ?? allJobs.first.id),
+                          orElse: () => allJobs.first,
+                        ),
                         onChanged: (Job? newValue) {
                           if (newValue != null) {
                             provider.setSelectedJob(newValue);
@@ -212,8 +230,14 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            provider.formatTimeOfDay(
-                                              provider.startTime,
+                                            provider.formatTime(
+                                              DateTime(
+                                                provider.selectedDate.year,
+                                                provider.selectedDate.month,
+                                                provider.selectedDate.day,
+                                                provider.startTime.hour,
+                                                provider.startTime.minute,
+                                              ),
                                             ),
                                             style: const TextStyle(
                                               fontSize: 16,
@@ -262,8 +286,14 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            provider.formatTimeOfDay(
-                                              provider.endTime,
+                                            provider.formatTime(
+                                              DateTime(
+                                                provider.selectedDate.year,
+                                                provider.selectedDate.month,
+                                                provider.selectedDate.day,
+                                                provider.endTime.hour,
+                                                provider.endTime.minute,
+                                              ),
                                             ),
                                             style: const TextStyle(
                                               fontSize: 16,
@@ -620,6 +650,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
 
     // Create time entry
     final entry = TimeEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       jobId: provider.selectedJob!.id,
       jobName: provider.selectedJob!.name,
       jobColor: provider.selectedJob!.color,
@@ -627,6 +658,8 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
       clockOutTime: adjustedEnd,
       duration: adjustedEnd.difference(start),
       description: provider.descriptionController.text,
+      userId: provider.userId ?? '',
+      date: start,
     );
 
     // Save to user's entries

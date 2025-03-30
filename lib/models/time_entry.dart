@@ -11,12 +11,13 @@ class TimeEntry {
   final DateTime clockOutTime;
   final Duration duration;
   final String? description;
-  final String date;
-  final String? userId;
+  final DateTime date;
+  final String userId;
   final String? userName;
+  final bool use24HourFormat;
 
   TimeEntry({
-    String? id,
+    required this.id,
     required this.jobId,
     required this.jobName,
     required this.jobColor,
@@ -24,15 +25,15 @@ class TimeEntry {
     required this.clockOutTime,
     required this.duration,
     this.description,
-    String? date,
-    this.userId,
+    required this.date,
+    required this.userId,
     this.userName,
-  }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-       date = date ?? DateFormat('yyyy-MM-dd').format(clockInTime);
+    this.use24HourFormat = false,
+  });
 
   // Format the date for display
   String get formattedDate {
-    final dateObj = DateFormat('yyyy-MM-dd').parse(date);
+    final dateObj = DateFormat('yyyy-MM-dd').parse(date.toIso8601String());
     return DateFormat.yMMMd().format(dateObj);
   }
 
@@ -63,8 +64,8 @@ class TimeEntry {
       'clockInTime': clockInTime.toIso8601String(),
       'clockOutTime': clockOutTime.toIso8601String(),
       'duration': duration.inMinutes,
-      'description': description ?? '',
-      'date': date,
+      'description': description,
+      'date': date.toIso8601String(),
       'userId': userId,
       'userName': userName,
     };
@@ -80,9 +81,40 @@ class TimeEntry {
       clockOutTime: DateTime.parse(json['clockOutTime']),
       duration: Duration(minutes: json['duration']),
       description: json['description'],
-      date: json['date'],
+      date: DateTime.parse(json['date']),
       userId: json['userId'],
       userName: json['userName'],
+      use24HourFormat: json['use24HourFormat'] ?? false,
+    );
+  }
+
+  TimeEntry copyWith({
+    String? id,
+    String? jobId,
+    String? jobName,
+    Color? jobColor,
+    DateTime? clockInTime,
+    DateTime? clockOutTime,
+    Duration? duration,
+    String? description,
+    DateTime? date,
+    String? userId,
+    String? userName,
+    bool? use24HourFormat,
+  }) {
+    return TimeEntry(
+      id: id ?? this.id,
+      jobId: jobId ?? this.jobId,
+      jobName: jobName ?? this.jobName,
+      jobColor: jobColor ?? this.jobColor,
+      clockInTime: clockInTime ?? this.clockInTime,
+      clockOutTime: clockOutTime ?? this.clockOutTime,
+      duration: duration ?? this.duration,
+      description: description ?? this.description,
+      date: date ?? this.date,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      use24HourFormat: use24HourFormat ?? this.use24HourFormat,
     );
   }
 
@@ -97,8 +129,10 @@ class TimeEntry {
       clockOutTime: DateTime.parse(data['clockOutTime']),
       duration: Duration(minutes: data['duration']),
       description: data['description'] ?? '',
+      date: DateTime.parse(data['date']),
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? '',
+      use24HourFormat: data['use24HourFormat'] ?? false,
     );
   }
 

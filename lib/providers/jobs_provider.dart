@@ -20,6 +20,7 @@ class JobsProvider extends BaseProvider {
   TimeEntriesProvider? _timeEntriesProvider;
   DateTime? _lastSyncTime;
   SharedJobsProvider? _sharedJobsProvider;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void onUserAuthenticated() {
@@ -36,19 +37,26 @@ class JobsProvider extends BaseProvider {
 
   Future<void> loadJobs() async {
     try {
+      print('🔄 Loading jobs...');
       if (databaseService != null) {
+        print('📱 Loading from database service...');
         final loadedJobs = await databaseService!.loadJobs();
 
         // Debug logging
+        print('📊 Loaded ${loadedJobs.length} jobs from database');
         for (var job in loadedJobs) {
           print(
-            'Loaded job: ${job.name}, color: ${job.color}, isShared: ${job.isShared}',
+            '📝 Job: ${job.name}, ID: ${job.id}, isShared: ${job.isShared}, connectionCode: ${job.connectionCode}',
           );
         }
 
         // Separate regular and shared jobs
         jobs = loadedJobs.where((job) => !job.isShared).toList();
         sharedJobs = loadedJobs.where((job) => job.isShared).toList();
+
+        print('📊 Separated jobs:');
+        print('- Regular jobs: ${jobs.length}');
+        print('- Shared jobs: ${sharedJobs.length}');
 
         // Set a default selected job if none is selected
         if (selectedJob == null && jobs.isNotEmpty) {
@@ -57,6 +65,7 @@ class JobsProvider extends BaseProvider {
 
         notifyListeners();
       } else {
+        print('📱 Loading from local storage...');
         // Load from local storage
         final prefs = await SharedPreferences.getInstance();
         final jobsJson = prefs.getString('jobs');
@@ -65,9 +74,20 @@ class JobsProvider extends BaseProvider {
           final List<dynamic> decoded = jsonDecode(jobsJson);
           final loadedJobs = decoded.map((item) => Job.fromJson(item)).toList();
 
+          print('📊 Loaded ${loadedJobs.length} jobs from local storage');
+          for (var job in loadedJobs) {
+            print(
+              '📝 Job: ${job.name}, ID: ${job.id}, isShared: ${job.isShared}, connectionCode: ${job.connectionCode}',
+            );
+          }
+
           // Separate regular and shared jobs
           jobs = loadedJobs.where((job) => !job.isShared).toList();
           sharedJobs = loadedJobs.where((job) => job.isShared).toList();
+
+          print('📊 Separated jobs:');
+          print('- Regular jobs: ${jobs.length}');
+          print('- Shared jobs: ${sharedJobs.length}');
 
           // Set a default selected job if none is selected
           if (selectedJob == null && jobs.isNotEmpty) {
@@ -75,10 +95,12 @@ class JobsProvider extends BaseProvider {
           }
 
           notifyListeners();
+        } else {
+          print('ℹ️ No jobs found in local storage');
         }
       }
     } catch (e) {
-      print('Error loading jobs: $e');
+      print('❌ Error loading jobs: $e');
     }
   }
 
@@ -564,4 +586,40 @@ class JobsProvider extends BaseProvider {
       return null;
     }
   }
+
+  Future<void> clearAllJobs() async {
+    try {
+      // Clear from memory
+      jobs = [];
+      sharedJobs = [];
+      selectedJob = null;
+
+      // Clear from local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('jobs');
+
+      // Clear from Firebase if authenticated
+      if (databaseService != null &&
+          FirebaseAuth.instance.currentUser != null) {
+        final user = FirebaseAuth.instance.currentUser!;
+        final jobsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('jobs')
+                .get();
+
+        // Delete each job document
+        for (var doc in jobsSnapshot.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      notifyListeners();
+    } catch (e) {
+      print('Error clearing jobs: $e');
+    }
+  }
+
+  User? get currentUser => _auth.currentUser;
 }

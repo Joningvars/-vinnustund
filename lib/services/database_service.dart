@@ -5,6 +5,7 @@ import 'package:timagatt/models/job.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:timagatt/models/expense.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -107,6 +108,8 @@ class DatabaseService {
         clockOutTime: DateTime.parse(data['clockOutTime']),
         duration: Duration(minutes: data['duration']),
         description: data['description'],
+        date: DateTime.parse(data['clockInTime']),
+        userId: data['userId'] ?? uid,
       );
     }).toList();
   }
@@ -205,34 +208,40 @@ class DatabaseService {
         duration: entry.duration,
         description: entry.description,
         userId: entry.userId ?? user.uid,
-        userName: userName, // Use the retrieved userName
+        userName: userName,
+        date: entry.clockInTime,
       );
 
       // Convert to JSON with the userName included
       final data = updatedEntry.toJson();
       print('💾 Saving entry with data: $data');
 
-      // Save to Firestore
-      await _firestore
-          .collection('users')
-          .doc(updatedEntry.userId ?? user.uid)
-          .collection('timeEntries')
-          .doc(updatedEntry.id)
-          .set(data);
-
-      print('✅ Time entry saved successfully with userName: $userName');
-
-      // For shared jobs, log that it was saved
-      final job =
+      // Check if this is a shared job
+      final jobDoc = await jobsCollection.doc(entry.jobId).get();
+      if (jobDoc.exists) {
+        final jobData = jobDoc.data() as Map<String, dynamic>?;
+        if (jobData?['isShared'] ?? false) {
+          // For shared jobs, save only to the shared job's entries collection
+          final connectionCode = jobData?['connectionCode'];
+          if (connectionCode != null) {
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .doc(updatedEntry.id)
+                .set(data);
+            print('✅ Time entry saved to shared job: ${entry.id}');
+          }
+        } else {
+          // For regular jobs, save to the user's timeEntries collection
           await _firestore
               .collection('users')
-              .doc(user.uid)
-              .collection('jobs')
-              .doc(entry.jobId)
-              .get();
-
-      if (job.exists && job.data()?['isShared'] == true) {
-        print('Time entry saved to shared job: ${entry.id}');
+              .doc(updatedEntry.userId ?? user.uid)
+              .collection('timeEntries')
+              .doc(updatedEntry.id)
+              .set(data);
+          print('✅ Time entry saved to user collection: ${entry.id}');
+        }
       }
     } catch (e) {
       print('❌ Error saving time entry: $e');
@@ -408,6 +417,7 @@ class DatabaseService {
             duration: Duration(minutes: data['duration']),
             description: data['description'],
             userId: data['userId'],
+            date: DateTime.parse(data['clockInTime']),
           );
         }).toList();
       }
@@ -444,6 +454,7 @@ class DatabaseService {
                 duration: Duration(minutes: data['duration']),
                 description: data['description'],
                 userId: userId,
+                date: DateTime.parse(data['clockInTime']),
               );
             }).toList();
 
@@ -703,9 +714,31 @@ class DatabaseService {
       // Now delete the job from the user's collection
       await jobsCollection.doc(jobId).delete();
 
+      // Delete all time entries for this job
+      await deleteAllTimeEntriesForJob(jobId);
+
       print('Job deleted successfully');
     } catch (e) {
       print('Error deleting job: $e');
+      throw e;
+    }
+  }
+
+  // Add method to delete all time entries for a job
+  Future<void> deleteAllTimeEntriesForJob(String jobId) async {
+    try {
+      // Get all time entries for this job
+      final snapshot =
+          await timeEntriesCollection.where('jobId', isEqualTo: jobId).get();
+
+      // Delete each time entry
+      for (var doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      print('Deleted all time entries for job $jobId');
+    } catch (e) {
+      print('Error deleting time entries for job $jobId: $e');
       throw e;
     }
   }
@@ -992,6 +1025,252 @@ class DatabaseService {
     } catch (e) {
       print('❌ Error updating user profile: $e');
       rethrow;
+    }
+  }
+
+  Future<List<Expense>> getExpensesForJob(String jobId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
+
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(jobId).get();
+      if (!jobDoc.exists) return [];
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      if (jobData?['isShared'] ?? false) {
+        // For shared jobs, get expenses from the shared job's expenses collection
+        final connectionCode = jobData?['connectionCode'];
+        if (connectionCode == null) return [];
+
+        final snapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('expenses')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        return snapshot.docs
+            .map((doc) => Expense.fromJson({'id': doc.id, ...doc.data()}))
+            .toList();
+      } else {
+        // For regular jobs, get expenses from the user's expenses collection
+        final snapshot =
+            await _firestore
+                .collection('users')
+                .doc(user.uid)
+                .collection('expenses')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        return snapshot.docs
+            .map((doc) => Expense.fromJson({'id': doc.id, ...doc.data()}))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('Error getting expenses: $e');
+      return [];
+    }
+  }
+
+  Future<void> addExpense(Expense expense) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(expense.jobId).get();
+      if (!jobDoc.exists) return;
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      if (jobData?['isShared'] ?? false) {
+        // For shared jobs, save to the shared job's expenses collection
+        final connectionCode = jobData?['connectionCode'];
+        if (connectionCode == null) return;
+
+        await _firestore
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .collection('expenses')
+            .doc(expense.id)
+            .set(expense.toJson());
+      } else {
+        // For regular jobs, save to the user's expenses collection
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .doc(expense.id)
+            .set(expense.toJson());
+      }
+    } catch (e) {
+      debugPrint('Error adding expense: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateExpense(Expense expense) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(expense.jobId).get();
+      if (!jobDoc.exists) return;
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      if (jobData?['isShared'] ?? false) {
+        // For shared jobs, update in the shared job's expenses collection
+        final connectionCode = jobData?['connectionCode'];
+        if (connectionCode == null) return;
+
+        await _firestore
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .collection('expenses')
+            .doc(expense.id)
+            .update(expense.toJson());
+      } else {
+        // For regular jobs, update in the user's expenses collection
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .doc(expense.id)
+            .update(expense.toJson());
+      }
+    } catch (e) {
+      debugPrint('Error updating expense: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteExpense(String expenseId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(expenseId).get();
+      if (!jobDoc.exists) return;
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      if (jobData?['isShared'] ?? false) {
+        // For shared jobs, delete from the shared job's expenses collection
+        final connectionCode = jobData?['connectionCode'];
+        if (connectionCode == null) return;
+
+        await _firestore
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .collection('expenses')
+            .doc(expenseId)
+            .delete();
+      } else {
+        // For regular jobs, delete from the user's expenses collection
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .doc(expenseId)
+            .delete();
+      }
+    } catch (e) {
+      debugPrint('Error deleting expense: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<TimeEntry>> getTimeEntriesForJob(String jobId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
+
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(jobId).get();
+      if (!jobDoc.exists) return [];
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      if (jobData?['isShared'] ?? false) {
+        // For shared jobs, only get entries from the shared job's entries collection
+        final connectionCode = jobData?['connectionCode'];
+        if (connectionCode == null) return [];
+
+        final snapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .where('jobId', isEqualTo: jobId)
+                .orderBy('clockInTime', descending: true)
+                .get();
+
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          DateTime parseDateTime(dynamic value) {
+            if (value is Timestamp) {
+              return value.toDate();
+            } else if (value is String) {
+              return DateTime.parse(value);
+            }
+            throw Exception('Invalid date format');
+          }
+
+          return TimeEntry(
+            id: doc.id,
+            jobId: data['jobId'],
+            jobName: data['jobName'],
+            jobColor: ui.Color(data['jobColor']),
+            clockInTime: parseDateTime(data['clockInTime']),
+            clockOutTime: parseDateTime(data['clockOutTime']),
+            duration: Duration(minutes: data['duration']),
+            description: data['description'],
+            userId: data['userId'],
+            userName: data['userName'],
+            date: parseDateTime(data['clockInTime']),
+          );
+        }).toList();
+      } else {
+        // For regular jobs, get entries from the user's timeEntries collection
+        final snapshot =
+            await _firestore
+                .collection('users')
+                .doc(user.uid)
+                .collection('timeEntries')
+                .where('jobId', isEqualTo: jobId)
+                .orderBy('clockInTime', descending: true)
+                .get();
+
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          DateTime parseDateTime(dynamic value) {
+            if (value is Timestamp) {
+              return value.toDate();
+            } else if (value is String) {
+              return DateTime.parse(value);
+            }
+            throw Exception('Invalid date format');
+          }
+
+          return TimeEntry(
+            id: doc.id,
+            jobId: data['jobId'],
+            jobName: data['jobName'],
+            jobColor: ui.Color(data['jobColor']),
+            clockInTime: parseDateTime(data['clockInTime']),
+            clockOutTime: parseDateTime(data['clockOutTime']),
+            duration: Duration(minutes: data['duration']),
+            description: data['description'],
+            userId: data['userId'],
+            userName: data['userName'],
+            date: parseDateTime(data['clockInTime']),
+          );
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('Error getting time entries: $e');
+      return [];
     }
   }
 }
