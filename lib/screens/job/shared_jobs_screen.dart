@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
-import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
-import 'package:badges/badges.dart' as badges;
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 
 class SharedJobsScreen extends StatefulWidget {
   const SharedJobsScreen({Key? key}) : super(key: key);
@@ -61,9 +61,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   Future<void> _joinJob() async {
-    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
     final code = _codeController.text.trim().toUpperCase();
-
     if (code.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter a connection code';
@@ -77,17 +75,35 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
     });
 
     try {
-      final job = await provider.joinJobByCode(code);
-      if (job != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Successfully joined ${job.name}')),
-        );
-        Navigator.pop(context);
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
+
+      // Add debug print to confirm method is being called
+      print('🔍 DEBUG: Calling connectUserToJob with code: $code');
+
+      final success = await provider.connectUserToJob(code);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully joined job'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else {
+          setState(() {
+            _errorMessage =
+                'Failed to join job. Please check the code and try again.';
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -98,9 +114,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   Future<void> _createSharedJob() async {
-    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
     final name = _nameController.text.trim();
-
     if (name.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter a job name';
@@ -114,86 +128,42 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
     });
 
     try {
-      if (!provider.isPaidUser) {
-        setState(() {
-          _errorMessage = 'Only paid users can create shared jobs';
-        });
-        return;
-      }
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
 
-      final job = await provider.createSharedJob(
-        name,
-        _selectedColor,
+      // Create a Job object
+      final Job newJob = Job(
+        id: '', // Will be set by the provider
+        name: name,
+        color: _selectedColor,
+        isShared: true,
         isPublic: _isPublic,
       );
 
+      final code = await provider.createSharedJob(newJob);
+
       if (mounted) {
-        // Show dialog with the connection code
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder:
-              (context) => AlertDialog(
-                title: Text('Job Created'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Share this connection code with your team:'),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            job.connectionCode!,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.copy),
-                            onPressed: () {
-                              Clipboard.setData(
-                                ClipboardData(text: job.connectionCode!),
-                              );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Code copied to clipboard'),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(context); // Return to previous screen
-                    },
-                    child: const Text('Done'),
-                  ),
-                ],
-              ),
-        );
+        if (code != null) {
+          _nameController.clear();
+          _tabController.animateTo(2); // Switch to My Shared Jobs tab
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Job created with code: $code'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Failed to create job';
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -242,6 +212,209 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                 },
                 child: Text('Delete'),
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _joinSharedJob(String connectionCode) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('🔄 Starting join process for code: $connectionCode');
+
+      final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+        context,
+        listen: false,
+      );
+
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+
+      // Use the existing joinJobByCode method that's known to work
+      print('🔄 Calling joinJobByCode on SharedJobsProvider');
+      final job = await sharedJobsProvider.joinJobByCode(connectionCode);
+
+      if (job != null) {
+        print('✅ Successfully joined job: ${job.name}');
+
+        // Force refresh the jobs list
+        print('🔄 Refreshing jobs list');
+        await jobsProvider.refreshJobs();
+        print('✅ Jobs list refreshed');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(settingsProvider.translate('jobJoined')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        print('❌ Failed to join job');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(settingsProvider.translate('invalidJobCode')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error joining shared job: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showDeleteJobDialog(Job job) {
+    final provider = Provider.of<SharedJobsProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(settingsProvider.translate('deleteJob')),
+            content: Text(
+              settingsProvider
+                  .translate('deleteJobConfirm')
+                  .replaceAll('{jobName}', job.name),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(settingsProvider.translate('cancel')),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  try {
+                    if (job.isShared) {
+                      await provider.deleteSharedJob(job);
+
+                      // Force refresh the UI
+                      setState(() {});
+
+                      // Also refresh the jobs list in JobsProvider
+                      await Provider.of<JobsProvider>(
+                        context,
+                        listen: false,
+                      ).refreshJobs();
+                    } else {
+                      await Provider.of<JobsProvider>(
+                        context,
+                        listen: false,
+                      ).deleteJob(job.id);
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(settingsProvider.translate('jobDeleted')),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                child: Text(
+                  settingsProvider.translate('delete'),
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showShareCodeDialog(Job job) {
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+
+    // Debug print to verify job type
+    print('Job type: ${job.runtimeType}');
+    print('Job: $job');
+    print('Connection code: ${job.connectionCode}');
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(settingsProvider.translate('shareJobCode')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(settingsProvider.translate('askJobCreatorForCode')),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        job.connectionCode ?? '',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy),
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: job.connectionCode ?? ''),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                settingsProvider.translate('copyCode'),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(settingsProvider.translate('close')),
               ),
             ],
           ),
@@ -315,7 +488,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                   onPressed: _isLoading ? null : _joinJob,
                   child:
                       _isLoading
-                          ? const CircularProgressIndicator()
+                          ? CircularProgressIndicator()
                           : Text(provider.translate('joinJob')),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -524,18 +697,42 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
     return ListView.builder(
       itemCount: provider.sharedJobs.length,
       itemBuilder: (context, index) {
-        final job = provider.sharedJobs[index];
-        return ListTile(
-          leading: CircleAvatar(backgroundColor: job.color),
-          title: Text(job.name),
-          subtitle: Text(job.connectionCode ?? ''),
-          trailing:
-              job.creatorId == provider.currentUserId
-                  ? IconButton(
-                    icon: Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _showDeleteConfirmation(job),
-                  )
-                  : null,
+        final Job job = provider.sharedJobs[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: job.color,
+              child: Text(
+                job.name.substring(0, 1).toUpperCase(),
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            title: Text(job.name),
+            subtitle: Text(
+              job.isPublic
+                  ? provider.translate('publicJob')
+                  : provider.translate('privateJob'),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.share),
+                  onPressed: () {
+                    // Show share dialog with connection code
+                    _showShareCodeDialog(job);
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete),
+                  onPressed: () {
+                    _showDeleteJobDialog(job);
+                  },
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

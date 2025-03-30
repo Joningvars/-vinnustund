@@ -4,8 +4,10 @@ import 'package:timagatt/models/job.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -23,78 +25,72 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
   List<String> _userIds = [];
   Map<String, String> _userNames = {};
   bool _isLoading = true;
+  List<TimeEntry> _entries = [];
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadEntries();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadEntries() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-        context,
-        listen: false,
-      );
+      final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
 
-      // Load all entries for this job
-      await timeEntriesProvider.loadAllEntriesForJob(widget.job.id);
+      if (widget.job.isShared && widget.job.connectionCode != null) {
+        // For shared jobs, fetch entries from the shared job collection
+        print(
+          '🔍 Fetching entries for shared job: ${widget.job.name} with code: ${widget.job.connectionCode}',
+        );
 
-      // Get unique user IDs from entries
-      final entries = timeEntriesProvider.getAllEntriesForJob(widget.job.id);
-      final userIds =
-          entries
-              .where((e) => e.userId != null)
-              .map((e) => e.userId!)
-              .toSet()
-              .toList();
+        final snapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(widget.job.connectionCode)
+                .collection('entries')
+                .orderBy('timestamp', descending: true)
+                .get();
 
-      // Get user names
-      if (userIds.isNotEmpty) {
-        _userNames = await timeEntriesProvider.getUserNames(userIds);
+        print(
+          '📊 Found ${snapshot.docs.length} entries for shared job: ${widget.job.connectionCode}',
+        );
 
-        // Update entries with missing userNames
-        for (var entry in entries.where((e) => e.userName == null)) {
-          if (entry.userId != null && _userNames.containsKey(entry.userId)) {
-            // Create updated entry with userName
-            final updatedEntry = TimeEntry(
-              id: entry.id,
-              jobId: entry.jobId,
-              jobName: entry.jobName,
-              jobColor: entry.jobColor,
-              clockInTime: entry.clockInTime,
-              clockOutTime: entry.clockOutTime,
-              duration: entry.duration,
-              description: entry.description,
-              userId: entry.userId,
-              userName: _userNames[entry.userId],
-            );
+        final entries =
+            snapshot.docs
+                .map((doc) {
+                  try {
+                    return TimeEntry.fromJson(doc.data());
+                  } catch (e) {
+                    print('❌ Error parsing entry: $e');
+                    return null;
+                  }
+                })
+                .where((entry) => entry != null)
+                .cast<TimeEntry>()
+                .toList();
 
-            // Update the entry
-            await timeEntriesProvider.updateTimeEntry(updatedEntry);
-          }
-        }
-      }
-
-      // Set default user filter to current user
-      _selectedUserId = FirebaseAuth.instance.currentUser?.uid;
-
-      if (mounted) {
         setState(() {
+          _entries = entries;
+          _isLoading = false;
+        });
+      } else {
+        // For regular jobs, use the provider to get entries
+        final entries = await provider.getEntriesForJob(widget.job.id);
+        setState(() {
+          _entries = entries;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error loading job data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      print('❌ Error loading entries: $e');
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -126,6 +122,42 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
         _startDate = pickedDateRange.start;
         _endDate = pickedDateRange.end;
       });
+    }
+  }
+
+  Future<List<TimeEntry>> _fetchSharedJobEntries() async {
+    if (widget.job.connectionCode == null) {
+      return [];
+    }
+
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(widget.job.connectionCode)
+              .collection('entries')
+              .orderBy('clockInTime', descending: true)
+              .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return TimeEntry(
+          id: data['id'],
+          jobId: data['jobId'],
+          jobName: data['jobName'],
+          jobColor: Color(data['jobColor']),
+          clockInTime: DateTime.parse(data['clockInTime']),
+          clockOutTime: DateTime.parse(data['clockOutTime']),
+          duration: Duration(minutes: data['duration']),
+          description: data['description'],
+          date: data['date'],
+          userId: data['userId'],
+          userName: data['userName'],
+        );
+      }).toList();
+    } catch (e) {
+      print('Error fetching shared job entries: $e');
+      return [];
     }
   }
 
@@ -192,335 +224,88 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : Column(
-                children: [
-                  // Header with job info
-                  Container(
-                    color: widget.job.color.withOpacity(0.1),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Job details
-                        Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: widget.job.color,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    widget.job.name,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (widget.job.description != null)
-                                    Text(
-                                      widget.job.description!,
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Date range selector
-                        InkWell(
-                          onTap: _selectDateRange,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.date_range, size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${dateFormat.format(_startDate)} - ${dateFormat.format(_endDate)}',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // User filter dropdown
-                        if (_userIds.length > 1)
-                          DropdownButtonFormField<String?>(
-                            value: _selectedUserId,
-                            decoration: InputDecoration(
-                              labelText: timeEntriesProvider.translate(
-                                'filterByUser',
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(
-                                  timeEntriesProvider.translate('allUsers'),
-                                ),
-                              ),
-                              ..._userIds.map((userId) {
-                                return DropdownMenuItem<String?>(
-                                  value: userId,
-                                  child: Text(_userNames[userId] ?? userId),
-                                );
-                              }).toList(),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedUserId = value;
-                              });
-                            },
-                          ),
-
-                        const SizedBox(height: 16),
-
-                        // Total hours
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                timeEntriesProvider.translate('totalHours'),
-                                style: theme.textTheme.titleMedium,
-                              ),
-                              Text(
-                                '${totalHours.toStringAsFixed(1)} ${timeEntriesProvider.translate('hours')}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Entries list
-                  Expanded(
-                    child:
-                        entries.isEmpty
-                            ? Center(
-                              child: Text(
-                                timeEntriesProvider.translate('noEntries'),
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            )
-                            : ListView.builder(
-                              itemCount: entries.length,
-                              padding: const EdgeInsets.all(16),
-                              itemBuilder: (context, index) {
-                                final entry = entries[index];
-                                final userName =
-                                    entry.userName ??
-                                    _userNames[entry.userId] ??
-                                    'Unknown User';
-
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Header row with date and user name
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.calendar_today,
-                                                  size: 16,
-                                                  color:
-                                                      theme.colorScheme.primary,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  DateFormat.yMMMd().format(
-                                                    entry.clockInTime,
-                                                  ),
-                                                  style: theme
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.person,
-                                                  size: 16,
-                                                  color:
-                                                      theme
-                                                          .colorScheme
-                                                          .secondary,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  userName,
-                                                  style: theme
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        color:
-                                                            theme
-                                                                .colorScheme
-                                                                .secondary,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-
-                                        const SizedBox(height: 12),
-
-                                        // Time information
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.access_time,
-                                              size: 16,
-                                              color: Colors.grey.shade700,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              '${timeFormat.format(entry.clockInTime)} - ${timeFormat.format(entry.clockOutTime ?? DateTime.now())}',
-                                              style: theme.textTheme.bodyMedium,
-                                            ),
-                                            const Spacer(),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: theme.colorScheme.primary
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                '${entry.durationInHours.toStringAsFixed(1)} ${timeEntriesProvider.translate('hours')}',
-                                                style: theme
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color:
-                                                          theme
-                                                              .colorScheme
-                                                              .primary,
-                                                    ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-
-                                        // Description if available
-                                        if (entry.description != null &&
-                                            entry.description!.isNotEmpty) ...[
-                                          const SizedBox(height: 12),
-                                          Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Icon(
-                                                Icons.description,
-                                                size: 16,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  entry.description!,
-                                                  style: theme
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        color:
-                                                            Colors
-                                                                .grey
-                                                                .shade700,
-                                                      ),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                  ),
-                ],
+              : _entries.isEmpty
+              ? Center(
+                child: Text(
+                  timeEntriesProvider.translate('noTimeEntries'),
+                  style: const TextStyle(fontSize: 16),
+                ),
+              )
+              : ListView.builder(
+                itemCount: _entries.length,
+                itemBuilder: (context, index) {
+                  final entry = _entries[index];
+                  return TimeEntryListItem(
+                    entry: entry,
+                    job: widget.job,
+                    showUserName: widget.job.isShared,
+                    onDelete: () => _loadEntries(),
+                  );
+                },
               ),
     );
+  }
+
+  Widget _buildTimeEntriesList() {
+    if (widget.job.isShared) {
+      return FutureBuilder<List<TimeEntry>>(
+        future: Provider.of<TimeEntriesProvider>(
+          context,
+          listen: false,
+        ).fetchSharedJobTimeEntries(widget.job),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error loading time entries: ${snapshot.error}'),
+            );
+          }
+
+          final entries = snapshot.data ?? [];
+
+          if (entries.isEmpty) {
+            return Center(child: Text('No time entries yet'));
+          }
+
+          return ListView.builder(
+            itemCount: entries.length,
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return TimeEntryListItem(
+                entry: entry,
+                job: widget.job,
+                showUserName: true, // Show who created the entry
+                onDelete: () => _loadEntries(),
+              );
+            },
+          );
+        },
+      );
+    } else {
+      // Regular job - show only the current user's entries
+      final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+      final jobEntries = timeEntriesProvider.getEntriesForJob(widget.job.id);
+
+      if (jobEntries.isEmpty) {
+        return Center(child: Text('No time entries yet'));
+      }
+
+      return ListView.builder(
+        itemCount: jobEntries.length,
+        itemBuilder: (context, index) {
+          final entry = jobEntries[index];
+          return TimeEntryListItem(
+            entry: entry,
+            job: widget.job,
+            showUserName: false,
+            onDelete: () => _loadEntries(),
+          );
+        },
+      );
+    }
   }
 
   void _showEditEntryDialog(TimeEntry entry) {
@@ -687,7 +472,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
                       Navigator.pop(context);
 
                       // Refresh data
-                      _loadData();
+                      _loadEntries();
 
                       // Show success message
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -718,7 +503,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
     );
   }
 
-  void _confirmDeleteEntry(TimeEntry entry) {
+  void _confirmDeleteEntry(BuildContext context, TimeEntry entry) {
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
       context,
       listen: false,
@@ -727,22 +512,360 @@ class _JobOverviewScreenState extends State<JobOverviewScreen> {
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
+          (dialogContext) => AlertDialog(
             title: Text(timeEntriesProvider.translate('deleteEntry')),
             content: Text(timeEntriesProvider.translate('deleteEntryConfirm')),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: Text(timeEntriesProvider.translate('cancel')),
               ),
               TextButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(dialogContext);
                   try {
                     await timeEntriesProvider.deleteTimeEntry(entry.id);
 
                     // Refresh data
-                    _loadData();
+                    _loadEntries();
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          timeEntriesProvider.translate('timeEntryDeleted'),
+                        ),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: Text(timeEntriesProvider.translate('delete')),
+              ),
+            ],
+          ),
+    );
+  }
+}
+
+class TimeEntryListItem extends StatelessWidget {
+  final TimeEntry entry;
+  final Job job;
+  final bool showUserName;
+  final VoidCallback onDelete;
+
+  const TimeEntryListItem({
+    Key? key,
+    required this.entry,
+    required this.job,
+    this.showUserName = false,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat.yMMMd();
+    final timeFormat = DateFormat.jm();
+    final theme = Theme.of(context);
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final isOwnEntry = entry.userId == currentUserId;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: job.color,
+          child: Icon(Icons.access_time, color: Colors.white),
+        ),
+        title: Row(
+          children: [
+            Text(
+              '${timeFormat.format(entry.clockInTime)} - ${entry.clockOutTime != null ? timeFormat.format(entry.clockOutTime!) : 'Now'}',
+              style: theme.textTheme.titleMedium,
+            ),
+            const Spacer(),
+            Text(
+              '${entry.durationInHours.toStringAsFixed(1)}h',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(dateFormat.format(entry.clockInTime)),
+            if (entry.description != null && entry.description!.isNotEmpty)
+              Text(
+                entry.description!,
+                style: theme.textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (showUserName && entry.userName != null)
+              Text(
+                'By: ${entry.userName}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+          ],
+        ),
+        trailing:
+            isOwnEntry
+                ? PopupMenuButton(
+                  itemBuilder:
+                      (context) => [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.edit,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.delete, color: Colors.red),
+                              const SizedBox(width: 8),
+                              const Text('Delete'),
+                            ],
+                          ),
+                        ),
+                      ],
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _editTimeEntry(context, entry);
+                    } else if (value == 'delete') {
+                      _confirmDeleteEntry(context, entry);
+                    }
+                  },
+                )
+                : null,
+      ),
+    );
+  }
+
+  void _editTimeEntry(BuildContext context, TimeEntry entry) {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+    final descriptionController = TextEditingController(
+      text: entry.description,
+    );
+
+    TimeOfDay startTime = TimeOfDay(
+      hour: entry.clockInTime.hour,
+      minute: entry.clockInTime.minute,
+    );
+
+    TimeOfDay endTime = TimeOfDay(
+      hour: entry.clockOutTime?.hour ?? DateTime.now().hour,
+      minute: entry.clockOutTime?.minute ?? DateTime.now().minute,
+    );
+
+    DateTime selectedDate = DateTime(
+      entry.clockInTime.year,
+      entry.clockInTime.month,
+      entry.clockInTime.day,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Time Entry'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date picker
+                    ListTile(
+                      title: const Text('Date'),
+                      subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (date != null) {
+                          setState(() {
+                            selectedDate = date;
+                          });
+                        }
+                      },
+                    ),
+                    const Divider(),
+                    // Start time picker
+                    ListTile(
+                      title: const Text('Start Time'),
+                      subtitle: Text(startTime.format(context)),
+                      trailing: const Icon(Icons.access_time),
+                      onTap: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: startTime,
+                        );
+                        if (time != null) {
+                          setState(() {
+                            startTime = time;
+                          });
+                        }
+                      },
+                    ),
+                    // End time picker
+                    ListTile(
+                      title: const Text('End Time'),
+                      subtitle: Text(endTime.format(context)),
+                      trailing: const Icon(Icons.access_time),
+                      onTap: () async {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: endTime,
+                        );
+                        if (time != null) {
+                          setState(() {
+                            endTime = time;
+                          });
+                        }
+                      },
+                    ),
+                    const Divider(),
+                    // Description field
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    // Create updated entry
+                    final updatedEntry = TimeEntry(
+                      id: entry.id,
+                      jobId: entry.jobId,
+                      jobName: entry.jobName,
+                      jobColor: entry.jobColor,
+                      clockInTime: DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        startTime.hour,
+                        startTime.minute,
+                      ),
+                      clockOutTime: DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        endTime.hour,
+                        endTime.minute,
+                      ),
+                      duration: DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                        endTime.hour,
+                        endTime.minute,
+                      ).difference(
+                        DateTime(
+                          selectedDate.year,
+                          selectedDate.month,
+                          selectedDate.day,
+                          startTime.hour,
+                          startTime.minute,
+                        ),
+                      ),
+                      description: descriptionController.text,
+                      userId: entry.userId,
+                    );
+
+                    try {
+                      await timeEntriesProvider.updateTimeEntry(updatedEntry);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Time entry updated'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteEntry(BuildContext context, TimeEntry entry) {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: Text(timeEntriesProvider.translate('deleteEntry')),
+            content: Text(timeEntriesProvider.translate('deleteEntryConfirm')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(timeEntriesProvider.translate('cancel')),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(dialogContext);
+                  try {
+                    await timeEntriesProvider.deleteTimeEntry(entry.id);
+
+                    // Call the callback instead of _loadEntries
+                    onDelete();
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

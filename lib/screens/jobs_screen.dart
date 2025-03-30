@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/screens/job_overview_screen.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({Key? key}) : super(key: key);
@@ -22,6 +24,7 @@ class _JobsScreenState extends State<JobsScreen>
   final _joinJobFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _codeController = TextEditingController();
   Color _selectedColor = Colors.blue;
   Job? _editingJob;
 
@@ -81,6 +84,7 @@ class _JobsScreenState extends State<JobsScreen>
     _tabController.dispose();
     _nameController.dispose();
     _descriptionController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -414,13 +418,15 @@ class _JobsScreenState extends State<JobsScreen>
   @override
   Widget build(BuildContext context) {
     final jobsProvider = Provider.of<JobsProvider>(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
     final theme = Theme.of(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          timeEntriesProvider.translate('jobs'),
+          settingsProvider.translate('jobs'),
           style: theme.textTheme.titleLarge?.copyWith(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -450,7 +456,12 @@ class _JobsScreenState extends State<JobsScreen>
           _buildSharedJobsTab(jobsProvider, timeEntriesProvider, theme),
 
           // Create Job Tab
-          _buildCreateJobTab(jobsProvider, timeEntriesProvider, theme),
+          _buildCreateJobTab(
+            jobsProvider,
+            sharedJobsProvider,
+            timeEntriesProvider,
+            theme,
+          ),
 
           // Join Job Tab
           _buildJoinJobTab(jobsProvider, timeEntriesProvider, theme),
@@ -599,6 +610,14 @@ class _JobsScreenState extends State<JobsScreen>
                         );
                       },
                       tooltip: timeEntriesProvider.translate('viewEntries'),
+                    ),
+                    // Delete button
+                    IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        _showDeleteJobDialog(job);
+                      },
+                      tooltip: timeEntriesProvider.translate('deleteJob'),
                     ),
                   ],
                 ),
@@ -769,6 +788,14 @@ class _JobsScreenState extends State<JobsScreen>
                         );
                       },
                       tooltip: timeEntriesProvider.translate('viewEntries'),
+                    ),
+                    // Delete button
+                    IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        _showDeleteJobDialog(job);
+                      },
+                      tooltip: timeEntriesProvider.translate('deleteJob'),
                     ),
                   ],
                 ),
@@ -957,10 +984,11 @@ class _JobsScreenState extends State<JobsScreen>
                 onPressed: () {
                   if (formKey.currentState!.validate()) {
                     if (codeController.text.isNotEmpty) {
-                      jobsProvider.joinSharedJob(codeController.text);
-
-                      // Navigate to shared jobs tab
-                      _navigateToTab(1);
+                      _isLoading
+                          ? null
+                          : () => _joinJob(
+                            _codeController.text.trim().toUpperCase(),
+                          );
                     }
                   }
                 },
@@ -974,6 +1002,7 @@ class _JobsScreenState extends State<JobsScreen>
                 ),
               ),
             ),
+            _buildJoinJobButton(),
           ],
         ),
       ),
@@ -982,6 +1011,7 @@ class _JobsScreenState extends State<JobsScreen>
 
   Widget _buildCreateJobTab(
     JobsProvider jobsProvider,
+    SharedJobsProvider sharedJobsProvider,
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
@@ -1157,10 +1187,14 @@ class _JobsScreenState extends State<JobsScreen>
                         try {
                           if (isShared && jobsProvider.isPaidUser) {
                             // Create shared job
-                            jobsProvider.createSharedJob(
-                              name,
-                              selectedColor,
-                              isPublic,
+                            sharedJobsProvider.createSharedJob(
+                              Job(
+                                id: '', // Empty string, will be set by the provider
+                                name: name,
+                                color: selectedColor,
+                                isPublic: isPublic,
+                                isShared: true,
+                              ),
                             );
                           } else {
                             // Create regular job
@@ -1227,6 +1261,179 @@ class _JobsScreenState extends State<JobsScreen>
           ),
         );
       },
+    );
+  }
+
+  void _showDeleteJobDialog(Job job) {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(timeEntriesProvider.translate('deleteJob')),
+            content: Text(
+              timeEntriesProvider
+                  .translate('deleteJobConfirmation')
+                  .replaceAll('{jobName}', job.name),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(timeEntriesProvider.translate('cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Provider.of<JobsProvider>(
+                    context,
+                    listen: false,
+                  ).deleteJob(job.id);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        timeEntriesProvider.translate('jobDeleted'),
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+                child: Text(
+                  timeEntriesProvider.translate('delete'),
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  bool _isLoading = false;
+
+  Future<void> _joinJob(String code) async {
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Please enter a connection code')));
+      return;
+    }
+
+    // Show loading indicator
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+
+      // Debug print to confirm method is being called
+      print('🔍 DEBUG: Calling connectUserToJob with code: $code');
+
+      final success = await provider.connectUserToJob(code);
+
+      if (mounted) {
+        if (success) {
+          // Refresh the jobs list to show the newly joined job
+          await jobsProvider.fetchJobs(context);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully joined job'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Close the dialog
+          Navigator.pop(context);
+
+          // Navigate to the shared jobs tab (index 1)
+          _tabController.animateTo(1);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to join job. Please check the code and try again.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Error joining job: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showJoinJobDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Join Job'),
+            content: TextField(
+              controller: _codeController,
+              decoration: InputDecoration(
+                labelText: 'Connection Code',
+                hintText: 'Enter the 6-digit code',
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    _isLoading
+                        ? null
+                        : () =>
+                            _joinJob(_codeController.text.trim().toUpperCase()),
+                child:
+                    _isLoading
+                        ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Text('Join'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildJoinJobButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ElevatedButton.icon(
+        onPressed: () {
+          // Clear the code controller before showing the dialog
+          _codeController.clear();
+          _showJoinJobDialog();
+        },
+        icon: const Icon(Icons.add_link),
+        label: const Text('Join Job with Code'),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
     );
   }
 }

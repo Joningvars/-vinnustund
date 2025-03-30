@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
 
 class JobsProvider extends BaseProvider {
   List<Job> jobs = [];
@@ -16,6 +18,7 @@ class JobsProvider extends BaseProvider {
   bool isPaidUser = true;
   SettingsProvider? _settingsProvider;
   TimeEntriesProvider? _timeEntriesProvider;
+  DateTime? _lastSyncTime;
 
   @override
   void onUserAuthenticated() {
@@ -129,43 +132,87 @@ class JobsProvider extends BaseProvider {
   }
 
   Future<void> deleteJob(String jobId) async {
-    // Check if any time entries use this job
-    final timeEntriesProvider = _timeEntriesProvider;
-    if (timeEntriesProvider != null) {
-      // Check if we're currently clocked in with this job
-      if (timeEntriesProvider.isClockedIn &&
-          timeEntriesProvider.selectedJob?.id == jobId) {
-        throw Exception(translate('cannotDeleteActiveJob'));
+    try {
+      // Find the job to delete
+      final jobToDelete = jobs.firstWhere((job) => job.id == jobId);
+
+      // Remove from both lists
+      jobs.removeWhere((job) => job.id == jobId);
+      sharedJobs.removeWhere((job) => job.id == jobId);
+
+      // If it's a shared job, we need to handle it differently
+      if (jobToDelete.isShared) {
+        await _deleteSharedJob(jobToDelete);
+      } else {
+        // For regular jobs, just delete from the user's collection
+        if (currentUserId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserId)
+              .collection('jobs')
+              .doc(jobId)
+              .delete();
+        }
       }
 
-      // Delete all time entries for this job
-      final entriesToDelete =
-          timeEntriesProvider.timeEntries
-              .where((entry) => entry.jobId == jobId)
-              .toList();
-
-      for (var entry in entriesToDelete) {
-        await timeEntriesProvider.deleteTimeEntry(entry.id);
+      // If this was the selected job, clear it
+      if (selectedJob?.id == jobId) {
+        selectedJob = jobs.isNotEmpty ? jobs.first : null;
       }
+
+      // Save to local storage
+      await saveJobsToLocalStorage();
+
+      // Notify listeners
+      notifyListeners();
+    } catch (e) {
+      print('Error deleting job: $e');
     }
+  }
 
-    // Remove the job from the list
-    jobs.removeWhere((job) => job.id == jobId);
+  Future<void> _deleteSharedJob(Job job) async {
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) return;
 
-    // If this was the selected job, clear it
-    if (selectedJob?.id == jobId) {
-      selectedJob = jobs.isNotEmpty ? jobs.first : null;
+      // Check if current user is the creator
+      if (job.creatorId == currentUserId) {
+        // If creator, delete the shared job document
+        if (job.connectionCode != null) {
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(job.connectionCode)
+              .delete();
+
+          print('✅ Deleted shared job document: ${job.name}');
+        }
+      } else {
+        // If not creator, just remove current user from connectedUsers
+        if (job.connectionCode != null) {
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(job.connectionCode)
+              .update({
+                'connectedUsers': FieldValue.arrayRemove([currentUserId]),
+              });
+
+          print('✅ Removed user from shared job: ${job.name}');
+        }
+      }
+
+      // Always delete from user's collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .collection('jobs')
+          .doc(job.id)
+          .delete();
+
+      print('✅ Deleted job from user collection: ${job.name}');
+    } catch (e) {
+      print('❌ Error deleting shared job: $e');
+      throw e;
     }
-
-    // Save to database if authenticated
-    if (databaseService != null) {
-      await databaseService!.deleteJob(jobId);
-    }
-
-    // Save to local storage
-    await saveJobsToLocalStorage();
-
-    notifyListeners();
   }
 
   Future<void> saveJobsToLocalStorage() async {
@@ -175,93 +222,6 @@ class JobsProvider extends BaseProvider {
   }
 
   // Shared jobs methods
-  Future<void> createSharedJob(String name, Color color, bool isPublic) async {
-    try {
-      if (!isPaidUser) {
-        throw Exception('Premium feature not available');
-      }
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
-      // Generate a unique connection code
-      final connectionCode = _generateConnectionCode();
-      print('Generated connection code: $connectionCode');
-
-      final newJob = Job(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        color: color,
-        description: null,
-        isShared: true,
-        isPublic: isPublic,
-        connectionCode: connectionCode,
-        creatorId: user.uid,
-        connectedUsers: [user.uid],
-      );
-
-      print('Creating shared job: ${newJob.id}, ${newJob.name}');
-
-      // Add to main jobs list for time entries
-      jobs.add(newJob);
-
-      // Also add to shared jobs list for display in shared tab
-      sharedJobs.add(newJob);
-
-      // Set as selected job if no job is selected
-      if (selectedJob == null) {
-        selectedJob = newJob;
-      }
-
-      // Save to database
-      if (databaseService != null) {
-        try {
-          await databaseService!.saveJob(newJob);
-
-          // Also save to shared jobs collection in Firebase
-          await FirebaseFirestore.instance
-              .collection('sharedJobs')
-              .doc(connectionCode)
-              .set({
-                'jobId': newJob.id,
-                'name': newJob.name,
-                'color': newJob.color.value,
-                'description': newJob.description,
-                'creatorId': user.uid,
-                'isPublic': isPublic,
-                'connectedUsers': [user.uid],
-                'createdAt': FieldValue.serverTimestamp(),
-              });
-        } catch (e) {
-          print('Error saving shared job to database: $e');
-          // Remove from lists if database save fails
-          jobs.removeWhere((j) => j.id == newJob.id);
-          sharedJobs.removeWhere((j) => j.id == newJob.id);
-          throw Exception('Failed to save shared job: $e');
-        }
-      }
-
-      // Save to local storage
-      try {
-        await saveJobsToLocalStorage();
-      } catch (e) {
-        print('Error saving to local storage: $e');
-      }
-
-      // Notify listeners after all operations are complete
-      notifyListeners();
-
-      print(
-        'Created shared job successfully: ${newJob.id}, isShared: ${newJob.isShared}',
-      );
-    } catch (e) {
-      print('Error creating shared job: $e');
-      rethrow; // Rethrow to allow handling in the UI
-    }
-  }
-
   Future<Job?> joinJobByCode(String connectionCode) async {
     if (databaseService == null) {
       throw Exception('User not authenticated');
@@ -426,9 +386,149 @@ class JobsProvider extends BaseProvider {
   String _generateConnectionCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
-    return List.generate(
-      6,
-      (index) => chars[random.nextInt(chars.length)],
-    ).join();
+    return String.fromCharCodes(
+      Iterable.generate(
+        6, // 6-character code
+        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+      ),
+    );
+  }
+
+  Future<void> refreshJobs() async {
+    print('🔄 Refreshing jobs from Firestore');
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        print('❌ No authenticated user found');
+        return;
+      }
+
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .collection('jobs')
+              .get();
+
+      final loadedJobs =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Job.fromFirestore(doc);
+          }).toList();
+
+      print('✅ Loaded ${loadedJobs.length} jobs from Firestore');
+
+      // Update the jobs list
+      jobs = loadedJobs;
+      notifyListeners();
+
+      // Save to local storage
+      await saveJobsToLocalStorage();
+    } catch (e) {
+      print('❌ Error refreshing jobs: $e');
+    }
+  }
+
+  Future<void> addSharedJob(Job job) async {
+    try {
+      print('🔄 Adding shared job to jobs list: ${job.name}');
+
+      // Check if job already exists
+      final existingIndex = jobs.indexWhere((j) => j.id == job.id);
+      if (existingIndex >= 0) {
+        print('ℹ️ Job already exists in list, updating');
+        jobs[existingIndex] = job;
+      } else {
+        print('✅ Adding new job to list');
+        jobs.add(job);
+      }
+
+      // Save to local storage
+      await saveJobsToLocalStorage();
+
+      // Notify listeners
+      notifyListeners();
+
+      print('✅ Job added to jobs list successfully');
+    } catch (e) {
+      print('❌ Error adding shared job to jobs list: $e');
+    }
+  }
+
+  Future<void> fetchJobs(BuildContext context) async {
+    if (currentUserId == null) return;
+
+    try {
+      // Fetch user's jobs from Firestore
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserId)
+              .collection('jobs')
+              .get();
+
+      // Clear existing jobs and add the fetched ones
+      jobs = snapshot.docs.map((doc) => Job.fromFirestore(doc)).toList();
+
+      // Separate regular and shared jobs
+      sharedJobs = jobs.where((job) => job.isShared).toList();
+
+      // Only sync with shared jobs if it's been more than 30 seconds since last sync
+      final now = DateTime.now();
+      if (_lastSyncTime == null ||
+          now.difference(_lastSyncTime!).inSeconds > 30) {
+        final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+          context,
+          listen: false,
+        );
+        await sharedJobsProvider.syncUserJobs();
+        _lastSyncTime = now;
+      }
+
+      notifyListeners();
+    } catch (e) {
+      print('Error fetching jobs: $e');
+    }
+  }
+
+  Future<Job?> getJobById(String jobId) async {
+    print('🔍 Looking for job with ID: $jobId');
+
+    // First check the in-memory jobs list
+    try {
+      final localJob = jobs.firstWhere((job) => job.id == jobId);
+      print('✅ Found job in memory: ${localJob.name}');
+      return localJob;
+    } catch (e) {
+      print('⚠️ Job not found in memory, trying database');
+    }
+
+    // If not found in memory, try to fetch from Firestore
+    if (databaseService != null) {
+      try {
+        print('🔍 Querying Firestore for job: $jobId');
+
+        // Get job from Firestore
+        final snapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(currentUserId)
+                .collection('jobs')
+                .doc(jobId)
+                .get();
+
+        if (snapshot.exists) {
+          final job = Job.fromFirestore(snapshot);
+          print('✅ Found job in Firestore: ${job.name}');
+          return job;
+        } else {
+          print('❌ Job not found in Firestore');
+        }
+      } catch (e) {
+        print('❌ Error fetching job by ID: $e');
+      }
+    }
+
+    print('❌ Job not found anywhere: $jobId');
+    return null;
   }
 }

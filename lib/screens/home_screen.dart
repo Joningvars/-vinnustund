@@ -252,6 +252,7 @@ class HomeScreen extends StatelessWidget {
       items:
           allJobs.map<DropdownMenuItem<Job>>((Job job) {
             return DropdownMenuItem<Job>(
+              key: ValueKey(job.id),
               value: job,
               child: Row(
                 children: [

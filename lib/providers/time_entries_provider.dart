@@ -11,6 +11,8 @@ import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
 
 class TimeEntriesProvider extends BaseProvider {
   List<TimeEntry> timeEntries = [];
@@ -72,15 +74,6 @@ class TimeEntriesProvider extends BaseProvider {
   }
 
   Future<void> loadTimeEntries() async {
-    // Prevent multiple simultaneous loads
-    if (_isLoadingEntries) {
-      print('⏱️ Already loading time entries, skipping duplicate call');
-      return;
-    }
-
-    _isLoadingEntries = true;
-    print('⏱️ Loading time entries...');
-
     try {
       if (databaseService != null) {
         final loadedEntries = await databaseService!.loadTimeEntries();
@@ -94,7 +87,6 @@ class TimeEntriesProvider extends BaseProvider {
         );
 
         if (currentEntriesJson != loadedEntriesJson) {
-          print('⏱️ New time entries loaded, updating');
           timeEntries = loadedEntries;
 
           // Only calculate if we have entries
@@ -840,12 +832,9 @@ class TimeEntriesProvider extends BaseProvider {
         // First, check if this is for a shared job
         final jobsProvider = _jobsProvider;
         if (jobsProvider != null) {
-          final job = jobsProvider.jobs.firstWhere(
-            (j) => j.id == entry.jobId,
-            orElse: () => Job(id: '', name: '', color: Colors.grey),
-          );
+          final job = await _jobsProvider?.getJobById(entry.jobId);
 
-          if (job.id.isNotEmpty && job.isShared) {
+          if (job != null && job.isShared) {
             print('Saving time entry for shared job: ${job.id}');
           }
         }
@@ -1021,49 +1010,97 @@ class TimeEntriesProvider extends BaseProvider {
     await saveTimeEntriesToLocalStorage();
   }
 
-  Future<void> addTimeEntry(
-    Job job,
-    DateTime startTime,
-    DateTime endTime,
-    String? description,
-  ) async {
+  Future<void> addSharedTimeEntry(TimeEntry entry, BuildContext context) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Get user data to include the name
-      String? userName;
-      if (databaseService != null) {
-        final userData = await databaseService!.getUserData(user.uid);
-        userName = userData?['name'] ?? user.displayName;
-      }
-
-      final duration = endTime.difference(startTime);
-      final entry = TimeEntry(
-        jobId: job.id,
-        jobName: job.name,
-        jobColor: job.color,
-        clockInTime: startTime,
-        clockOutTime: endTime,
-        duration: duration,
-        description: description,
-        userId: user.uid,
-        userName: userName, // Include the user's name
-      );
-
+      // Add to local list
       timeEntries.add(entry);
-      notifyListeners();
 
-      // Save to Firebase
+      // Sort entries by start time (newest first)
+      timeEntries.sort((a, b) => b.startTime.compareTo(a.startTime));
+
+      // Save to user's collection
       if (databaseService != null) {
         await databaseService!.saveTimeEntry(entry);
       }
 
+      // If this entry is for a shared job, also save to the shared job's entries collection
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+
+      final job = await _jobsProvider?.getJobById(entry.jobId);
+
+      if (job != null && job.isShared) {
+        await saveTimeEntryToSharedJob(entry, job);
+      }
+
       // Save to local storage
       await saveTimeEntriesToLocalStorage();
+
+      notifyListeners();
     } catch (e) {
       print('Error adding time entry: $e');
-      rethrow;
+    }
+  }
+
+  // Add this method to save a time entry to a shared job's entries collection
+  Future<void> saveTimeEntryToSharedJob(TimeEntry entry, Job job) async {
+    try {
+      if (!job.isShared || job.connectionCode == null) {
+        return; // Only proceed for shared jobs with a connection code
+      }
+
+      print('📝 Saving time entry to shared job: ${job.name}');
+
+      // Create a copy of the entry with additional metadata
+      final sharedEntry = {
+        ...entry.toJson(),
+        'userId': FirebaseAuth.instance.currentUser?.uid,
+        'userName':
+            FirebaseAuth.instance.currentUser?.displayName ?? 'Unknown User',
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      // Save to the shared job's entries collection
+      await FirebaseFirestore.instance
+          .collection('sharedJobs')
+          .doc(job.connectionCode)
+          .collection('entries')
+          .doc(entry.id)
+          .set(sharedEntry);
+
+      print('✅ Time entry saved to shared job successfully');
+    } catch (e) {
+      print('❌ Error saving time entry to shared job: $e');
+    }
+  }
+
+  // Add this method to fetch all time entries for a shared job
+  Future<List<TimeEntry>> fetchSharedJobTimeEntries(Job job) async {
+    if (!job.isShared || job.connectionCode == null) {
+      return [];
+    }
+
+    try {
+      print('🔍 Fetching time entries for shared job: ${job.name}');
+
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(job.connectionCode)
+              .collection('entries')
+              .orderBy('startTime', descending: true)
+              .get();
+
+      final entries =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return TimeEntry.fromJson(data);
+          }).toList();
+
+      print('✅ Fetched ${entries.length} time entries for shared job');
+      return entries;
+    } catch (e) {
+      print('❌ Error fetching shared job time entries: $e');
+      return [];
     }
   }
 
@@ -1104,62 +1141,168 @@ class TimeEntriesProvider extends BaseProvider {
     }
   }
 
-  // When creating a time entry from clock in/out
-  Future<void> createTimeEntryFromClockIn() async {
-    if (clockInTime == null || clockOutTime == null || selectedJob == null) {
-      print('⚠️ Cannot create time entry: missing required data');
-      return;
-    }
-
+  // Update the addTimeEntry method to directly save to the shared job's entries collection
+  Future<bool> addTimeEntry(TimeEntry entry) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      print(
-        '👤 Current user: ${user?.uid}, displayName: ${user?.displayName}, email: ${user?.email}',
-      );
+      print('⏱️ Adding time entry: ${entry.id} for job: ${entry.jobId}');
 
-      if (user == null) {
-        print('❌ No authenticated user found');
-        return;
+      // Add to user's entries
+      await databaseService?.saveTimeEntry(entry);
+
+      // If this is a shared job, also add to shared job entries
+      if (_jobsProvider != null) {
+        // Get the job details
+        final job = await _jobsProvider!.getJobById(entry.jobId);
+
+        if (job != null && job.isShared && job.connectionCode != null) {
+          print(
+            '🔑 Found shared job with connection code: ${job.connectionCode}',
+          );
+
+          // Get current user info for the shared entry
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            // Get user name if not already set
+            String userName = entry.userName ?? '';
+            if (userName.isEmpty) {
+              final userData = await databaseService?.getUserData(user.uid);
+              userName = userData?['name'] ?? 'Unknown User';
+            }
+
+            // Create shared entry data
+            final sharedEntryData = {
+              ...entry.toJson(),
+              'userId': user.uid,
+              'userName': userName,
+              'timestamp': FieldValue.serverTimestamp(),
+            };
+
+            print(
+              '📝 Saving to shared job entries collection: sharedJobs/${job.connectionCode}/entries/${entry.id}',
+            );
+
+            // Use the connection code instead of the job ID
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(job.connectionCode)
+                .collection('entries')
+                .doc(entry.id)
+                .set(sharedEntryData);
+
+            print(
+              '✅ Successfully saved entry to shared job: ${job.connectionCode}',
+            );
+          }
+        }
       }
 
-      // Get the user's name from their profile
-      String? userName;
-      if (databaseService != null) {
-        print('🔍 Getting user data for ${user.uid}');
-        final userData = await databaseService!.getUserData(user.uid);
-        print('📄 User data retrieved: $userData');
-        userName = userData?['name']; // Get name from user document
-        print('👤 Using userName: $userName');
-      } else {
-        print('⚠️ Database service is null');
-      }
+      // Refresh entries
+      await loadTimeEntries();
 
-      final duration = clockOutTime!.difference(clockInTime!);
-      final entry = TimeEntry(
-        jobId: selectedJob!.id,
-        jobName: selectedJob!.name,
-        jobColor: selectedJob!.color,
-        clockInTime: clockInTime!,
-        clockOutTime: clockOutTime!,
-        duration: duration,
-        description: descriptionController.text.trim(),
-        userId: user.uid,
-        userName: userName, // Include the user's name
-      );
-
-      timeEntries.add(entry);
-
-      // Save to Firebase
-      if (databaseService != null) {
-        await databaseService!.saveTimeEntry(entry);
-      }
-
-      // Save to local storage
-      await saveTimeEntriesToLocalStorage();
-
-      notifyListeners();
+      return true;
     } catch (e) {
-      print('Error creating time entry: $e');
+      print('❌ Error adding time entry: $e');
+      return false;
+    }
+  }
+
+  // Add this new method to directly save to the shared job collection
+  Future<bool> saveSharedJobEntry(
+    TimeEntry entry,
+    String connectionCode,
+  ) async {
+    try {
+      print(
+        'DIRECT SAVE: Saving entry to shared job with code: $connectionCode',
+      );
+
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('DIRECT SAVE: No user logged in');
+        return false;
+      }
+
+      // Get user name
+      String userName = 'Unknown User';
+      try {
+        final userDoc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get();
+
+        if (userDoc.exists && userDoc.data()?['name'] != null) {
+          userName = userDoc.data()?['name'];
+        }
+      } catch (e) {
+        print('DIRECT SAVE: Error getting user name: $e');
+      }
+
+      // Create entry data
+      final entryData = {
+        'id': entry.id,
+        'jobId': entry.jobId,
+        'jobName': entry.jobName,
+        'jobColor': entry.jobColor.value,
+        'clockInTime': entry.clockInTime.toIso8601String(),
+        'clockOutTime': entry.clockOutTime.toIso8601String(),
+        'duration': entry.duration.inMinutes,
+        'description': entry.description ?? '',
+        'date': entry.date,
+        'userId': user.uid,
+        'userName': userName,
+        'timestamp': FieldValue.serverTimestamp(),
+      };
+
+      print('DIRECT SAVE: Entry data prepared');
+      print(
+        'DIRECT SAVE: Writing to path: sharedJobs/$connectionCode/entries/${entry.id}',
+      );
+
+      // Directly write to Firestore
+      await FirebaseFirestore.instance
+          .collection('sharedJobs')
+          .doc(connectionCode)
+          .collection('entries')
+          .doc(entry.id)
+          .set(entryData);
+
+      print('DIRECT SAVE: Successfully saved entry to shared job');
+      return true;
+    } catch (e) {
+      print('DIRECT SAVE: Error saving entry: $e');
+      return false;
+    }
+  }
+
+  // Add this method to test if we can write to Firestore at all
+  Future<bool> testFirestoreWrite(
+    TimeEntry entry,
+    String connectionCode,
+  ) async {
+    try {
+      print('TEST WRITE: Starting test write');
+
+      // Create a simple test document
+      final testData = {
+        'testId': entry.id,
+        'jobName': entry.jobName,
+        'timestamp': FieldValue.serverTimestamp(),
+        'testField': 'This is a test entry',
+      };
+
+      // Write to a test collection
+      await FirebaseFirestore.instance
+          .collection('testCollection')
+          .doc(entry.id)
+          .set(testData);
+
+      print('TEST WRITE: Successfully wrote test document');
+      return true;
+    } catch (e) {
+      print('TEST WRITE: Error writing test document: $e');
+      return false;
     }
   }
 }

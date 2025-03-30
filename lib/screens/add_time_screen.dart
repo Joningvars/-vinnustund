@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/models/job.dart';
+import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
 
-class AddTimeScreen extends StatelessWidget {
+class AddTimeScreen extends StatefulWidget {
   const AddTimeScreen({super.key});
 
+  @override
+  State<AddTimeScreen> createState() => _AddTimeScreenState();
+}
+
+class _AddTimeScreenState extends State<AddTimeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TimeEntriesProvider>(context);
@@ -571,7 +577,12 @@ class AddTimeScreen extends StatelessWidget {
     );
   }
 
-  void _submitTimeEntry(BuildContext context, TimeEntriesProvider provider) {
+  void _submitTimeEntry(
+    BuildContext context,
+    TimeEntriesProvider provider,
+  ) async {
+    print('🕒 Submitting time entry...');
+
     if (provider.selectedJob == null) {
       // Show a message to select a job
       ScaffoldMessenger.of(context).showSnackBar(
@@ -607,24 +618,61 @@ class AddTimeScreen extends StatelessWidget {
     final adjustedEnd =
         end.isBefore(start) ? end.add(const Duration(days: 1)) : end;
 
-    // Add the time entry
-    provider.addManualTimeEntry(
-      context,
-      start,
-      adjustedEnd,
-      provider.descriptionController.text,
+    // Create time entry
+    final entry = TimeEntry(
+      jobId: provider.selectedJob!.id,
+      jobName: provider.selectedJob!.name,
+      jobColor: provider.selectedJob!.color,
+      clockInTime: start,
+      clockOutTime: adjustedEnd,
+      duration: adjustedEnd.difference(start),
+      description: provider.descriptionController.text,
     );
 
-    // Reset form
-    provider.descriptionController.clear();
+    // Save to user's entries
+    final success = await provider.addTimeEntry(entry);
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(provider.translate('timeEntryAdded')),
-        backgroundColor: Colors.green,
-      ),
-    );
+    // If the job is shared, also try both direct methods
+    if (success &&
+        provider.selectedJob!.isShared &&
+        provider.selectedJob!.connectionCode != null) {
+      // Try the direct save method
+      final directSaveResult = await provider.saveSharedJobEntry(
+        entry,
+        provider.selectedJob!.connectionCode!,
+      );
+      print('Direct save result: $directSaveResult');
+
+      // Try the test write method
+      final testWriteResult = await provider.testFirestoreWrite(
+        entry,
+        provider.selectedJob!.connectionCode!,
+      );
+      print('Test write result: $testWriteResult');
+    }
+
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(provider.translate('timeEntryAdded')),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Reset form
+        provider.descriptionController.clear();
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding time entry'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
 
     // Navigate to home screen and update the UI
     provider.calculateHoursWorkedThisWeek();

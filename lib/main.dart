@@ -72,6 +72,10 @@ void main() async {
   timeEntriesProvider.setSettingsProvider(settingsProvider);
   timeEntriesProvider.setJobsProvider(jobsProvider);
 
+  // Add this debug print
+  print('🔄 Providers initialized and connected');
+  print('🔄 JobsProvider has ${jobsProvider.jobs.length} jobs');
+
   runApp(
     MultiProvider(
       providers: [

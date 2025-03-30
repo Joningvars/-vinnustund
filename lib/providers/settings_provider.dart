@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:timagatt/providers/base_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timagatt/main.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SettingsProvider extends BaseProvider {
@@ -168,7 +167,6 @@ class SettingsProvider extends BaseProvider {
       'startDate': 'Start Date',
       'endDate': 'End Date',
       'quickSelect': 'Quick Select',
-      'today': 'Today',
       'thisWeek': 'This Week',
       'thisMonth': 'This Month',
       'export': 'Export',
@@ -180,8 +178,8 @@ class SettingsProvider extends BaseProvider {
       'publicJob': 'Public Job',
       'publicJobDescription': 'Anyone with the code can join this job',
       'privateJob': 'Private Job',
-      'privateJobDescription': 'Only invited users can join this job',
-      'joinRequestSent': 'Join request sent',
+      'privateJobDescription': 'Only users you approve can join this job',
+      'joinRequestSent': 'Join request sent to job owner',
       'joinRequestPending': 'Your request to join this job is pending',
       'approveRequest': 'Approve',
       'denyRequest': 'Deny',
@@ -416,7 +414,7 @@ class SettingsProvider extends BaseProvider {
       'privateJob': 'Lokað verkefni',
       'privateJobDescription':
           'Notendur þurfa að biðja um leyfi til að tengjast',
-      'joinRequestSent': 'Beiðni um aðgang send',
+      'joinRequestSent': 'Beiðni um að tengjast send til eiganda',
       'joinRequestPending':
           'Beiðni þín um að tengjast þessu verkefni er í vinnslu',
       'approveRequest': 'Samþykkja',
