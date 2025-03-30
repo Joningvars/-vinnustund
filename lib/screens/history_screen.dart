@@ -92,6 +92,225 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Future<void> _showEditEntryDialog(
+    BuildContext context,
+    TimeEntry entry,
+  ) async {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+    final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+
+    // Create controllers for the form fields
+    final startTimeController = TextEditingController(
+      text: timeEntriesProvider.formatTime(entry.clockInTime),
+    );
+    final endTimeController = TextEditingController(
+      text: timeEntriesProvider.formatTime(entry.clockOutTime),
+    );
+    final descriptionController = TextEditingController(
+      text: entry.description ?? '',
+    );
+
+    // Create a copy of the entry to modify
+    TimeEntry updatedEntry = entry;
+    String? selectedJobId = entry.jobId;
+    Job? selectedJob = jobsProvider.jobs.firstWhere(
+      (job) => job.id == selectedJobId,
+      orElse:
+          () => Job(
+            id: entry.jobId,
+            name: entry.jobName,
+            color: entry.jobColor,
+            isShared: false,
+            isPublic: true,
+            connectionCode: null,
+            creatorId: null,
+            connectedUsers: null,
+          ),
+    );
+
+    // Get unique jobs for the dropdown
+    final uniqueJobs =
+        jobsProvider.jobs.where((job) => job.id == selectedJobId).toList();
+    if (uniqueJobs.isEmpty) {
+      uniqueJobs.add(selectedJob!);
+    }
+
+    await showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(timeEntriesProvider.translate('editEntry')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Job selection
+                  StyledDropdown<String>(
+                    value: selectedJobId,
+                    onChanged: (String? newValue) {
+                      selectedJobId = newValue;
+                      selectedJob = uniqueJobs.firstWhere(
+                        (job) => job.id == newValue,
+                        orElse: () => selectedJob!,
+                      );
+                    },
+                    items:
+                        uniqueJobs.map<DropdownMenuItem<String>>((Job job) {
+                          return DropdownMenuItem<String>(
+                            value: job.id,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: job.color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(job.name),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Start time
+                  TextField(
+                    controller: startTimeController,
+                    decoration: InputDecoration(
+                      labelText: timeEntriesProvider.translate('startTime'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(entry.clockInTime),
+                      );
+                      if (time != null) {
+                        final now = DateTime.now();
+                        final newDateTime = DateTime(
+                          now.year,
+                          now.month,
+                          now.day,
+                          time.hour,
+                          time.minute,
+                        );
+                        startTimeController.text = timeEntriesProvider
+                            .formatTime(newDateTime);
+                        updatedEntry = TimeEntry(
+                          id: entry.id,
+                          jobId: selectedJobId ?? entry.jobId,
+                          jobName: selectedJob?.name ?? entry.jobName,
+                          jobColor: selectedJob?.color ?? entry.jobColor,
+                          clockInTime: newDateTime,
+                          clockOutTime: entry.clockOutTime,
+                          duration: entry.clockOutTime.difference(newDateTime),
+                          description: entry.description,
+                          date: newDateTime,
+                          userId: entry.userId,
+                          userName: entry.userName,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // End time
+                  TextField(
+                    controller: endTimeController,
+                    decoration: InputDecoration(
+                      labelText: timeEntriesProvider.translate('endTime'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(entry.clockOutTime),
+                      );
+                      if (time != null) {
+                        final now = DateTime.now();
+                        final newDateTime = DateTime(
+                          now.year,
+                          now.month,
+                          now.day,
+                          time.hour,
+                          time.minute,
+                        );
+                        endTimeController.text = timeEntriesProvider.formatTime(
+                          newDateTime,
+                        );
+                        updatedEntry = TimeEntry(
+                          id: entry.id,
+                          jobId: selectedJobId ?? entry.jobId,
+                          jobName: selectedJob?.name ?? entry.jobName,
+                          jobColor: selectedJob?.color ?? entry.jobColor,
+                          clockInTime: updatedEntry.clockInTime,
+                          clockOutTime: newDateTime,
+                          duration: newDateTime.difference(
+                            updatedEntry.clockInTime,
+                          ),
+                          description: entry.description,
+                          date: entry.date,
+                          userId: entry.userId,
+                          userName: entry.userName,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      labelText: timeEntriesProvider.translate('description'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    onChanged: (value) {
+                      updatedEntry = TimeEntry(
+                        id: entry.id,
+                        jobId: selectedJobId ?? entry.jobId,
+                        jobName: selectedJob?.name ?? entry.jobName,
+                        jobColor: selectedJob?.color ?? entry.jobColor,
+                        clockInTime: updatedEntry.clockInTime,
+                        clockOutTime: updatedEntry.clockOutTime,
+                        duration: updatedEntry.duration,
+                        description: value,
+                        date: entry.date,
+                        userId: entry.userId,
+                        userName: entry.userName,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(timeEntriesProvider.translate('cancel')),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await timeEntriesProvider.updateTimeEntry(updatedEntry);
+                  Navigator.pop(context);
+                },
+                child: Text(timeEntriesProvider.translate('save')),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
@@ -297,161 +516,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                                 // Time entries for this date - same card design as home page
                                 ...dateEntries.map((entry) {
-                                  return Dismissible(
-                                    key: Key(entry.id),
-                                    direction: DismissDirection.endToStart,
-                                    background: Container(
-                                      alignment: Alignment.centerRight,
-                                      padding: const EdgeInsets.only(right: 20),
-                                      color: Colors.red,
-                                      child: const Icon(
-                                        Icons.delete,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    confirmDismiss: (direction) async {
-                                      return await showDialog(
-                                        context: context,
-                                        builder:
-                                            (context) => Dialog(
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              child: Padding(
-                                                padding: const EdgeInsets.all(
-                                                  20.0,
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: InkWell(
+                                      onTap: () {
+                                        print(
+                                          'Card tapped for entry: ${entry.id}',
+                                        );
+                                        _showEditEntryDialog(context, entry);
+                                      },
+                                      onLongPress: () {
+                                        print(
+                                          'Card long pressed for entry: ${entry.id}',
+                                        );
+                                        showDialog(
+                                          context: context,
+                                          builder:
+                                              (context) => AlertDialog(
+                                                title: Text(
+                                                  timeEntriesProvider.translate(
+                                                    'deleteEntry',
+                                                  ),
                                                 ),
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.delete_outline,
-                                                      color: Colors.red,
-                                                      size: 48,
-                                                    ),
-                                                    const SizedBox(height: 16),
-                                                    Text(
-                                                      timeEntriesProvider
-                                                          .translate(
-                                                            'deleteEntry',
-                                                          ),
-                                                      style: const TextStyle(
-                                                        fontSize: 20,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Text(
-                                                      timeEntriesProvider
-                                                          .translate(
-                                                            'deleteEntryConfirm',
-                                                          ),
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: TextStyle(
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 24),
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceEvenly,
-                                                      children: [
-                                                        Expanded(
-                                                          child: OutlinedButton(
-                                                            onPressed:
-                                                                () =>
-                                                                    Navigator.of(
-                                                                      context,
-                                                                    ).pop(
-                                                                      false,
-                                                                    ),
-                                                            style: OutlinedButton.styleFrom(
-                                                              side: BorderSide(
-                                                                color:
-                                                                    Colors
-                                                                        .grey
-                                                                        .shade300,
-                                                              ),
-                                                              shape: RoundedRectangleBorder(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      8,
-                                                                    ),
-                                                              ),
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    vertical:
-                                                                        12,
-                                                                  ),
-                                                            ),
-                                                            child: Text(
-                                                              timeEntriesProvider
-                                                                  .translate(
-                                                                    'cancel',
-                                                                  ),
-                                                              style: TextStyle(
-                                                                color:
-                                                                    Colors
-                                                                        .grey[700],
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 16,
-                                                        ),
-                                                        Expanded(
-                                                          child: ElevatedButton(
-                                                            onPressed:
-                                                                () =>
-                                                                    Navigator.of(
-                                                                      context,
-                                                                    ).pop(true),
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor:
-                                                                  Colors.red,
-                                                              foregroundColor:
-                                                                  Colors.white,
-                                                              shape: RoundedRectangleBorder(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      8,
-                                                                    ),
-                                                              ),
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    vertical:
-                                                                        12,
-                                                                  ),
-                                                            ),
-                                                            child: Text(
-                                                              timeEntriesProvider
-                                                                  .translate(
-                                                                    'delete',
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
+                                                content: Text(
+                                                  timeEntriesProvider.translate(
+                                                    'deleteEntryConfirm',
+                                                  ),
                                                 ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.pop(
+                                                          context,
+                                                        ),
+                                                    child: Text(
+                                                      timeEntriesProvider
+                                                          .translate('cancel'),
+                                                    ),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      timeEntriesProvider
+                                                          .deleteTimeEntry(
+                                                            entry.id,
+                                                          );
+                                                      Navigator.pop(context);
+                                                    },
+                                                    child: Text(
+                                                      timeEntriesProvider
+                                                          .translate('delete'),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                      );
-                                    },
-                                    onDismissed: (direction) {
-                                      timeEntriesProvider.deleteTimeEntry(
-                                        entry.id,
-                                      );
-                                    },
-                                    child: Card(
-                                      margin: const EdgeInsets.only(bottom: 8),
+                                        );
+                                      },
                                       child: Padding(
                                         padding: const EdgeInsets.all(12.0),
                                         child: Column(

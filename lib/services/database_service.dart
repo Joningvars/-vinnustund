@@ -8,10 +8,16 @@ import 'package:flutter/material.dart';
 import 'package:timagatt/models/expense.dart';
 
 class DatabaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
   final String uid;
 
-  DatabaseService({required this.uid});
+  DatabaseService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    required this.uid,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance;
 
   // Collection references
   CollectionReference get userCollection => _firestore.collection('users');
@@ -1001,17 +1007,28 @@ class DatabaseService {
   }
 
   Future<void> updateTimeEntry(TimeEntry entry) async {
-    if (currentUser == null) {
-      throw Exception('User not authenticated');
-    }
-
     try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Update in user's collection
       await _firestore
           .collection('users')
-          .doc(entry.userId ?? currentUser!.uid)
+          .doc(user.uid)
           .collection('timeEntries')
           .doc(entry.id)
           .update(entry.toJson());
+
+      // If this is a shared job entry, also update in the shared job's collection
+      final job = await getJobById(entry.jobId);
+      if (job != null && job.isShared) {
+        await _firestore
+            .collection('sharedJobs')
+            .doc(job.connectionCode)
+            .collection('timeEntries')
+            .doc(entry.id)
+            .update(entry.toJson());
+      }
     } catch (e) {
       print('Error updating time entry: $e');
       rethrow;
@@ -1271,6 +1288,39 @@ class DatabaseService {
     } catch (e) {
       debugPrint('Error getting time entries: $e');
       return [];
+    }
+  }
+
+  Future<Job?> getJobById(String jobId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      // First check user's jobs
+      final userJobDoc =
+          await _firestore
+              .collection('users')
+              .doc(user.uid)
+              .collection('jobs')
+              .doc(jobId)
+              .get();
+
+      if (userJobDoc.exists) {
+        return Job.fromFirestore(userJobDoc);
+      }
+
+      // Then check shared jobs
+      final sharedJobDoc =
+          await _firestore.collection('sharedJobs').doc(jobId).get();
+
+      if (sharedJobDoc.exists) {
+        return Job.fromFirestore(sharedJobDoc);
+      }
+
+      return null;
+    } catch (e) {
+      print('Error getting job by ID: $e');
+      return null;
     }
   }
 }

@@ -1020,43 +1020,29 @@ class TimeEntriesProvider extends BaseProvider {
 
   // Add this method to update an existing time entry
   Future<void> updateTimeEntry(TimeEntry updatedEntry) async {
-    // Find and update the entry in the local list
-    final index = timeEntries.indexWhere((e) => e.id == updatedEntry.id);
-    if (index >= 0) {
-      // Preserve the userName if it exists in the original entry
-      final existingUserName = timeEntries[index].userName;
-      if (existingUserName != null && updatedEntry.userName == null) {
-        updatedEntry = TimeEntry(
-          id: updatedEntry.id,
-          jobId: updatedEntry.jobId,
-          jobName: updatedEntry.jobName,
-          jobColor: updatedEntry.jobColor,
-          clockInTime: updatedEntry.clockInTime,
-          clockOutTime: updatedEntry.clockOutTime,
-          duration: updatedEntry.duration,
-          description: updatedEntry.description,
-          userId: updatedEntry.userId,
-          userName: existingUserName,
-          date: updatedEntry.clockInTime,
-        );
-      }
-
+    // Find and replace the entry in the local list
+    final index = timeEntries.indexWhere(
+      (entry) => entry.id == updatedEntry.id,
+    );
+    if (index != -1) {
       timeEntries[index] = updatedEntry;
-      notifyListeners();
     }
 
-    // Update in Firebase
+    // Update in Firebase if available
     if (databaseService != null) {
       try {
         await databaseService!.updateTimeEntry(updatedEntry);
       } catch (e) {
-        print('Error updating time entry: $e');
-        rethrow;
+        print('Error updating time entry in Firebase: $e');
       }
     }
 
-    // Update in local storage
+    // Always save to local storage
     await saveTimeEntriesToLocalStorage();
+
+    // Update calculations
+    calculateHoursWorkedThisWeek();
+    notifyListeners();
   }
 
   Future<void> addSharedTimeEntry(TimeEntry entry, BuildContext context) async {
