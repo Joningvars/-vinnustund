@@ -7,6 +7,7 @@ import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
+import 'package:timagatt/widgets/common/styled_dropdown.dart';
 
 class AddTimeScreen extends StatefulWidget {
   const AddTimeScreen({super.key});
@@ -72,54 +73,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<Job>(
-                        value: allJobs.firstWhere(
-                          (job) =>
-                              job.id ==
-                              (provider.selectedJob?.id ?? allJobs.first.id),
-                          orElse: () => allJobs.first,
-                        ),
-                        onChanged: (Job? newValue) {
-                          if (newValue != null) {
-                            provider.setSelectedJob(newValue);
-                          }
-                        },
-                        items:
-                            allJobs.map<DropdownMenuItem<Job>>((Job job) {
-                              return DropdownMenuItem<Job>(
-                                value: job,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 16,
-                                      height: 16,
-                                      decoration: BoxDecoration(
-                                        color: job.color,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(job.name),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null) {
-                            return provider.translate('selectJobError');
-                          }
-                          return null;
-                        },
-                      ),
+                      _buildJobSelector(context),
                     ],
                   ),
                 ),
@@ -757,6 +711,47 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildJobSelector(BuildContext context) {
+    final jobsProvider = Provider.of<JobsProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+
+    // Combine regular and shared jobs for selection
+    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+
+    return StyledDropdown<Job>(
+      value:
+          timeEntriesProvider.selectedJob ??
+          (allJobs.isNotEmpty ? allJobs.first : null),
+      onChanged: (Job? newValue) {
+        if (newValue != null) {
+          timeEntriesProvider.selectedJob = newValue;
+          jobsProvider.setSelectedJob(newValue);
+        }
+      },
+      items:
+          allJobs.map<DropdownMenuItem<Job>>((Job job) {
+            return DropdownMenuItem<Job>(
+              key: ValueKey(job.id),
+              value: job,
+              child: Row(
+                children: [
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: job.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(job.name),
+                ],
+              ),
+            );
+          }).toList(),
     );
   }
 }

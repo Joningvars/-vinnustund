@@ -11,6 +11,8 @@ import '../widgets/time_entry_card.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../widgets/common/styled_dropdown.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -32,13 +34,21 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   String? _selectedUserId;
   List<String> _userIds = [];
   List<String> _userNames = [];
-  bool _isEditing = false;
-  List<TimeEntry> _entriesToDelete = [];
+
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // Add listener to track tab changes
+    _tabController.addListener(() {
+      setState(() {}); // Force rebuild when tab changes
+    });
+
     _loadData();
   }
 
@@ -97,6 +107,40 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         start: _startDate ?? DateTime.now().subtract(const Duration(days: 30)),
         end: _endDate ?? DateTime.now(),
       ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            datePickerTheme: DatePickerThemeData(
+              backgroundColor: const Color(0xFF1E1E1E),
+              headerBackgroundColor: Colors.blue,
+              headerForegroundColor: Colors.white,
+              dayStyle: const TextStyle(color: Colors.white),
+              yearStyle: const TextStyle(color: Colors.white),
+              todayBackgroundColor: MaterialStateProperty.all(
+                Colors.blue.withOpacity(0.2),
+              ),
+              todayForegroundColor: MaterialStateProperty.all(Colors.white),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            dialogBackgroundColor: const Color(0xFF1E1E1E),
+            dialogTheme: DialogTheme(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 0,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -108,132 +152,276 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   }
 
   Future<void> _addExpense() async {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
     final TextEditingController descriptionController = TextEditingController();
     final TextEditingController amountController = TextEditingController();
     DateTime selectedDate = DateTime.now();
 
-    await showDialog(
+    final result = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            title: Text(
-              Provider.of<TimeEntriesProvider>(context).translate('addExpense'),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: Provider.of<TimeEntriesProvider>(
-                      context,
-                    ).translate('description'),
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => Dialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ),
-                TextField(
-                  controller: amountController,
-                  decoration: InputDecoration(
-                    labelText: Provider.of<TimeEntriesProvider>(
-                      context,
-                    ).translate('amount'),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                ListTile(
-                  title: Text(
-                    Provider.of<TimeEntriesProvider>(context).translate('date'),
-                  ),
-                  subtitle: Text(DateFormat.yMMMd().format(selectedDate)),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                    );
-                    if (date != null) {
-                      selectedDate = date;
-                    }
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  Provider.of<TimeEntriesProvider>(context).translate('cancel'),
-                ),
-              ),
-              TextButton(
-                onPressed: () async {
-                  if (descriptionController.text.isNotEmpty &&
-                      amountController.text.isNotEmpty) {
-                    final currentUser = FirebaseAuth.instance.currentUser;
-                    final expense = Expense(
-                      id: const Uuid().v4(),
-                      jobId: widget.job.id,
-                      description: descriptionController.text,
-                      amount: double.parse(amountController.text),
-                      date: selectedDate,
-                      userId: currentUser?.uid ?? '',
-                      userName: currentUser?.displayName ?? 'Unknown',
-                    );
-
-                    try {
-                      await Provider.of<ExpensesProvider>(
-                        context,
-                        listen: false,
-                      ).addExpense(expense);
-                      Navigator.pop(context);
-                      _loadData();
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            Provider.of<TimeEntriesProvider>(
-                              context,
-                            ).translate('errorSavingEntry'),
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
                           ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: Text(
-                  Provider.of<TimeEntriesProvider>(context).translate('add'),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Header with icon
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_outlined,
+                              color: Colors.blue.shade700,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Title
+                          Text(
+                            timeEntriesProvider.translate('addExpense'),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Subtitle
+                          Text(
+                            timeEntriesProvider.translate(
+                              'enterExpenseDetails',
+                            ),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Description field
+                          TextField(
+                            controller: descriptionController,
+                            decoration: InputDecoration(
+                              hintText: timeEntriesProvider.translate(
+                                'description',
+                              ),
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Amount field
+                          TextField(
+                            controller: amountController,
+                            decoration: InputDecoration(
+                              hintText: timeEntriesProvider.translate('amount'),
+                              prefixText: 'kr ',
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Date picker
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime.now(),
+                              );
+                              if (date != null) {
+                                setState(() => selectedDate = date);
+                              }
+                            },
+                            icon: const Icon(Icons.calendar_today, size: 18),
+                            label: Text(
+                              DateFormat.yMMMd().format(selectedDate),
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text(
+                                  timeEntriesProvider.translate('cancel'),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  timeEntriesProvider.translate('add'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
           ),
     );
+
+    if (result == true) {
+      final description = descriptionController.text;
+      final amount = double.tryParse(amountController.text) ?? 0.0;
+
+      if (description.isNotEmpty && amount > 0) {
+        // Get the user's display name from Firestore if not available
+        String userName = currentUser.displayName ?? 'Unknown';
+        if (userName == 'Unknown') {
+          final userDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .get();
+          if (userDoc.exists && userDoc.data()?['name'] != null) {
+            userName = userDoc.data()?['name'];
+          }
+        }
+
+        final expense = Expense(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          jobId: widget.job.id,
+          description: description,
+          amount: amount,
+          date: selectedDate,
+          userId: currentUser.uid,
+          userName: userName,
+        );
+
+        try {
+          await Provider.of<ExpensesProvider>(
+            context,
+            listen: false,
+          ).addExpense(expense);
+
+          // Refresh the expenses list
+          final databaseService = Provider.of<DatabaseService>(
+            context,
+            listen: false,
+          );
+          final updatedExpenses = await databaseService.getExpensesForJob(
+            widget.job.id,
+          );
+
+          if (mounted) {
+            setState(() {
+              _expenses = updatedExpenses;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(timeEntriesProvider.translate('expenseAdded')),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  timeEntriesProvider.translate('errorSavingEntry'),
+                ),
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.job.name),
-        actions: [
-          if (widget.job.creatorId == FirebaseAuth.instance.currentUser?.uid)
-            IconButton(
-              icon: Icon(_isEditing ? Icons.check : Icons.edit),
-              onPressed: () {
-                setState(() {
-                  if (_isEditing) {
-                    // Save changes
-                    _deleteSelectedEntries();
-                  }
-                  _isEditing = !_isEditing;
-                  if (!_isEditing) {
-                    _entriesToDelete.clear();
-                  }
-                });
-              },
-            ),
-        ],
+        title: Text(
+          widget.job.name,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 28,
+          ),
+        ),
       ),
+      floatingActionButton:
+          _tabController.index == 1
+              ? FloatingActionButton(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                onPressed: _addExpense,
+                child: const Icon(Icons.add),
+              )
+              : null,
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -241,9 +429,17 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 children: [
                   TabBar(
                     controller: _tabController,
-                    tabs: const [
-                      Tab(text: 'Time Entries'),
-                      Tab(text: 'Expenses'),
+                    tabs: [
+                      Tab(
+                        text: Provider.of<TimeEntriesProvider>(
+                          context,
+                        ).translate('timeEntries'),
+                      ),
+                      Tab(
+                        text: Provider.of<TimeEntriesProvider>(
+                          context,
+                        ).translate('expenses'),
+                      ),
                     ],
                   ),
                   Expanded(
@@ -276,18 +472,39 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectDateRange,
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: Text(
-                    _startDate != null && _endDate != null
-                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
-                        : timeEntriesProvider.translate('selectDateRange'),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
+                child: InkWell(
+                  onTap: _selectDateRange,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardTheme.color,
                       borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _startDate != null && _endDate != null
+                              ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
+                              : timeEntriesProvider.translate(
+                                'selectDateRange',
+                              ),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -295,35 +512,26 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               const SizedBox(width: 8),
               if (_userIds.isNotEmpty)
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: StyledDropdown<String?>(
                     value: _selectedUserId,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    hint: Text(timeEntriesProvider.translate('filterByUser')),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _selectedUserId = value;
+                      });
+                    },
                     items: [
-                      DropdownMenuItem(
+                      DropdownMenuItem<String?>(
                         value: null,
                         child: Text(timeEntriesProvider.translate('allUsers')),
                       ),
                       ..._userIds.asMap().entries.map((entry) {
-                        return DropdownMenuItem(
+                        return DropdownMenuItem<String?>(
                           value: entry.value,
                           child: Text(_userNames[entry.key]),
                         );
                       }),
                     ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedUserId = value;
-                      });
-                    },
+                    hint: timeEntriesProvider.translate('filterByUser'),
                   ),
                 ),
             ],
@@ -335,18 +543,18 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: Theme.of(context).colorScheme.primary,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                timeEntriesProvider.translate('totalHours'),
+                timeEntriesProvider.translate('totalHours') + ':',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
               Text(
@@ -354,7 +562,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             ],
@@ -378,21 +586,31 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                     itemCount: filteredEntries.length,
                     itemBuilder: (context, index) {
                       final entry = filteredEntries[index];
-                      return TimeEntryCard(
-                        entry: entry,
-                        isEditing: _isEditing,
-                        onDelete:
-                            _isEditing
-                                ? () {
-                                  setState(() {
-                                    if (_entriesToDelete.contains(entry)) {
-                                      _entriesToDelete.remove(entry);
-                                    } else {
-                                      _entriesToDelete.add(entry);
-                                    }
-                                  });
-                                }
-                                : null,
+                      final showDateHeader =
+                          index == 0 ||
+                          !isSameDay(
+                            filteredEntries[index - 1].date,
+                            entry.date,
+                          );
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (showDateHeader) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              DateFormat.yMMMd().format(entry.date),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          TimeEntryCard(entry: entry),
+                        ],
                       );
                     },
                   ),
@@ -427,18 +645,39 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectDateRange,
-                  icon: const Icon(Icons.calendar_today, size: 18),
-                  label: Text(
-                    _startDate != null && _endDate != null
-                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
-                        : timeEntriesProvider.translate('selectDateRange'),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
+                child: InkWell(
+                  onTap: _selectDateRange,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardTheme.color,
                       borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _startDate != null && _endDate != null
+                              ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
+                              : timeEntriesProvider.translate(
+                                'selectDateRange',
+                              ),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -446,35 +685,26 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               const SizedBox(width: 8),
               if (_userIds.isNotEmpty)
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: StyledDropdown<String?>(
                     value: _selectedUserId,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    hint: Text(timeEntriesProvider.translate('filterByUser')),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _selectedUserId = value;
+                      });
+                    },
                     items: [
-                      DropdownMenuItem(
+                      DropdownMenuItem<String?>(
                         value: null,
                         child: Text(timeEntriesProvider.translate('allUsers')),
                       ),
                       ..._userIds.asMap().entries.map((entry) {
-                        return DropdownMenuItem(
+                        return DropdownMenuItem<String?>(
                           value: entry.value,
                           child: Text(_userNames[entry.key]),
                         );
                       }),
                     ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedUserId = value;
-                      });
-                    },
+                    hint: timeEntriesProvider.translate('filterByUser'),
                   ),
                 ),
             ],
@@ -486,18 +716,18 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: Theme.of(context).colorScheme.primary,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                timeEntriesProvider.translate('totalExpenses'),
+                timeEntriesProvider.translate('totalExpenses') + ':',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
               Text(
@@ -507,7 +737,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             ],
@@ -531,76 +761,449 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                     itemCount: filteredExpenses.length,
                     itemBuilder: (context, index) {
                       final expense = filteredExpenses[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            expense.description,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
+                      final showDateHeader =
+                          index == 0 ||
+                          !isSameDay(
+                            filteredExpenses[index - 1].date,
+                            expense.date,
+                          );
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (showDateHeader) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              DateFormat.yMMMd().format(expense.date),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            elevation: 0,
+                            color: Theme.of(context).cardTheme.color,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              title: Text(
+                                expense.description,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${expense.userName ?? 'Unknown'}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                              trailing: Text(
+                                formatAmount(expense.amount),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              onTap: () => _editExpense(expense),
+                              onLongPress: () => _deleteExpense(expense),
                             ),
                           ),
-                          subtitle: Text(
-                            '${expense.userName ?? 'Unknown'} - ${DateFormat.yMMMd().format(expense.date)}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13,
-                            ),
-                          ),
-                          trailing: Text(
-                            formatAmount(expense.amount),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          onTap: () {
-                            // TODO: Add edit functionality
-                          },
-                        ),
+                        ],
                       );
                     },
                   ),
-        ),
-
-        // Add expense button
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton.icon(
-            onPressed: _addExpense,
-            icon: const Icon(Icons.add),
-            label: Text(timeEntriesProvider.translate('addExpense')),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
         ),
       ],
     );
   }
 
-  Future<void> _deleteSelectedEntries() async {
-    if (_entriesToDelete.isEmpty) return;
-
+  Future<void> _deleteExpense(Expense expense) async {
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
       context,
       listen: false,
     );
 
-    for (var entry in _entriesToDelete) {
-      await timeEntriesProvider.deleteTimeEntry(entry.id);
-    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardTheme.color,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with icon
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: Colors.red.shade700,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-    setState(() {
-      _entriesToDelete.clear();
-    });
+                  // Title
+                  Text(
+                    timeEntriesProvider.translate('deleteExpense'),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Subtitle
+                  Text(
+                    timeEntriesProvider.translate('deleteExpenseConfirm'),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text(
+                          timeEntriesProvider.translate('cancel'),
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(timeEntriesProvider.translate('delete')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await Provider.of<ExpensesProvider>(
+          context,
+          listen: false,
+        ).deleteExpense(expense.id);
+
+        // Refresh the expenses list
+        final databaseService = Provider.of<DatabaseService>(
+          context,
+          listen: false,
+        );
+        final updatedExpenses = await databaseService.getExpensesForJob(
+          widget.job.id,
+        );
+
+        if (mounted) {
+          setState(() {
+            _expenses = updatedExpenses;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(timeEntriesProvider.translate('expenseDeleted')),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                timeEntriesProvider.translate('errorDeletingExpense'),
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _editExpense(Expense expense) async {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+      context,
+      listen: false,
+    );
+    final TextEditingController descriptionController = TextEditingController(
+      text: expense.description,
+    );
+    final TextEditingController amountController = TextEditingController(
+      text: expense.amount.toString(),
+    );
+    DateTime selectedDate = expense.date;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => Dialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Header with icon
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.edit_outlined,
+                              color: Colors.blue.shade700,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Title
+                          Text(
+                            timeEntriesProvider.translate('editExpense'),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Subtitle
+                          Text(
+                            timeEntriesProvider.translate('editExpenseDetails'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Description field
+                          TextField(
+                            controller: descriptionController,
+                            decoration: InputDecoration(
+                              hintText: timeEntriesProvider.translate(
+                                'description',
+                              ),
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Amount field
+                          TextField(
+                            controller: amountController,
+                            decoration: InputDecoration(
+                              hintText: timeEntriesProvider.translate('amount'),
+                              prefixText: 'kr ',
+                              filled: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Date picker
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime.now(),
+                              );
+                              if (date != null) {
+                                setState(() => selectedDate = date);
+                              }
+                            },
+                            icon: const Icon(Icons.calendar_today, size: 18),
+                            label: Text(
+                              DateFormat.yMMMd().format(selectedDate),
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text(
+                                  timeEntriesProvider.translate('cancel'),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  timeEntriesProvider.translate('save'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+          ),
+    );
+
+    if (result == true) {
+      final description = descriptionController.text;
+      final amount = double.tryParse(amountController.text) ?? 0.0;
+
+      if (description.isNotEmpty && amount > 0) {
+        final updatedExpense = Expense(
+          id: expense.id,
+          jobId: expense.jobId,
+          description: description,
+          amount: amount,
+          date: selectedDate,
+          userId: expense.userId,
+          userName: expense.userName,
+        );
+
+        try {
+          await Provider.of<ExpensesProvider>(
+            context,
+            listen: false,
+          ).updateExpense(updatedExpense);
+
+          // Refresh the expenses list
+          final databaseService = Provider.of<DatabaseService>(
+            context,
+            listen: false,
+          );
+          final updatedExpenses = await databaseService.getExpensesForJob(
+            widget.job.id,
+          );
+
+          if (mounted) {
+            setState(() {
+              _expenses = updatedExpenses;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(timeEntriesProvider.translate('expenseUpdated')),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  timeEntriesProvider.translate('errorUpdatingExpense'),
+                ),
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 }

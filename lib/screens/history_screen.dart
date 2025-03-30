@@ -6,7 +6,9 @@ import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/models/job.dart';
 import 'package:timagatt/screens/export_screen.dart';
+import 'package:timagatt/widgets/common/styled_dropdown.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -233,7 +235,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(height: 8),
 
                     // Job selection - exactly like home page
-                    _buildJobFilter(),
+                    _buildJobFilter(context),
                   ],
                 ),
               ),
@@ -621,92 +623,45 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   // Job filter widget
-  Widget _buildJobFilter() {
+  Widget _buildJobFilter(BuildContext context) {
     final jobsProvider = Provider.of<JobsProvider>(context);
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _buildJobFilterButton(
-            timeEntriesProvider.translate('allJobs'),
-            null,
-            _selectedJobId == null,
-          ),
-          ...jobsProvider.jobs.map((job) {
-            return _buildJobFilterButton(
-              job.name,
-              job.id,
-              _selectedJobId == job.id,
-              job.color,
-            );
-          }),
-        ],
-      ),
-    );
-  }
+    // Combine regular and shared jobs for selection
+    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
-  Widget _buildJobFilterButton(
-    String text,
-    String? jobId,
-    bool isSelected, [
-    Color? jobColor,
-  ]) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedJobId = jobId;
-          });
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color:
-                isSelected
-                    ? (jobColor?.withOpacity(0.2) ??
-                        Theme.of(context).primaryColor.withOpacity(0.1))
-                    : Colors.grey.shade100,
-            border: Border.all(
-              color:
-                  isSelected
-                      ? (jobColor ?? Theme.of(context).primaryColor)
-                      : Colors.grey.shade300,
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (jobColor != null) ...[
+    return StyledDropdown<String?>(
+      value: _selectedJobId,
+      onChanged: (String? newValue) {
+        setState(() {
+          _selectedJobId = newValue;
+        });
+      },
+      items: [
+        DropdownMenuItem<String?>(
+          value: null,
+          child: Text(timeEntriesProvider.translate('allJobs')),
+        ),
+        ...allJobs.map<DropdownMenuItem<String?>>((Job job) {
+          return DropdownMenuItem<String?>(
+            value: job.id,
+            child: Row(
+              children: [
                 Container(
-                  width: 12,
-                  height: 12,
+                  width: 16,
+                  height: 16,
                   decoration: BoxDecoration(
-                    color: jobColor,
+                    color: job.color,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 8),
+                Text(job.name),
               ],
-              Text(
-                text,
-                style: TextStyle(
-                  color:
-                      isSelected
-                          ? (jobColor ?? Theme.of(context).primaryColor)
-                          : Colors.grey.shade700,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 }

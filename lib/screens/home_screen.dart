@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:timagatt/services/pdf_export_service.dart';
 import 'package:intl/intl.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
+import 'package:timagatt/widgets/common/styled_dropdown.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -239,7 +240,7 @@ class HomeScreen extends StatelessWidget {
     // Combine regular and shared jobs for selection
     final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
-    return DropdownButtonFormField<Job>(
+    return StyledDropdown<Job>(
       value:
           timeEntriesProvider.selectedJob ??
           (allJobs.isNotEmpty ? allJobs.first : null),
@@ -270,7 +271,6 @@ class HomeScreen extends StatelessWidget {
               ),
             );
           }).toList(),
-      // ... rest of your dropdown styling
     );
   }
 

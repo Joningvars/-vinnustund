@@ -50,11 +50,11 @@ final darkTheme = ThemeData.dark().copyWith(
     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide.none,
+      borderSide: BorderSide(color: Colors.grey.shade800),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide.none,
+      borderSide: BorderSide(color: Colors.grey.shade800),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
@@ -94,4 +94,27 @@ final darkTheme = ThemeData.dark().copyWith(
     style: TextButton.styleFrom(foregroundColor: primaryBlue),
   ),
   iconTheme: IconThemeData(color: Colors.white),
+  dropdownMenuTheme: DropdownMenuThemeData(
+    menuStyle: MenuStyle(
+      backgroundColor: MaterialStateProperty.all(darkBackground),
+      shape: MaterialStateProperty.all(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      padding: MaterialStateProperty.all(
+        const EdgeInsets.symmetric(vertical: 8),
+      ),
+    ),
+    textStyle: const TextStyle(color: Colors.white),
+  ),
+  datePickerTheme: DatePickerThemeData(
+    backgroundColor: const Color(0xFF1E1E1E),
+    headerBackgroundColor: Colors.blue,
+    headerForegroundColor: Colors.white,
+    dayStyle: const TextStyle(color: Colors.white),
+    yearStyle: const TextStyle(color: Colors.white),
+    todayBackgroundColor: MaterialStateProperty.all(
+      Colors.blue.withOpacity(0.2),
+    ),
+    todayForegroundColor: MaterialStateProperty.all(Colors.white),
+  ),
 );
