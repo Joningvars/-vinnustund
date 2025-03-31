@@ -100,7 +100,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context,
       listen: false,
     );
-    final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
 
     // Create controllers for the form fields
     final startTimeController = TextEditingController(
@@ -115,90 +118,92 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     // Create a copy of the entry to modify
     TimeEntry updatedEntry = entry;
-    String? selectedJobId = entry.jobId;
-    Job? selectedJob = jobsProvider.jobs.firstWhere(
-      (job) => job.id == selectedJobId,
-      orElse:
-          () => Job(
-            id: entry.jobId,
-            name: entry.jobName,
-            color: entry.jobColor,
-            isShared: false,
-            isPublic: true,
-            connectionCode: null,
-            creatorId: null,
-            connectedUsers: null,
-          ),
-    );
-
-    // Get unique jobs for the dropdown
-    final uniqueJobs =
-        jobsProvider.jobs.where((job) => job.id == selectedJobId).toList();
-    if (uniqueJobs.isEmpty) {
-      uniqueJobs.add(selectedJob!);
-    }
 
     await showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: Text(timeEntriesProvider.translate('editEntry')),
-            content: SingleChildScrollView(
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Job selection
-                  StyledDropdown<String>(
-                    value: selectedJobId,
-                    onChanged: (String? newValue) {
-                      selectedJobId = newValue;
-                      selectedJob = uniqueJobs.firstWhere(
-                        (job) => job.id == newValue,
-                        orElse: () => selectedJob!,
-                      );
-                    },
-                    items:
-                        uniqueJobs.map<DropdownMenuItem<String>>((Job job) {
-                          return DropdownMenuItem<String>(
-                            value: job.id,
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: job.color,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(job.name),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.edit_outlined,
+                      color: Colors.blue.shade700,
+                      size: 30,
+                    ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Start time
+                  Text(
+                    timeEntriesProvider.translate('editEntry'),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    timeEntriesProvider.translate('editEntryDescription'),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
                   TextField(
                     controller: startTimeController,
                     decoration: InputDecoration(
                       labelText: timeEntriesProvider.translate('startTime'),
-                      border: const OutlineInputBorder(),
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     ),
                     readOnly: true,
                     onTap: () async {
                       final time = await showTimePicker(
                         context: context,
                         initialTime: TimeOfDay.fromDateTime(entry.clockInTime),
+                        builder: (BuildContext context, Widget? child) {
+                          return MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              alwaysUse24HourFormat:
+                                  settingsProvider.use24HourFormat,
+                            ),
+                            child: child!,
+                          );
+                        },
                       );
                       if (time != null) {
-                        final now = DateTime.now();
                         final newDateTime = DateTime(
-                          now.year,
-                          now.month,
-                          now.day,
+                          entry.clockInTime.year,
+                          entry.clockInTime.month,
+                          entry.clockInTime.day,
                           time.hour,
                           time.minute,
                         );
@@ -206,9 +211,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             .formatTime(newDateTime);
                         updatedEntry = TimeEntry(
                           id: entry.id,
-                          jobId: selectedJobId ?? entry.jobId,
-                          jobName: selectedJob?.name ?? entry.jobName,
-                          jobColor: selectedJob?.color ?? entry.jobColor,
+                          jobId: entry.jobId,
+                          jobName: entry.jobName,
+                          jobColor: entry.jobColor,
                           clockInTime: newDateTime,
                           clockOutTime: entry.clockOutTime,
                           duration: entry.clockOutTime.difference(newDateTime),
@@ -221,26 +226,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // End time
                   TextField(
                     controller: endTimeController,
                     decoration: InputDecoration(
                       labelText: timeEntriesProvider.translate('endTime'),
-                      border: const OutlineInputBorder(),
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     ),
                     readOnly: true,
                     onTap: () async {
                       final time = await showTimePicker(
                         context: context,
                         initialTime: TimeOfDay.fromDateTime(entry.clockOutTime),
+                        builder: (BuildContext context, Widget? child) {
+                          return MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              alwaysUse24HourFormat:
+                                  settingsProvider.use24HourFormat,
+                            ),
+                            child: child!,
+                          );
+                        },
                       );
                       if (time != null) {
-                        final now = DateTime.now();
                         final newDateTime = DateTime(
-                          now.year,
-                          now.month,
-                          now.day,
+                          entry.clockOutTime.year,
+                          entry.clockOutTime.month,
+                          entry.clockOutTime.day,
                           time.hour,
                           time.minute,
                         );
@@ -249,9 +265,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         );
                         updatedEntry = TimeEntry(
                           id: entry.id,
-                          jobId: selectedJobId ?? entry.jobId,
-                          jobName: selectedJob?.name ?? entry.jobName,
-                          jobColor: selectedJob?.color ?? entry.jobColor,
+                          jobId: entry.jobId,
+                          jobName: entry.jobName,
+                          jobColor: entry.jobColor,
                           clockInTime: updatedEntry.clockInTime,
                           clockOutTime: newDateTime,
                           duration: newDateTime.difference(
@@ -266,21 +282,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // Description
                   TextField(
                     controller: descriptionController,
                     decoration: InputDecoration(
                       labelText: timeEntriesProvider.translate('description'),
-                      border: const OutlineInputBorder(),
+                      filled: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     ),
                     maxLines: 3,
                     onChanged: (value) {
                       updatedEntry = TimeEntry(
                         id: entry.id,
-                        jobId: selectedJobId ?? entry.jobId,
-                        jobName: selectedJob?.name ?? entry.jobName,
-                        jobColor: selectedJob?.color ?? entry.jobColor,
+                        jobId: entry.jobId,
+                        jobName: entry.jobName,
+                        jobColor: entry.jobColor,
                         clockInTime: updatedEntry.clockInTime,
                         clockOutTime: updatedEntry.clockOutTime,
                         duration: updatedEntry.duration,
@@ -291,22 +310,45 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     },
                   ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          timeEntriesProvider.translate('cancel'),
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await timeEntriesProvider.updateTimeEntry(
+                            updatedEntry,
+                          );
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(timeEntriesProvider.translate('save')),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(timeEntriesProvider.translate('cancel')),
-              ),
-              TextButton(
-                onPressed: () async {
-                  await timeEntriesProvider.updateTimeEntry(updatedEntry);
-                  Navigator.pop(context);
-                },
-                child: Text(timeEntriesProvider.translate('save')),
-              ),
-            ],
           ),
     );
   }
@@ -532,42 +574,145 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         showDialog(
                                           context: context,
                                           builder:
-                                              (context) => AlertDialog(
-                                                title: Text(
-                                                  timeEntriesProvider.translate(
-                                                    'deleteEntry',
-                                                  ),
+                                              (context) => Dialog(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
                                                 ),
-                                                content: Text(
-                                                  timeEntriesProvider.translate(
-                                                    'deleteEntryConfirm',
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    20.0,
                                                   ),
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed:
-                                                        () => Navigator.pop(
-                                                          context,
+                                                  child: Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.delete_outline,
+                                                        color: Colors.red,
+                                                        size: 48,
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 16,
+                                                      ),
+                                                      Text(
+                                                        timeEntriesProvider
+                                                            .translate(
+                                                              'deleteEntry',
+                                                            ),
+                                                        style: const TextStyle(
+                                                          fontSize: 20,
+                                                          fontWeight:
+                                                              FontWeight.bold,
                                                         ),
-                                                    child: Text(
-                                                      timeEntriesProvider
-                                                          .translate('cancel'),
-                                                    ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        timeEntriesProvider
+                                                            .translate(
+                                                              'deleteEntryConfirm',
+                                                            ),
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        style: TextStyle(
+                                                          color:
+                                                              Colors.grey[700],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 24,
+                                                      ),
+                                                      Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceEvenly,
+                                                        children: [
+                                                          Expanded(
+                                                            child: OutlinedButton(
+                                                              onPressed:
+                                                                  () =>
+                                                                      Navigator.of(
+                                                                        context,
+                                                                      ).pop(
+                                                                        false,
+                                                                      ),
+                                                              style: OutlinedButton.styleFrom(
+                                                                side: BorderSide(
+                                                                  color:
+                                                                      Colors
+                                                                          .grey
+                                                                          .shade300,
+                                                                ),
+                                                                shape: RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      vertical:
+                                                                          12,
+                                                                    ),
+                                                              ),
+                                                              child: Text(
+                                                                timeEntriesProvider
+                                                                    .translate(
+                                                                      'cancel',
+                                                                    ),
+                                                                style: TextStyle(
+                                                                  color:
+                                                                      Colors
+                                                                          .grey[700],
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 16,
+                                                          ),
+                                                          Expanded(
+                                                            child: ElevatedButton(
+                                                              onPressed: () {
+                                                                timeEntriesProvider
+                                                                    .deleteTimeEntry(
+                                                                      entry.id,
+                                                                    );
+                                                                Navigator.pop(
+                                                                  context,
+                                                                );
+                                                              },
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                                foregroundColor:
+                                                                    Colors
+                                                                        .white,
+                                                                shape: RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      vertical:
+                                                                          12,
+                                                                    ),
+                                                              ),
+                                                              child: Text(
+                                                                timeEntriesProvider
+                                                                    .translate(
+                                                                      'delete',
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
                                                   ),
-                                                  TextButton(
-                                                    onPressed: () {
-                                                      timeEntriesProvider
-                                                          .deleteTimeEntry(
-                                                            entry.id,
-                                                          );
-                                                      Navigator.pop(context);
-                                                    },
-                                                    child: Text(
-                                                      timeEntriesProvider
-                                                          .translate('delete'),
-                                                    ),
-                                                  ),
-                                                ],
+                                                ),
                                               ),
                                         );
                                       },

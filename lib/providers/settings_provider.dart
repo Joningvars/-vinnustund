@@ -200,8 +200,8 @@ class SettingsProvider extends BaseProvider {
       'join': 'Join',
       'editJobName': 'Edit Job Name',
       'editJobDescription': 'Edit Job Description',
-      'editEntryDescription': 'Edit Entry Description',
       'editEntry': 'Edit Entry',
+      'editEntryDescription': 'Update time entry details',
       'createJobDescription': 'Create your first job to start tracking time',
       'createFirstJob': 'Create First Job',
       'noJobsYet': 'No jobs yet',
@@ -521,6 +521,8 @@ class SettingsProvider extends BaseProvider {
       'enterExpenseDetails': 'Sláðu inn upplýsingar gjald',
       'amount': 'Upphæð',
       'noExpenses': 'Engin gjöld enn',
+      'editEntry': 'Breyta færslu',
+      'editEntryDescription': 'Uppfæra upplýsingar tímafærslu',
     },
   };
 
@@ -632,6 +634,9 @@ class SettingsProvider extends BaseProvider {
 
   // Theme toggle method
   void toggleTheme() {
+    // Dismiss keyboard before changing theme
+    WidgetsBinding.instance.focusManager.primaryFocus?.unfocus();
+
     if (themeMode == ThemeMode.light) {
       themeMode = ThemeMode.dark;
     } else if (themeMode == ThemeMode.dark) {

@@ -713,7 +713,7 @@ class _JobsScreenState extends State<JobsScreen>
               ),
               title: Text(job.name, style: const TextStyle(fontSize: 16)),
               subtitle: Text(
-                '${totalHours.toStringAsFixed(1)} ${jobsProvider.translate('hours')}',
+                '${totalHours.toStringAsFixed(1)} ${settingsProvider.translate('hours')}',
                 style: const TextStyle(fontSize: 14),
               ),
               trailing: Row(
@@ -724,15 +724,28 @@ class _JobsScreenState extends State<JobsScreen>
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(width: 8),
+                  if (job.creatorId == FirebaseAuth.instance.currentUser?.uid)
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => _editJob(job),
+                      tooltip: jobsProvider.translate('editJob'),
+                    ),
                   const Icon(Icons.chevron_right),
                 ],
               ),
               onTap: () {
-                Navigator.pushNamed(
+                final settingsProvider = Provider.of<SettingsProvider>(
                   context,
-                  '/history',
-                  arguments: {'jobId': job.id},
+                  listen: false,
                 );
+                final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+                  context,
+                  listen: false,
+                );
+                settingsProvider.setSelectedTabIndex(
+                  2,
+                ); // Switch to history tab
+                timeEntriesProvider.selectedJob = job; // Set the selected job
               },
             ),
           ),
@@ -1144,6 +1157,14 @@ class _JobsScreenState extends State<JobsScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     onPressed: () async {
                       if (createJobFormKey.currentState!.validate()) {
                         final name = nameController.text;
@@ -1242,12 +1263,6 @@ class _JobsScreenState extends State<JobsScreen>
                         }
                       }
                     },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
                     child: Text(
                       timeEntriesProvider.translate('createJob'),
                       style: const TextStyle(

@@ -7,11 +7,11 @@ final lightTheme = ThemeData(
     seedColor: Colors.blue,
     brightness: Brightness.light,
   ),
-  scaffoldBackgroundColor: Colors.white,
+  scaffoldBackgroundColor: Colors.grey.shade100,
   textTheme: GoogleFonts.comfortaaTextTheme(),
   cardTheme: CardTheme(
     elevation: 0,
-    color: Colors.grey.shade50,
+    color: Colors.grey.shade200,
     margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
   ),

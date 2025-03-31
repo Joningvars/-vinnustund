@@ -503,12 +503,20 @@ class TimeEntriesProvider extends BaseProvider {
   List<Job> get jobs => _jobsProvider?.jobs ?? [];
 
   // Add formatTime method
-  String formatTime(DateTime dateTime) {
-    final format =
-        _settingsProvider?.use24HourFormat == true
-            ? DateFormat.Hm() // 24-hour format
-            : DateFormat.jm(); // 12-hour format
-    return format.format(dateTime);
+  String formatTime(DateTime time) {
+    final formatter = DateFormat(
+      _settingsProvider?.use24HourFormat == true ? 'HH:mm' : 'hh:mm a',
+    );
+    return formatter.format(time);
+  }
+
+  DateTime parseTime(String timeStr) {
+    final formatter = DateFormat(
+      _settingsProvider?.use24HourFormat == true ? 'HH:mm' : 'hh:mm a',
+    );
+    final now = DateTime.now();
+    final time = formatter.parse(timeStr);
+    return DateTime(now.year, now.month, now.day, time.hour, time.minute);
   }
 
   // Add formatDate method

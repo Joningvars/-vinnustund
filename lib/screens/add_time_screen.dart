@@ -285,7 +285,8 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                 TextFormField(
                   controller: provider.descriptionController,
                   decoration: InputDecoration(
-                    labelText: provider.translate('description'),
+                    filled: true,
+                    fillColor: Theme.of(context).cardTheme.color,
                     hintText: provider.translate('workDescriptionHint'),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
