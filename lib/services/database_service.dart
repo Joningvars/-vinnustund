@@ -222,12 +222,21 @@ class DatabaseService {
       final data = updatedEntry.toJson();
       print('💾 Saving entry with data: $data');
 
+      // Always save to user's collection first
+      await _firestore
+          .collection('users')
+          .doc(updatedEntry.userId ?? user.uid)
+          .collection('timeEntries')
+          .doc(updatedEntry.id)
+          .set(data);
+      print('✅ Time entry saved to user collection: ${entry.id}');
+
       // Check if this is a shared job
       final jobDoc = await jobsCollection.doc(entry.jobId).get();
       if (jobDoc.exists) {
         final jobData = jobDoc.data() as Map<String, dynamic>?;
         if (jobData?['isShared'] ?? false) {
-          // For shared jobs, save only to the shared job's entries collection
+          // For shared jobs, also save to the shared job's entries collection
           final connectionCode = jobData?['connectionCode'];
           if (connectionCode != null) {
             await _firestore
@@ -238,15 +247,6 @@ class DatabaseService {
                 .set(data);
             print('✅ Time entry saved to shared job: ${entry.id}');
           }
-        } else {
-          // For regular jobs, save to the user's timeEntries collection
-          await _firestore
-              .collection('users')
-              .doc(updatedEntry.userId ?? user.uid)
-              .collection('timeEntries')
-              .doc(updatedEntry.id)
-              .set(data);
-          print('✅ Time entry saved to user collection: ${entry.id}');
         }
       }
     } catch (e) {
@@ -271,114 +271,157 @@ class DatabaseService {
   }
 
   // Add methods to handle shared jobs
-  Future<Job?> createSharedJob(Job job) async {
+  Future<Job?> createSharedJob({
+    required String name,
+    required Color color,
+    required bool isPublic,
+  }) async {
     try {
-      // Create the job in Firestore
-      final docRef = await _firestore.collection('shared_jobs').add({
-        'name': job.name,
-        'color': job.color.value,
-        'description': job.description,
-        'isShared': true,
-        'isPublic': job.isPublic,
-        'creatorId': uid,
-        'connectedUsers': [uid],
-        'pendingRequests': [],
+      print('🎯 Creating shared job in Firestore');
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Create a new document in the sharedJobs collection
+      final docRef = await _firestore.collection('sharedJobs').add({
+        'name': name,
+        'color': color.value,
+        'isPublic': isPublic,
+        'creatorId': userId,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Create a new Job with the generated ID
-      final createdJob = Job(
-        id: docRef.id,
-        name: job.name,
-        color: job.color,
-        description: job.description,
+      print('✅ Created shared job with ID: ${docRef.id}');
+
+      // Create a new job in the user's jobs collection
+      final job = Job(
+        id: docRef.id, // Use the Firestore document ID as the job ID
+        name: name,
+        color: color,
         isShared: true,
-        isPublic: job.isPublic,
-        creatorId: uid,
-        connectedUsers: [uid],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        isPublic: isPublic,
+        creatorId: userId,
+        connectedUsers: [userId],
       );
 
-      return createdJob;
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('jobs')
+          .doc(docRef.id)
+          .set(job.toJson());
+
+      print('✅ Added job to user\'s collection');
+      return job;
     } catch (e) {
-      print('Error creating shared job: $e');
-      return null;
+      print('❌ Error creating shared job: $e');
+      rethrow;
     }
   }
 
-  Future<Job?> joinJobByCode(String connectionCode) async {
+  Future<void> joinSharedJob(String connectionCode) async {
     try {
-      // Look up the job in the shared jobs collection
-      final sharedJobDoc =
-          await _firestore.collection('sharedJobs').doc(connectionCode).get();
-
-      if (!sharedJobDoc.exists) {
-        throw Exception('Invalid connection code');
+      print('🎯 Joining shared job with code: $connectionCode');
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
       }
 
-      final sharedJobData = sharedJobDoc.data()!;
-      final jobId = sharedJobData['jobId'];
-      final creatorId = sharedJobData['creatorId'];
-      final isPublic = sharedJobData['isPublic'] ?? true;
+      // Get the shared job document
+      final docRef = _firestore.collection('sharedJobs').doc(connectionCode);
+      final doc = await docRef.get();
 
-      print(
-        'Joining job: isPublic=$isPublic, creatorId=$creatorId, currentUser=$uid',
-      );
-
-      // If the job is private and the user is not the creator
-      if (!isPublic && creatorId != uid) {
-        print('Creating join request for private job');
-        // Create a join request instead of joining directly
-        await _firestore.collection('joinRequests').add({
-          'jobId': jobId,
-          'connectionCode': connectionCode,
-          'requesterId': uid,
-          'creatorId': creatorId,
-          'status': 'pending',
-          'timestamp': FieldValue.serverTimestamp(),
-          'jobName': sharedJobData['name'],
-        });
-
-        throw Exception(
-          'This job is private. A join request has been sent to the creator.',
-        );
+      if (!doc.exists) {
+        throw Exception('Shared job not found');
       }
 
-      // For public jobs or if the user is the creator, proceed as normal
+      final data = doc.data();
+      if (data == null) {
+        throw Exception('Shared job data is null');
+      }
+
+      // Check if the job is public or if the user is already connected
+      if (!data['isPublic'] && !data['connectedUsers'].contains(userId)) {
+        throw Exception('This job is private and you are not connected');
+      }
+
+      // Add the user to the connected users list
+      await docRef.update({
+        'connectedUsers': FieldValue.arrayUnion([userId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create a copy of the job in the user's jobs collection
       final job = Job(
-        id: jobId,
-        name: sharedJobData['name'],
-        color: ui.Color(
-          sharedJobData['color'] is int
-              ? sharedJobData['color']
-              : Colors.blue.value,
-        ),
-        creatorId: creatorId,
-        connectionCode: connectionCode,
+        id: doc.id,
+        name: data['name'],
+        color: Color(data['color']),
         isShared: true,
-        isPublic: isPublic,
+        isPublic: data['isPublic'],
+        creatorId: data['creatorId'],
+        connectedUsers: List<String>.from(data['connectedUsers']),
       );
 
-      // Add this job to the user's jobs collection
-      await jobsCollection.doc(job.id).set(job.toJson());
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('jobs')
+          .doc(doc.id)
+          .set(job.toJson());
 
-      // Update the shared job's connected users list
-      List<String> connectedUsers = List<String>.from(
-        sharedJobData['connectedUsers'] ?? [],
-      );
-      if (!connectedUsers.contains(uid)) {
-        connectedUsers.add(uid);
-        await _firestore.collection('sharedJobs').doc(connectionCode).update({
-          'connectedUsers': connectedUsers,
-        });
+      print('✅ Successfully joined shared job');
+    } catch (e) {
+      print('❌ Error joining shared job: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteSharedJob(String jobId, String connectionCode) async {
+    try {
+      print('🎯 Deleting shared job with ID: $jobId');
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        throw Exception('User not authenticated');
       }
 
-      return job;
+      // Get the shared job document
+      final docRef = _firestore.collection('sharedJobs').doc(connectionCode);
+      final doc = await docRef.get();
+
+      if (!doc.exists) {
+        throw Exception('Shared job not found');
+      }
+
+      final data = doc.data();
+      if (data == null) {
+        throw Exception('Shared job data is null');
+      }
+
+      // Check if the user is the creator
+      if (data['creatorId'] != userId) {
+        throw Exception('Only the creator can delete the shared job');
+      }
+
+      // Delete the shared job document
+      await docRef.delete();
+
+      // Delete the job from all connected users' collections
+      final connectedUsers = List<String>.from(data['connectedUsers']);
+      for (final connectedUserId in connectedUsers) {
+        await _firestore
+            .collection('users')
+            .doc(connectedUserId)
+            .collection('jobs')
+            .doc(jobId)
+            .delete();
+      }
+
+      print('✅ Successfully deleted shared job');
     } catch (e) {
-      print('Error joining job: $e');
-      throw e;
+      print('❌ Error deleting shared job: $e');
+      rethrow;
     }
   }
 
@@ -616,63 +659,6 @@ class DatabaseService {
     } catch (e) {
       print('❌ Error getting user data: $e');
       return null;
-    }
-  }
-
-  // Add this method to delete a shared job
-  Future<void> deleteSharedJob(String jobId, String connectionCode) async {
-    try {
-      // First, verify that the current user is the creator
-      final sharedJobDoc =
-          await _firestore.collection('sharedJobs').doc(connectionCode).get();
-
-      if (!sharedJobDoc.exists) {
-        throw Exception('Job not found');
-      }
-
-      final creatorId = sharedJobDoc.data()?['creatorId'];
-
-      if (creatorId != uid) {
-        throw Exception('Only the creator can delete this job');
-      }
-
-      print('Deleting shared job: $jobId with code $connectionCode');
-
-      // Get all connected users
-      final connectedUsers = List<String>.from(
-        sharedJobDoc.data()?['connectedUsers'] ?? [],
-      );
-
-      // Delete the job from each connected user's collection
-      for (String userId in connectedUsers) {
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('jobs')
-            .doc(jobId)
-            .delete();
-
-        print('Deleted job from user $userId');
-      }
-
-      // Delete the shared job document
-      await _firestore.collection('sharedJobs').doc(connectionCode).delete();
-
-      // Delete any pending join requests for this job
-      final requestsSnapshot =
-          await _firestore
-              .collection('joinRequests')
-              .where('jobId', isEqualTo: jobId)
-              .get();
-
-      for (var doc in requestsSnapshot.docs) {
-        await doc.reference.delete();
-      }
-
-      print('Shared job deleted successfully');
-    } catch (e) {
-      print('Error deleting shared job: $e');
-      throw e;
     }
   }
 

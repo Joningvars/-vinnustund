@@ -188,13 +188,14 @@ class TimeEntriesProvider extends BaseProvider {
     // Start a timer to update the UI without triggering calculations
     _timer?.cancel(); // Cancel any existing timer
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      // Only notify listeners without triggering calculations
-      // This is a lightweight update just for the clock display
+      // Only update the UI without triggering full rebuilds
+      // Use a lightweight update just for the clock display
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {
-          // Use a try-catch to handle potential state disposal
-          super
-              .notifyListeners(); // Call the parent's notifyListeners to avoid our overrides
+          // Only notify if we're still clocked in
+          if (isClockedIn) {
+            super.notifyListeners();
+          }
         } catch (e) {
           // Ignore errors if the widget is disposed
         }
@@ -1225,7 +1226,7 @@ class TimeEntriesProvider extends BaseProvider {
               '📝 Saving to shared job entries collection: sharedJobs/${job.connectionCode}/entries/${entry.id}',
             );
 
-            // Use the connection code instead of the job ID
+            // Save to the shared job's entries collection
             await FirebaseFirestore.instance
                 .collection('sharedJobs')
                 .doc(job.connectionCode)

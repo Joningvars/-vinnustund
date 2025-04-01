@@ -455,11 +455,13 @@ class _JobsScreenState extends State<JobsScreen>
                                     listen: false,
                                   );
 
-                              // Use the connection code as the document ID
-                              await sharedJobsProvider.deleteSharedJobById(
-                                job.id,
-                                job.connectionCode!,
-                              );
+                              print('Deleting shared job:');
+                              print('- Job ID: ${job.id}');
+                              print('- Connection Code: ${job.connectionCode}');
+                              print('- Creator ID: ${job.creatorId}');
+
+                              // Use the connection code from the job object
+                              await sharedJobsProvider.deleteSharedJob(job);
                             } else {
                               final jobsProvider = Provider.of<JobsProvider>(
                                 context,
@@ -691,7 +693,6 @@ class _JobsScreenState extends State<JobsScreen>
       itemCount: regularJobs.length,
       itemBuilder: (context, index) {
         final job = regularJobs[index];
-        final totalHours = timeEntriesProvider.getHoursWorkedForJob(job.id);
         final settingsProvider = Provider.of<SettingsProvider>(context);
 
         return GestureDetector(
@@ -712,18 +713,10 @@ class _JobsScreenState extends State<JobsScreen>
                 ),
               ),
               title: Text(job.name, style: const TextStyle(fontSize: 16)),
-              subtitle: Text(
-                '${totalHours.toStringAsFixed(1)} ${settingsProvider.translate('hours')}',
-                style: const TextStyle(fontSize: 14),
-              ),
+              subtitle: job.description != null ? Text(job.description!) : null,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '${totalHours.toStringAsFixed(1)} ${settingsProvider.translate('hours')}',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(width: 8),
                   if (job.creatorId == FirebaseAuth.instance.currentUser?.uid)
                     IconButton(
                       icon: const Icon(Icons.edit),
@@ -777,60 +770,37 @@ class _JobsScreenState extends State<JobsScreen>
       itemCount: sharedJobsProvider.sharedJobs.length,
       itemBuilder: (context, index) {
         final job = sharedJobsProvider.sharedJobs[index];
-        print('🔍 Processing shared job: ${job.name} (${job.connectionCode})');
+        print('🔍 Processing shared job: ${job.name} (ID: ${job.id})');
 
-        return FutureBuilder<double>(
-          future: timeEntriesProvider.getHoursWorkedForSharedJob(
-            job.connectionCode!,
-          ),
-          builder: (context, snapshot) {
-            final totalHours = snapshot.data ?? 0.0;
-            print('⏱️ Total hours for ${job.name}: $totalHours');
-
-            return GestureDetector(
-              onLongPress: () => _showDeleteJobDialog(job),
-              child: Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: job.color,
-                    radius: 24,
-                    child: Text(
-                      job.name[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ),
-                  title: Text(job.name, style: const TextStyle(fontSize: 16)),
-                  subtitle: Text(
-                    '${settingsProvider.translate('connectionCode')}: ${job.connectionCode}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${totalHours.toStringAsFixed(1)} ${settingsProvider.translate('hours')}',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/job-overview',
-                      arguments: job,
-                    );
-                  },
+        return GestureDetector(
+          onLongPress: () => _showDeleteJobDialog(job),
+          child: Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: job.color,
+                child: Text(
+                  job.name.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
-            );
-          },
+              title: Text(job.name),
+              subtitle: Text(
+                job.isPublic
+                    ? settingsProvider.translate('publicJob')
+                    : settingsProvider.translate('privateJob'),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => JobOverviewScreen(job: job),
+                  ),
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -1207,7 +1177,7 @@ class _JobsScreenState extends State<JobsScreen>
                             print('- Is Public: ${newJob.isPublic}');
 
                             final createdJob = await sharedJobsProvider
-                                .createSharedJob(newJob);
+                                .createSharedJob(newJob, context);
 
                             if (createdJob != null) {
                               print('✅ Shared job created successfully');
@@ -1346,5 +1316,97 @@ class _JobsScreenState extends State<JobsScreen>
         });
       }
     }
+  }
+}
+
+class SharedJobsTab extends StatefulWidget {
+  const SharedJobsTab({Key? key}) : super(key: key);
+
+  @override
+  State<SharedJobsTab> createState() => _SharedJobsTabState();
+}
+
+class _SharedJobsTabState extends State<SharedJobsTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load shared jobs when the tab is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+        context,
+        listen: false,
+      );
+      // Set up the real-time listener for shared jobs
+      sharedJobsProvider.listenToSharedJobs();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Clean up any listeners if needed
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // Required by AutomaticKeepAliveClientMixin
+
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+
+    print(
+      '🔄 Building shared jobs tab with ${sharedJobsProvider.sharedJobs.length} jobs',
+    );
+
+    if (sharedJobsProvider.sharedJobs.isEmpty) {
+      return Center(
+        child: Text(
+          settingsProvider.translate('noSharedJobs'),
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: sharedJobsProvider.sharedJobs.length,
+      itemBuilder: (context, index) {
+        final job = sharedJobsProvider.sharedJobs[index];
+        print('🔍 Processing shared job: ${job.name} (ID: ${job.id})');
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: job.color,
+              child: Text(
+                job.name.substring(0, 1).toUpperCase(),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            title: Text(job.name),
+            subtitle: Text(
+              job.isPublic
+                  ? settingsProvider.translate('publicJob')
+                  : settingsProvider.translate('privateJob'),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => JobOverviewScreen(job: job),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 }

@@ -50,9 +50,10 @@ class JobsProvider extends BaseProvider {
           );
         }
 
-        // Separate regular and shared jobs
+        // Only include non-shared jobs in the regular jobs list
         jobs = loadedJobs.where((job) => !job.isShared).toList();
-        sharedJobs = loadedJobs.where((job) => job.isShared).toList();
+        // Clear shared jobs list as it's managed by SharedJobsProvider
+        sharedJobs = [];
 
         print('📊 Separated jobs:');
         print('- Regular jobs: ${jobs.length}');
@@ -64,7 +65,7 @@ class JobsProvider extends BaseProvider {
         }
 
         notifyListeners();
-      } else {
+
         print('📱 Loading from local storage...');
         // Load from local storage
         final prefs = await SharedPreferences.getInstance();
@@ -81,9 +82,10 @@ class JobsProvider extends BaseProvider {
             );
           }
 
-          // Separate regular and shared jobs
+          // Only include non-shared jobs in the regular jobs list
           jobs = loadedJobs.where((job) => !job.isShared).toList();
-          sharedJobs = loadedJobs.where((job) => job.isShared).toList();
+          // Clear shared jobs list as it's managed by SharedJobsProvider
+          sharedJobs = [];
 
           print('📊 Separated jobs:');
           print('- Regular jobs: ${jobs.length}');
@@ -261,7 +263,7 @@ class JobsProvider extends BaseProvider {
         return null; // Return null to indicate a request was sent
       } else {
         // For public jobs, join immediately
-        final job = await databaseService!.joinJobByCode(connectionCode);
+        final job = await _sharedJobsProvider?.joinJobByCode(connectionCode);
 
         // Add to local jobs list
         if (job != null) {
@@ -440,8 +442,10 @@ class JobsProvider extends BaseProvider {
 
       print('✅ Loaded ${loadedJobs.length} jobs from Firestore');
 
-      // Update the jobs list
-      jobs = loadedJobs;
+      // Filter out shared jobs from the regular jobs list
+      jobs = loadedJobs.where((job) => !job.isShared).toList();
+      print('📊 Regular jobs after filtering: ${jobs.length}');
+
       notifyListeners();
 
       // Save to local storage
@@ -578,7 +582,11 @@ class JobsProvider extends BaseProvider {
   Future<Job?> createSharedJob(Job job) async {
     try {
       // Use the correct method signature based on your database service
-      final createdJob = await databaseService?.createSharedJob(job);
+      final createdJob = await databaseService?.createSharedJob(
+        name: job.name,
+        color: job.color,
+        isPublic: job.isPublic,
+      );
 
       return createdJob;
     } catch (e) {

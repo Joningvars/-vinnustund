@@ -19,24 +19,29 @@ class SharedJobsProvider extends BaseProvider {
   List<Job> sharedJobs = [];
   SettingsProvider? _settingsProvider;
   Map<String, String> _userNames = {};
+  StreamSubscription? _sharedJobsSubscription;
 
   bool get isAuthenticated => currentUserId != null;
 
   @override
   void onUserAuthenticated() {
     startNotificationChecks();
+    listenToSharedJobs();
   }
 
   @override
   void onUserLoggedOut() {
     _notificationTimer?.cancel();
     pendingRequests = [];
+    sharedJobs = [];
+    _sharedJobsSubscription?.cancel();
     notifyListeners();
   }
 
   @override
   void dispose() {
     _notificationTimer?.cancel();
+    _sharedJobsSubscription?.cancel();
     super.dispose();
   }
 
@@ -424,6 +429,9 @@ class SharedJobsProvider extends BaseProvider {
   Future<void> initializeApp() async {
     await super.initializeApp();
 
+    // Load jobs immediately
+    await loadSharedJobs();
+
     // Start listening to shared jobs
     listenToSharedJobs();
   }
@@ -445,14 +453,16 @@ class SharedJobsProvider extends BaseProvider {
     );
   }
 
-  Future<Job?> createSharedJob(Job job) async {
+  Future<Job?> createSharedJob(Job job, BuildContext context) async {
     try {
       print('🔄 Creating shared job: ${job.name}');
 
       // Generate a connection code if not provided
       if (job.connectionCode == null) {
+        final connectionCode = _generateConnectionCode();
         job = job.copyWith(
-          connectionCode: _generateConnectionCode(),
+          id: connectionCode, // Use connection code as ID
+          connectionCode: connectionCode,
           creatorId: currentUserId,
         );
       }
@@ -463,31 +473,52 @@ class SharedJobsProvider extends BaseProvider {
       print('- Creator ID: ${job.creatorId}');
       print('- Is Public: ${job.isPublic}');
 
-      // Save to Firestore
-      if (databaseService != null) {
-        print('💾 Saving to Firestore...');
-        final createdJob = await databaseService!.createSharedJob(job);
+      // Create the shared job document in Firestore
+      final sharedJobData = {
+        'id': job.connectionCode, // Use connection code as ID
+        'name': job.name,
+        'color': job.color.value,
+        'creatorId': job.creatorId,
+        'connectionCode': job.connectionCode,
+        'isShared': true,
+        'isPublic': job.isPublic,
+        'connectedUsers': [currentUserId],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-        if (createdJob != null) {
-          print('✅ Job created successfully in Firestore');
+      // Save to sharedJobs collection
+      await FirebaseFirestore.instance
+          .collection('sharedJobs')
+          .doc(job.connectionCode)
+          .set(sharedJobData);
 
-          // Add to local jobs list
-          jobs.add(createdJob);
-          sharedJobs.add(createdJob);
+      // Save to user's jobs collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .collection('jobs')
+          .doc(job.id)
+          .set(job.toJson());
 
-          // Save to local storage
-          await saveJobsToLocalStorage();
+      print('✅ Job created successfully in Firestore');
 
-          // Notify listeners
-          notifyListeners();
+      // Add to local jobs list
+      jobs.add(job);
+      sharedJobs.add(job);
 
-          print('✅ Job added to local lists and storage');
-          return createdJob;
-        }
-      }
+      // Save to local storage
+      await saveJobsToLocalStorage();
 
-      print('❌ Failed to create shared job');
-      return null;
+      // Notify listeners
+      notifyListeners();
+
+      print('✅ Job added to local lists and storage');
+
+      // Navigate to jobs overview
+      navigateToJobsOverview(context);
+
+      return job;
     } catch (e) {
       print('❌ Error creating shared job: $e');
       return null;
@@ -535,29 +566,104 @@ class SharedJobsProvider extends BaseProvider {
         throw Exception('Cannot delete shared job: Missing connection code');
       }
 
-      // 1. Delete from sharedJobs collection in Firestore
-      await FirebaseFirestore.instance
-          .collection('sharedJobs')
-          .doc(connectionCode)
-          .delete();
+      // Get the shared job document to check permissions
+      final jobDoc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .get();
 
-      // 2. Remove from user's jobs collection
-      if (currentUserId != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserId)
-            .collection('jobs')
-            .doc(job.id)
-            .delete();
+      if (!jobDoc.exists) {
+        throw Exception('Shared job not found');
       }
 
-      // 3. Remove from local list
+      final jobData = jobDoc.data();
+      if (jobData == null) {
+        throw Exception('Shared job data is null');
+      }
+
+      // Check if current user is the creator
+      if (jobData['creatorId'] == currentUserId) {
+        print('👑 User is creator, deleting entire job');
+        // Delete all entries in the entries subcollection
+        final entriesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .get();
+
+        for (var doc in entriesSnapshot.docs) {
+          await doc.reference.delete();
+        }
+
+        // Delete all expenses in the expenses subcollection
+        final expensesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('expenses')
+                .get();
+
+        for (var doc in expensesSnapshot.docs) {
+          await doc.reference.delete();
+        }
+
+        // Delete job references from all connected users' collections
+        final connectedUsers = List<String>.from(
+          jobData['connectedUsers'] ?? [],
+        );
+        for (var userId in connectedUsers) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .collection('jobs')
+                .doc(job.id)
+                .delete();
+          } catch (e) {
+            print(
+              'Warning: Failed to delete job reference for user $userId: $e',
+            );
+          }
+        }
+
+        // Delete the shared job document itself
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .delete();
+
+        print('✅ Successfully deleted shared job and all related data');
+      } else {
+        print('👤 User is not creator, removing from connected users');
+        // Just remove the user from connectedUsers
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .update({
+              'connectedUsers': FieldValue.arrayRemove([currentUserId]),
+            });
+
+        // Remove from user's jobs collection
+        if (currentUserId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserId)
+              .collection('jobs')
+              .doc(job.id)
+              .delete();
+        }
+      }
+
+      // Remove from local lists
+      jobs.removeWhere((j) => j.id == job.id);
       sharedJobs.removeWhere((j) => j.id == job.id);
 
-      // 4. Notify listeners
+      // Notify listeners
       notifyListeners();
 
-      print('✅ Shared job deleted successfully');
+      print('✅ Shared job deletion completed successfully');
     } catch (e) {
       print('❌ Error deleting shared job: $e');
       throw e;
@@ -624,28 +730,35 @@ class SharedJobsProvider extends BaseProvider {
         return;
       }
 
-      // Get jobs from user's collection that are marked as shared
-      final snapshot =
+      // Get shared jobs where user is either creator or in connectedUsers
+      final sharedJobsSnapshot =
           await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('jobs')
-              .where('isShared', isEqualTo: true)
+              .collection('sharedJobs')
+              .where('creatorId', isEqualTo: user.uid)
               .get();
 
-      print('📊 Found ${snapshot.docs.length} shared jobs in user collection');
+      final joinedJobsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .where('connectedUsers', arrayContains: user.uid)
+              .get();
 
+      print(
+        '📊 Found ${sharedJobsSnapshot.docs.length} created jobs and ${joinedJobsSnapshot.docs.length} joined jobs',
+      );
+
+      // Process jobs from sharedJobs collection
       final loadedJobs =
-          snapshot.docs.map((doc) {
+          [...sharedJobsSnapshot.docs, ...joinedJobsSnapshot.docs].map((doc) {
             final data = doc.data();
-            print('🔍 Processing job: ${data['name']} (${data['id']})');
+            print('🔍 Processing shared job: ${data['name']} (${data['id']})');
             return Job(
-              id: data['id'] ?? '',
+              id: doc.id, // Use document ID as both ID and connection code
               name: data['name'] ?? 'Unnamed Job',
               color: Color(data['color'] ?? Colors.blue.value),
-              isShared: data['isShared'] ?? false,
+              isShared: true,
               isPublic: data['isPublic'] ?? true,
-              connectionCode: data['connectionCode'],
+              connectionCode: doc.id,
               creatorId: data['creatorId'],
               connectedUsers:
                   data['connectedUsers'] != null
@@ -991,9 +1104,9 @@ class SharedJobsProvider extends BaseProvider {
           .collection('users')
           .doc(user.uid)
           .collection('jobs')
-          .doc(jobId)
+          .doc(code)
           .set({
-            'id': jobId,
+            'id': code,
             'name': jobData['name'] ?? 'Shared Job',
             'color': jobData['color'] ?? Colors.blue.value,
             'isShared': true,
@@ -1062,40 +1175,103 @@ class SharedJobsProvider extends BaseProvider {
 
   // Add this method to SharedJobsProvider
   void listenToSharedJobs() {
-    if (!isAuthenticated || currentUserId == null) return;
+    if (!isAuthenticated || currentUserId == null) {
+      print(
+        '❌ Cannot set up shared jobs listener: Not authenticated or no user ID',
+      );
+      return;
+    }
 
     print('🔄 Setting up shared jobs listener for user: $currentUserId');
 
-    // Listen to user's jobs collection for shared jobs
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUserId)
-        .collection('jobs')
-        .where('isShared', isEqualTo: true)
-        .snapshots()
-        .listen((snapshot) {
-          final updatedJobs =
-              snapshot.docs.map((doc) {
-                final data = doc.data();
-                return Job(
-                  id: data['id'] ?? '',
-                  name: data['name'] ?? 'Unnamed Job',
-                  color: Color(data['color'] ?? Colors.blue.value),
-                  isShared: data['isShared'] ?? false,
-                  isPublic: data['isPublic'] ?? true,
-                  connectionCode: data['connectionCode'],
-                  creatorId: data['creatorId'],
-                  connectedUsers:
-                      data['connectedUsers'] != null
-                          ? List<String>.from(data['connectedUsers'])
-                          : [],
-                );
-              }).toList();
+    // Cancel existing subscription if any
+    _sharedJobsSubscription?.cancel();
 
-          print('📋 Received ${updatedJobs.length} shared jobs from Firestore');
-          sharedJobs = updatedJobs;
-          notifyListeners();
-        });
+    // Listen to sharedJobs collection where user is either creator or in connectedUsers
+    _sharedJobsSubscription = FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .where('creatorId', isEqualTo: currentUserId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            print(
+              '📥 Received ${snapshot.docs.length} created shared jobs from Firestore',
+            );
+
+            final createdJobs =
+                snapshot.docs.map((doc) {
+                  final data = doc.data();
+                  print(
+                    '🔍 Processing created job: ${data['name']} (${data['id']})',
+                  );
+                  return Job(
+                    id: data['id'] ?? '',
+                    name: data['name'] ?? 'Unnamed Job',
+                    color: Color(data['color'] ?? Colors.blue.value),
+                    isShared: true,
+                    isPublic: data['isPublic'] ?? true,
+                    connectionCode: doc.id,
+                    creatorId: data['creatorId'],
+                    connectedUsers:
+                        data['connectedUsers'] != null
+                            ? List<String>.from(data['connectedUsers'])
+                            : [],
+                  );
+                }).toList();
+
+            // Also get jobs where user is in connectedUsers
+            FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .where('connectedUsers', arrayContains: currentUserId)
+                .get()
+                .then((joinedSnapshot) {
+                  print(
+                    '📥 Received ${joinedSnapshot.docs.length} joined shared jobs from Firestore',
+                  );
+
+                  final joinedJobs =
+                      joinedSnapshot.docs.map((doc) {
+                        final data = doc.data();
+                        print(
+                          '🔍 Processing joined job: ${data['name']} (${data['id']})',
+                        );
+                        return Job(
+                          id: data['id'] ?? '',
+                          name: data['name'] ?? 'Unnamed Job',
+                          color: Color(data['color'] ?? Colors.blue.value),
+                          isShared: true,
+                          isPublic: data['isPublic'] ?? true,
+                          connectionCode: doc.id,
+                          creatorId: data['creatorId'],
+                          connectedUsers:
+                              data['connectedUsers'] != null
+                                  ? List<String>.from(data['connectedUsers'])
+                                  : [],
+                        );
+                      }).toList();
+
+                  // Combine created and joined jobs, removing duplicates based on connection code
+                  final allJobs = [...createdJobs, ...joinedJobs];
+                  final uniqueJobs = allJobs.fold<List<Job>>([], (list, job) {
+                    if (!list.any(
+                      (j) => j.connectionCode == job.connectionCode,
+                    )) {
+                      list.add(job);
+                    }
+                    return list;
+                  });
+
+                  print(
+                    '✅ Updated shared jobs list with ${uniqueJobs.length} unique jobs',
+                  );
+                  sharedJobs = uniqueJobs;
+                  notifyListeners();
+                });
+          },
+          onError: (error) {
+            print('❌ Error in shared jobs listener: $error');
+          },
+        );
   }
 
   // Add this new method to SharedJobsProvider
@@ -1109,33 +1285,104 @@ class SharedJobsProvider extends BaseProvider {
         '🔍 Finding shared job with ID: $jobId and connection code: $connectionCode',
       );
 
-      // 1. Delete from user's jobs collection using the connection code
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .collection('jobs')
-          .doc(connectionCode) // Use connectionCode instead of jobId
-          .delete();
+      // Get the shared job document to check permissions
+      final jobDoc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(connectionCode)
+              .get();
 
-      print('✅ Deleted from user\'s jobs collection');
+      if (!jobDoc.exists) {
+        throw Exception('Shared job not found');
+      }
 
-      // 2. Remove user from connectedUsers array in sharedJobs collection
-      await FirebaseFirestore.instance
-          .collection('sharedJobs')
-          .doc(connectionCode) // Use connectionCode as document ID
-          .update({
-            'connectedUsers': FieldValue.arrayRemove([currentUserId]),
-          });
+      final jobData = jobDoc.data();
+      if (jobData == null) {
+        throw Exception('Shared job data is null');
+      }
 
-      print('✅ Removed user from connectedUsers in shared jobs collection');
+      // Check if current user is the creator
+      if (jobData['creatorId'] == currentUserId) {
+        print('👑 User is creator, deleting entire job');
+        // Delete all entries in the entries subcollection
+        final entriesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .get();
 
-      // 3. Remove from local list if it exists
-      sharedJobs.removeWhere((j) => j.connectionCode == connectionCode);
+        for (var doc in entriesSnapshot.docs) {
+          await doc.reference.delete();
+        }
 
-      // 4. Notify listeners
+        // Delete all expenses in the expenses subcollection
+        final expensesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('expenses')
+                .get();
+
+        for (var doc in expensesSnapshot.docs) {
+          await doc.reference.delete();
+        }
+
+        // Delete job references from all connected users' collections
+        final connectedUsers = List<String>.from(
+          jobData['connectedUsers'] ?? [],
+        );
+        for (var userId in connectedUsers) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .collection('jobs')
+                .doc(jobId)
+                .delete();
+          } catch (e) {
+            print(
+              'Warning: Failed to delete job reference for user $userId: $e',
+            );
+          }
+        }
+
+        // Delete the shared job document itself
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .delete();
+
+        print('✅ Successfully deleted shared job and all related data');
+      } else {
+        print('👤 User is not creator, removing from connected users');
+        // Just remove the user from connectedUsers
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(connectionCode)
+            .update({
+              'connectedUsers': FieldValue.arrayRemove([currentUserId]),
+            });
+
+        // Remove from user's jobs collection
+        if (currentUserId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserId)
+              .collection('jobs')
+              .doc(jobId)
+              .delete();
+        }
+      }
+
+      // Remove from local lists
+      jobs.removeWhere((j) => j.id == jobId);
+      sharedJobs.removeWhere((j) => j.id == jobId);
+
+      // Notify listeners
       notifyListeners();
 
-      print('✅ Shared job deleted successfully');
+      print('✅ Shared job deletion completed successfully');
     } catch (e) {
       print('❌ Error deleting shared job: $e');
       throw e;
@@ -1144,5 +1391,10 @@ class SharedJobsProvider extends BaseProvider {
 
   void setSettingsProvider(SettingsProvider provider) {
     _settingsProvider = provider;
+  }
+
+  // Add navigation method
+  void navigateToJobsOverview(BuildContext context) {
+    Navigator.of(context).pushReplacementNamed('/jobs');
   }
 }

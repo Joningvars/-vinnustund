@@ -1,0 +1,120 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User document rules
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+      
+      // User's jobs collection
+      match /jobs/{jobId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's time entries collection
+      match /timeEntries/{entryId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's expenses collection
+      match /expenses/{expenseId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Shared jobs collection
+    match /sharedJobs/{jobId} {
+      allow read: if isAuthenticated() && (
+        resource == null || // Allow reading if document doesn't exist yet
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.connectedUsers.hasAny([request.auth.uid])
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.creatorId == request.auth.uid &&
+        request.resource.data.connectedUsers.hasAny([request.auth.uid]);
+      
+      allow update: if isAuthenticated() && (
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.connectedUsers.hasAny([request.auth.uid])
+      );
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.creatorId == request.auth.uid;
+
+      // Shared job entries collection
+      match /entries/{entryId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
+        );
+        
+        allow create: if isAuthenticated() && (
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
+        );
+        
+        allow update, delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid
+        );
+      }
+
+      // Shared job expenses collection
+      match /expenses/{expenseId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
+        );
+        
+        allow create: if isAuthenticated() && (
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
+        );
+        
+        allow update, delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid
+        );
+      }
+    }
+
+    // Join requests collection
+    match /joinRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource == null || // Allow reading if document doesn't exist yet
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid
+      );
+      
+      allow list: if isAuthenticated() && (
+        request.query.filters.size() == 2 &&
+        request.query.filters[0].field == 'creatorId' &&
+        request.query.filters[0].value == request.auth.uid &&
+        request.query.filters[1].field == 'status' &&
+        request.query.filters[1].value == 'pending'
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.requesterId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+        resource.data.creatorId == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.creatorId == request.auth.uid
+      );
+    }
+  }
+} 

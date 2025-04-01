@@ -139,7 +139,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
         isPublic: _isPublic,
       );
 
-      final code = await provider.createSharedJob(newJob);
+      final code = await provider.createSharedJob(newJob, context);
 
       if (mounted) {
         if (code != null) {
