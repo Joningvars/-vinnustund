@@ -266,17 +266,6 @@ class TimeEntryCard extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
                         child: Text(timeEntriesProvider.translate('save')),
                       ),
                     ],
@@ -395,17 +384,6 @@ class TimeEntryCard extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
                         child: Text(timeEntriesProvider.translate('delete')),
                       ),
                     ],

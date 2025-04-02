@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:timagatt/utils/theme/darkmode.dart';
 
 final lightTheme = ThemeData(
   useMaterial3: true,
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: Colors.blue,
-    brightness: Brightness.light,
+  colorScheme: ColorScheme.light(
+    primary: primaryBlue,
+    secondary: Colors.black87,
+    surface: Colors.white,
+    onSurface: Colors.black87,
+    onPrimary: Colors.white,
+    tertiary: timerGreen,
   ),
   scaffoldBackgroundColor: Colors.white,
   textTheme: GoogleFonts.comfortaaTextTheme(),
@@ -23,6 +28,16 @@ final lightTheme = ThemeData(
       color: Colors.black,
       fontSize: 24,
       fontWeight: FontWeight.bold,
+    ),
+  ),
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      elevation: 0,
+      backgroundColor: primaryBlue,
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
     ),
   ),
   inputDecorationTheme: InputDecorationTheme(

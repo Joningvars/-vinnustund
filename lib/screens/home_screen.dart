@@ -283,7 +283,11 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8.0),
           child: Text(
             settingsProvider.translate('selectJob'),
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         StyledDropdown<Job>(

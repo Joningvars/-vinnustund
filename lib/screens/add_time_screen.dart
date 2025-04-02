@@ -46,7 +46,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
       child: Scaffold(
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -57,7 +57,6 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
 
                 // Job selector
                 Padding(
@@ -322,21 +321,14 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                   child: ElevatedButton(
                     onPressed: () => _submitTimeEntry(context, provider),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
-                    child: Text(
-                      provider.translate('submit'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                      textStyle: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(
+                        inherit: false,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),
+                    child: Text(provider.translate('submit')),
                   ),
                 ),
               ],
@@ -360,6 +352,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
 
     if (picked != null && picked != provider.startTime) {
       provider.startTime = picked;
+      setState(() {});
     }
   }
 
@@ -376,6 +369,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
 
     if (picked != null && picked != provider.endTime) {
       provider.endTime = picked;
+      setState(() {});
     }
   }
 
@@ -394,6 +388,7 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
 
     if (picked != null && picked != provider.selectedDate) {
       provider.selectedDate = picked;
+      setState(() {});
     }
   }
 
@@ -449,7 +444,12 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                     Navigator.pop(context);
                   }
                 },
-                child: Text(provider.translate('add')),
+                child: Text(
+                  provider.translate('add'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -539,17 +539,6 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                         jobsProvider.deleteJob(job.id);
                         Navigator.of(context).pop();
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                       child: Text(jobsProvider.translate('delete')),
                     ),
                   ],
@@ -735,7 +724,6 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
       items:
           allJobs.map<DropdownMenuItem<Job>>((Job job) {
             return DropdownMenuItem<Job>(
-              key: ValueKey(job.id),
               value: job,
               child: Row(
                 children: [

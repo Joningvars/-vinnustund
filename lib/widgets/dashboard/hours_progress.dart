@@ -207,7 +207,7 @@ class _HoursProgressState extends State<HoursProgress>
                   timeProvider.translate('hoursbyJob'),
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade600,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

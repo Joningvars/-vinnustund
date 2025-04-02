@@ -490,9 +490,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       _isLoading
                           ? CircularProgressIndicator()
                           : Text(provider.translate('joinJob')),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                 ),
                 if (provider.isPaidUser)
                   Padding(
@@ -501,10 +498,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       icon: const Icon(Icons.notifications),
                       label: Text(provider.translate('viewPendingRequests')),
                       onPressed: _navigateToJobRequests,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
                     ),
                   ),
                 ElevatedButton(
@@ -663,9 +656,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       _isLoading
                           ? const CircularProgressIndicator()
                           : Text(provider.translate('createJob')),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
                 ),
                 if (provider.isPaidUser)
                   Padding(
@@ -674,10 +664,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       icon: const Icon(Icons.notifications),
                       label: Text(provider.translate('viewPendingRequests')),
                       onPressed: _navigateToJobRequests,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
                     ),
                   ),
               ],

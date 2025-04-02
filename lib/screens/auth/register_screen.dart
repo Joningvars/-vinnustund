@@ -160,14 +160,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _register,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
                     child:
                         _isLoading
                             ? const CircularProgressIndicator()

@@ -380,17 +380,6 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                               ),
                               ElevatedButton(
                                 onPressed: () => Navigator.pop(context, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
                                 child: Text(
                                   timeEntriesProvider.translate('add'),
                                 ),
@@ -923,98 +912,87 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
       padding: const EdgeInsets.all(16),
       children: [
         // Members section
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Provider.of<TimeEntriesProvider>(
-                    context,
-                  ).translate('members'),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                ..._members.map(
-                  (member) => Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(member['name'][0].toUpperCase()),
-                      ),
-                      title: Text(member['name']),
-                      subtitle: Text(member['email']),
-                      trailing:
-                          member['isCreator']
-                              ? const Text('Creator')
-                              : isCreator
-                              ? IconButton(
-                                icon: const Icon(Icons.remove_circle_outline),
-                                onPressed:
-                                    () => _handleMemberAction(
-                                      member['id'],
-                                      'remove',
-                                    ),
-                              )
-                              : null,
-                    ),
-                  ),
-                ),
-              ],
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              Provider.of<TimeEntriesProvider>(context).translate('members'),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
+            const SizedBox(height: 16),
+            ..._members.map(
+              (member) => Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    child: Text(member['name'][0].toUpperCase()),
+                  ),
+                  title: Text(member['name']),
+                  subtitle: Text(member['email']),
+                  trailing:
+                      member['isCreator']
+                          ? const Text('Creator')
+                          : isCreator
+                          ? IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed:
+                                () =>
+                                    _handleMemberAction(member['id'], 'remove'),
+                          )
+                          : null,
+                ),
+              ),
+            ),
+          ],
         ),
 
         // Pending requests section (only for creator)
         if (isCreator && _pendingRequests.isNotEmpty) ...[
           const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pending Requests',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  ..._pendingRequests.map(
-                    (request) => Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(request['userName'][0].toUpperCase()),
-                        ),
-                        title: Text(request['userName']),
-                        subtitle: Text(request['userEmail']),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.check_circle_outline),
-                              color: Colors.green,
-                              onPressed:
-                                  () => _handleMemberAction(
-                                    request['userId'],
-                                    'approve',
-                                  ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.cancel_outlined),
-                              color: Colors.red,
-                              onPressed:
-                                  () => _handleMemberAction(
-                                    request['userId'],
-                                    'deny',
-                                  ),
-                            ),
-                          ],
-                        ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pending Requests',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                ..._pendingRequests.map(
+                  (request) => Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(request['userName'][0].toUpperCase()),
+                      ),
+                      title: Text(request['userName']),
+                      subtitle: Text(request['userEmail']),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.check_circle_outline),
+                            color: Colors.green,
+                            onPressed:
+                                () => _handleMemberAction(
+                                  request['userId'],
+                                  'approve',
+                                ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.cancel_outlined),
+                            color: Colors.red,
+                            onPressed:
+                                () => _handleMemberAction(
+                                  request['userId'],
+                                  'deny',
+                                ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1105,17 +1083,6 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
                         child: Text(timeEntriesProvider.translate('delete')),
                       ),
                     ],
@@ -1322,17 +1289,6 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                               ),
                               ElevatedButton(
                                 onPressed: () => Navigator.pop(context, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
                                 child: Text(
                                   timeEntriesProvider.translate('save'),
                                 ),

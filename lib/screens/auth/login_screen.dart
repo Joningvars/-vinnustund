@@ -354,15 +354,6 @@ class _LoginScreenState extends State<LoginScreen>
                             height: 60,
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _signIn,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                foregroundColor:
-                                    Theme.of(context).colorScheme.onPrimary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
                               child:
                                   _isLoading
                                       ? const CircularProgressIndicator()

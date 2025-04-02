@@ -673,12 +673,6 @@ class _JobsScreenState extends State<JobsScreen>
               },
               icon: const Icon(Icons.add),
               label: Text(timeEntriesProvider.translate('createFirstJob')),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
             ),
           ],
         ),
@@ -941,14 +935,6 @@ class _JobsScreenState extends State<JobsScreen>
                         ? null
                         : () =>
                             _joinJob(_codeController.text.trim().toUpperCase()),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
               ),
             ),
           ],
@@ -1124,110 +1110,28 @@ class _JobsScreenState extends State<JobsScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () async {
-                      if (createJobFormKey.currentState!.validate()) {
-                        final name = nameController.text;
-                        final description =
-                            descriptionController.text.isEmpty
-                                ? null
-                                : descriptionController.text;
+                    onPressed: () {
+                      if (_addJobFormKey.currentState!.validate()) {
+                        jobsProvider.addJob(
+                          _nameController.text,
+                          _selectedColor,
+                          _descriptionController.text.isEmpty
+                              ? null
+                              : _descriptionController.text,
+                        );
 
-                        try {
-                          if (isShared && jobsProvider.isPaidUser) {
-                            print('🔄 Creating shared job...');
-                            // Create shared job
-                            final sharedJobsProvider =
-                                Provider.of<SharedJobsProvider>(
-                                  context,
-                                  listen: false,
-                                );
-
-                            final newJob = Job(
-                              id:
-                                  DateTime.now().millisecondsSinceEpoch
-                                      .toString(),
-                              name: nameController.text,
-                              description:
-                                  descriptionController.text.isEmpty
-                                      ? null
-                                      : descriptionController.text,
-                              color: selectedColor,
-                              isShared: false,
-                              isPublic: true,
-                              connectionCode: null,
-                              creatorId: null,
-                              connectedUsers: null,
-                            );
-
-                            print('📝 New job details:');
-                            print('- Name: ${newJob.name}');
-                            print('- ID: ${newJob.id}');
-                            print('- Is Shared: ${newJob.isShared}');
-                            print('- Is Public: ${newJob.isPublic}');
-
-                            final createdJob = await sharedJobsProvider
-                                .createSharedJob(newJob, context);
-
-                            if (createdJob != null) {
-                              print('✅ Shared job created successfully');
-                            } else {
-                              print('❌ Failed to create shared job');
-                              throw Exception('Failed to create shared job');
-                            }
-                          } else {
-                            // Create regular job
-                            await jobsProvider.addJob(
-                              name,
-                              selectedColor,
-                              description,
-                            );
-                          }
-
-                          // Clear form
-                          nameController.clear();
-                          descriptionController.clear();
-                          setStateLocal(() {
-                            selectedColor = Colors.blue;
-                            isShared = false;
-                            isPublic = true;
-                          });
-
-                          // Show success message
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                timeEntriesProvider.translate('jobAdded'),
-                              ),
-                              backgroundColor: theme.colorScheme.primary,
+                        // Show success message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              timeEntriesProvider.translate('jobAdded'),
                             ),
-                          );
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                          ),
+                        );
 
-                          // Navigate to the appropriate tab
-                          if (isShared) {
-                            _tabController.animateTo(1); // Shared Jobs tab
-                          } else {
-                            _tabController.animateTo(0); // My Jobs tab
-                          }
-
-                          // After the job is created, refresh the shared jobs list
-                          await sharedJobsProvider.refreshSharedJobs();
-                        } catch (e) {
-                          // Show error message
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: ${e.toString()}'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
+                        Navigator.pop(context);
                       }
                     },
                     child: Text(

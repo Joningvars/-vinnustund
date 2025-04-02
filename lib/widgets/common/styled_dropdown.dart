@@ -32,43 +32,39 @@ class StyledDropdown<T> extends StatelessWidget {
           filled: true,
           fillColor: backgroundColor ?? Theme.of(context).cardTheme.color,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
         ),
       ),
-      child: Container(
-        height: 44,
-        child: DropdownButtonFormField<T>(
-          value: value,
-          onChanged: onChanged,
-          items: items,
-          decoration: InputDecoration(
-            contentPadding:
-                contentPadding ??
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            prefixIcon: prefix,
-          ),
-          dropdownColor:
-              backgroundColor ?? Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-          elevation: 4,
-          isExpanded: isExpanded,
-          menuMaxHeight: 300,
-          alignment: AlignmentDirectional.bottomStart,
-          hint: hint != null ? Text(hint!) : null,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 15,
-          ),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        onChanged: onChanged,
+        items: items,
+        decoration: InputDecoration(
+          contentPadding:
+              contentPadding ??
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          prefixIcon: prefix,
+        ),
+        dropdownColor: backgroundColor ?? Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        elevation: 4,
+        isExpanded: isExpanded,
+        menuMaxHeight: 300,
+        alignment: AlignmentDirectional.bottomStart,
+        hint: hint != null ? Text(hint!) : null,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontSize: 15,
         ),
       ),
     );
