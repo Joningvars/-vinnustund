@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class SharedJobsScreen extends StatefulWidget {
   const SharedJobsScreen({Key? key}) : super(key: key);
@@ -423,36 +424,26 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<SharedJobsProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(provider.translate('sharedJobs')),
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('sharedJobs'),
+        showBackButton: true,
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: provider.translate('joinJob')),
-            Tab(text: provider.translate('createJob')),
-            Tab(text: provider.translate('mySharedJobs')),
+            Tab(text: settingsProvider.translate('mySharedJobs')),
+            Tab(text: settingsProvider.translate('createSharedJob')),
+            Tab(text: settingsProvider.translate('joinSharedJob')),
           ],
+          indicatorColor: theme.colorScheme.primary,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.textTheme.bodyMedium?.color,
+          dividerColor: Colors.transparent,
         ),
-        actions: [
-          FutureBuilder<int>(
-            future: provider.getPendingRequestCount(),
-            builder: (context, snapshot) {
-              final count = snapshot.data ?? 0;
-              return count > 0
-                  ? IconButton(
-                    icon: Badge(
-                      label: Text(count.toString()),
-                      child: Icon(Icons.notifications),
-                    ),
-                    onPressed: _navigateToJobRequests,
-                  )
-                  : SizedBox.shrink();
-            },
-          ),
-        ],
       ),
       body: TabBarView(
         controller: _tabController,
@@ -464,14 +455,14 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  provider.translate('enterJobCode'),
+                  settingsProvider.translate('enterJobCode'),
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _codeController,
                   decoration: InputDecoration(
-                    labelText: provider.translate('connectionCode'),
+                    labelText: settingsProvider.translate('connectionCode'),
                     hintText: 'ABC123',
                     border: OutlineInputBorder(),
                   ),
@@ -489,14 +480,16 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                   child:
                       _isLoading
                           ? CircularProgressIndicator()
-                          : Text(provider.translate('joinJob')),
+                          : Text(settingsProvider.translate('joinJob')),
                 ),
-                if (provider.isPaidUser)
+                if (sharedJobsProvider.isPaidUser)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.notifications),
-                      label: Text(provider.translate('viewPendingRequests')),
+                      label: Text(
+                        settingsProvider.translate('viewPendingRequests'),
+                      ),
                       onPressed: _navigateToJobRequests,
                     ),
                   ),
@@ -545,7 +538,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!provider.isPaidUser) ...[
+                if (!sharedJobsProvider.isPaidUser) ...[
                   Card(
                     color: Colors.amber.shade100,
                     child: Padding(
@@ -553,20 +546,24 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       child: Column(
                         children: [
                           Text(
-                            provider.translate('paidFeature'),
+                            settingsProvider.translate('paidFeature'),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(provider.translate('upgradeToCreateSharedJobs')),
+                          Text(
+                            settingsProvider.translate(
+                              'upgradeToCreateSharedJobs',
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () {
                               // Navigate to subscription screen
                             },
-                            child: Text(provider.translate('upgrade')),
+                            child: Text(settingsProvider.translate('upgrade')),
                           ),
                         ],
                       ),
@@ -575,20 +572,20 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                   const SizedBox(height: 24),
                 ],
                 Text(
-                  provider.translate('createSharedJob'),
+                  settingsProvider.translate('createSharedJob'),
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _nameController,
                   decoration: InputDecoration(
-                    labelText: provider.translate('jobName'),
+                    labelText: settingsProvider.translate('jobName'),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  provider.translate('selectJobColor'),
+                  settingsProvider.translate('selectJobColor'),
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 8),
@@ -633,8 +630,10 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                       }).toList(),
                 ),
                 SwitchListTile(
-                  title: Text(provider.translate('publicJob')),
-                  subtitle: Text(provider.translate('publicJobDescription')),
+                  title: Text(settingsProvider.translate('publicJob')),
+                  subtitle: Text(
+                    settingsProvider.translate('publicJobDescription'),
+                  ),
                   value: _isPublic,
                   onChanged: (value) {
                     setState(() {
@@ -649,20 +648,22 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed:
-                      provider.isPaidUser && !_isLoading
+                      sharedJobsProvider.isPaidUser && !_isLoading
                           ? _createSharedJob
                           : null,
                   child:
                       _isLoading
                           ? const CircularProgressIndicator()
-                          : Text(provider.translate('createJob')),
+                          : Text(settingsProvider.translate('createJob')),
                 ),
-                if (provider.isPaidUser)
+                if (sharedJobsProvider.isPaidUser)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.notifications),
-                      label: Text(provider.translate('viewPendingRequests')),
+                      label: Text(
+                        settingsProvider.translate('viewPendingRequests'),
+                      ),
                       onPressed: _navigateToJobRequests,
                     ),
                   ),

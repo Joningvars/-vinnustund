@@ -5,6 +5,7 @@ import 'package:timagatt/providers/expenses_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   final Job job;
@@ -107,57 +108,62 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
-
     return Scaffold(
-      appBar: AppBar(title: Text(settingsProvider.translate('addExpense'))),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _amountController,
-              decoration: InputDecoration(
-                labelText: settingsProvider.translate('amount'),
-                prefixText: 'kr ',
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('addExpense'),
+        showBackButton: true,
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _amountController,
+                decoration: InputDecoration(
+                  labelText: settingsProvider.translate('amount'),
+                  prefixText: 'kr ',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return settingsProvider.translate('amount') +
+                        ' is required';
+                  }
+                  if (double.tryParse(value) == null) {
+                    return 'Please enter a valid number';
+                  }
+                  return null;
+                },
               ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return settingsProvider.translate('amount') + ' is required';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: settingsProvider.translate('description'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: settingsProvider.translate('description'),
+                ),
+                maxLines: 3,
               ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: Text(settingsProvider.translate('date')),
-              subtitle: Text(
-                '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+              const SizedBox(height: 16),
+              ListTile(
+                title: Text(settingsProvider.translate('date')),
+                subtitle: Text(
+                  '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+                ),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () => _selectDate(context),
               ),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: () => _selectDate(context),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submitExpense,
-              child:
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : Text(settingsProvider.translate('submit')),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _submitExpense,
+                child:
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : Text(settingsProvider.translate('submit')),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:timagatt/utils/routes.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -65,7 +66,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<SettingsProvider>(context);
     return Scaffold(
-      appBar: AppBar(title: Text(provider.translate('register'))),
+      appBar: CustomAppBar(
+        title: provider.translate('register'),
+        showBackButton: true,
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),

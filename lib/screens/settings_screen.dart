@@ -10,6 +10,7 @@ import 'package:timagatt/screens/export_screen.dart';
 import 'package:timagatt/screens/job/shared_jobs_screen.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:timagatt/services/database_service.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -46,184 +47,220 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('settings'),
+        showBackButton: true,
+      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          children: [
-            Text(
-              settingsProvider.translate('settings'),
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            // Add profile section at the top
-            _buildProfileSection(context),
-
-            // Existing settings sections below
-            const SizedBox(height: 24),
-
-            // Appearance section
-            _buildSectionHeader(settingsProvider.translate('appearance')),
-            const SizedBox(height: 8),
-
-            // Theme selector
-            Card(
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                title: Text(settingsProvider.translate('theme')),
-                subtitle: Text(
-                  settingsProvider.themeMode == ThemeMode.system
-                      ? settingsProvider.translate('systemDefault')
-                      : settingsProvider.themeMode == ThemeMode.dark
-                      ? settingsProvider.translate('dark')
-                      : settingsProvider.translate('light'),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 24,
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  _showThemeSelector(context, settingsProvider);
-                },
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Card(
-              margin: EdgeInsets.zero,
-              child: ListTile(
-                title: Text(settingsProvider.translate('language')),
-                subtitle: Text(
-                  settingsProvider.locale.languageCode == 'en'
-                      ? settingsProvider.translate('english')
-                      : settingsProvider.translate('icelandic'),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  _showLanguageSelector(context, settingsProvider);
-                },
-              ),
-            ),
-
-            const SizedBox(height: 16),
-            Card(
-              margin: EdgeInsets.zero,
-              child: Consumer<SettingsProvider>(
-                builder: (context, settingsProvider, child) {
-                  return SwitchListTile(
-                    title: Text(settingsProvider.translate('timeFormat')),
-                    subtitle: Text(
-                      settingsProvider.use24HourFormat
-                          ? settingsProvider.translate('hour24')
-                          : settingsProvider.translate('hour12'),
-                    ),
-                    value: settingsProvider.use24HourFormat,
-                    onChanged: (value) {
-                      settingsProvider.setTimeFormat(value);
-                    },
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Target hours settings
-            _buildSectionHeader(settingsProvider.translate('workHours')),
-            const SizedBox(height: 8),
-
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(settingsProvider.translate('monthlyTargetHours')),
+                    const SizedBox(height: 24),
+                    // Add profile section at the top
+                    _buildProfileSection(context),
+
+                    // Existing settings sections below
+                    const SizedBox(height: 24),
+
+                    // Appearance section
+                    _buildSectionHeader(
+                      settingsProvider.translate('appearance'),
+                    ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Slider(
-                            value: settingsProvider.targetHours.toDouble(),
-                            min: 40,
-                            max: 240,
-                            divisions: 20,
-                            label: settingsProvider.targetHours.toString(),
-                            onChanged: (double value) {
-                              settingsProvider.setTargetHours(value.toInt());
+
+                    // Theme selector
+                    Card(
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        title: Text(settingsProvider.translate('theme')),
+                        subtitle: Text(
+                          settingsProvider.themeMode == ThemeMode.system
+                              ? settingsProvider.translate('systemDefault')
+                              : settingsProvider.themeMode == ThemeMode.dark
+                              ? settingsProvider.translate('dark')
+                              : settingsProvider.translate('light'),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _showThemeSelector(context, settingsProvider);
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        title: Text(settingsProvider.translate('language')),
+                        subtitle: Text(
+                          settingsProvider.locale.languageCode == 'en'
+                              ? settingsProvider.translate('english')
+                              : settingsProvider.translate('icelandic'),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _showLanguageSelector(context, settingsProvider);
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Consumer<SettingsProvider>(
+                        builder: (context, settingsProvider, child) {
+                          return SwitchListTile(
+                            title: Text(
+                              settingsProvider.translate('timeFormat'),
+                            ),
+                            subtitle: Text(
+                              settingsProvider.use24HourFormat
+                                  ? settingsProvider.translate('hour24')
+                                  : settingsProvider.translate('hour12'),
+                            ),
+                            value: settingsProvider.use24HourFormat,
+                            onChanged: (value) {
+                              settingsProvider.setTimeFormat(value);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Target hours settings
+                    _buildSectionHeader(
+                      settingsProvider.translate('workHours'),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              settingsProvider.translate('monthlyTargetHours'),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Slider(
+                                    value:
+                                        settingsProvider.targetHours.toDouble(),
+                                    min: 40,
+                                    max: 240,
+                                    divisions: 20,
+                                    label:
+                                        settingsProvider.targetHours.toString(),
+                                    onChanged: (double value) {
+                                      settingsProvider.setTargetHours(
+                                        value.toInt(),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${settingsProvider.targetHours} ${settingsProvider.translate('hours')}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // About section
+                    _buildSectionHeader(settingsProvider.translate('about')),
+                    const SizedBox(height: 8),
+
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          ListTile(
+                            title: Text(settingsProvider.translate('version')),
+                            trailing: const Text('1.0.0'),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Divider(height: 2, thickness: 0.5),
+                          ),
+                          ListTile(
+                            title: Text(
+                              settingsProvider.translate('privacyPolicy'),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                            ),
+                            onTap: () {
+                              // Open privacy policy
                             },
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${settingsProvider.targetHours} ${settingsProvider.translate('hours')}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: const Divider(height: 2, thickness: 0.5),
+                          ),
+                          ListTile(
+                            title: Text(
+                              settingsProvider.translate('termsOfService'),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                            ),
+                            onTap: () {
+                              // Open terms of service
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Sign Out button
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        title: Text(settingsProvider.translate('signOut')),
+                        leading: const Icon(Icons.logout, color: Colors.red),
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          _signOut(context);
+                        },
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // About section
-            _buildSectionHeader(settingsProvider.translate('about')),
-            const SizedBox(height: 8),
-
-            Card(
-              margin: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  ListTile(
-                    title: Text(settingsProvider.translate('version')),
-                    trailing: const Text('1.0.0'),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Divider(height: 2, thickness: 0.5),
-                  ),
-                  ListTile(
-                    title: Text(settingsProvider.translate('privacyPolicy')),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // Open privacy policy
-                    },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: const Divider(height: 2, thickness: 0.5),
-                  ),
-                  ListTile(
-                    title: Text(settingsProvider.translate('termsOfService')),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      // Open terms of service
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Sign Out button
-            Card(
-              margin: EdgeInsets.zero,
-              child: ListTile(
-                title: Text(settingsProvider.translate('signOut')),
-                leading: const Icon(Icons.logout, color: Colors.red),
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  _signOut(context);
-                },
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

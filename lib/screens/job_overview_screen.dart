@@ -25,7 +25,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/rendering.dart';
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -465,24 +465,32 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
 
   @override
   Widget build(BuildContext context) {
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.job.name,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: 28,
-          ),
-        ),
-        scrolledUnderElevation: 0,
-        elevation: 0,
+      appBar: CustomAppBar(
+        title: widget.job.name,
+        showBackButton: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download),
-            onPressed: _exportToPDF,
-            tooltip: 'Export to PDF',
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: () => _exportToPDF(context),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(text: settingsProvider.translate('timeEntries')),
+            Tab(text: settingsProvider.translate('expenses')),
+            Tab(text: settingsProvider.translate('members')),
+          ],
+          indicatorColor: theme.colorScheme.primary,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.textTheme.bodyMedium?.color,
+          dividerColor: Colors.transparent,
+        ),
       ),
       floatingActionButton:
           _tabController.index == 1
@@ -498,27 +506,6 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               ? const Center(child: CircularProgressIndicator())
               : Column(
                 children: [
-                  TabBar(
-                    controller: _tabController,
-                    dividerColor: Colors.transparent,
-                    tabs: [
-                      Tab(
-                        text: Provider.of<TimeEntriesProvider>(
-                          context,
-                        ).translate('timeEntries'),
-                      ),
-                      Tab(
-                        text: Provider.of<TimeEntriesProvider>(
-                          context,
-                        ).translate('expenses'),
-                      ),
-                      Tab(
-                        text: Provider.of<SettingsProvider>(
-                          context,
-                        ).translate('members'),
-                      ),
-                    ],
-                  ),
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
@@ -1437,7 +1424,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
     }
   }
 
-  Future<void> _exportToPDF() async {
+  Future<void> _exportToPDF(BuildContext context) async {
     try {
       final settingsProvider = Provider.of<SettingsProvider>(
         context,

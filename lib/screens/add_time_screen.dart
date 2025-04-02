@@ -7,6 +7,7 @@ import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 
 class AddTimeScreen extends StatefulWidget {
@@ -44,20 +45,13 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        appBar: CustomAppBar(title: provider.translate('addTime')),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  provider.translate('addTime'),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
                 // Job selector
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16.0),

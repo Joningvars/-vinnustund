@@ -8,6 +8,7 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/screens/export_screen.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -412,7 +413,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: null,
+        appBar: CustomAppBar(
+          title: timeEntriesProvider.translate('history'),
+          actions: [
+            if (_startDate !=
+                    DateTime.now().subtract(const Duration(days: 7)) ||
+                _selectedJobId != null)
+              IconButton(
+                icon: const Icon(Icons.download),
+                onPressed: () => _navigateToExport(context),
+              ),
+          ],
+        ),
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,21 +435,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      timeEntriesProvider.translate('history'),
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
                     // Export button
-                    if (_startDate !=
-                            DateTime.now().subtract(const Duration(days: 7)) ||
-                        _selectedJobId != null)
-                      IconButton(
-                        icon: const Icon(Icons.download),
-                        onPressed: () => _navigateToExport(context),
-                      ),
                   ],
                 ),
               ),

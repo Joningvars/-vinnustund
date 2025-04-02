@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/services/database_service.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class JobRequestsScreen extends StatefulWidget {
   const JobRequestsScreen({Key? key}) : super(key: key);
@@ -89,8 +90,8 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(settingsProvider.translate('pendingRequests')),
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('pendingRequests'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadRequests),
         ],

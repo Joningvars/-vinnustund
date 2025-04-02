@@ -4,6 +4,7 @@ import 'package:timagatt/models/expense.dart';
 import 'package:timagatt/providers/expenses_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/models/job.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final Job job;
@@ -111,57 +112,68 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
-
     return Scaffold(
-      appBar: AppBar(title: Text(settingsProvider.translate('editExpense'))),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _amountController,
-              decoration: InputDecoration(
-                labelText: settingsProvider.translate('amount'),
-                prefixText: 'kr ',
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('editExpense'),
+        showBackButton: true,
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: settingsProvider.translate('description'),
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return settingsProvider.translate('descriptionRequired');
+                  }
+                  return null;
+                },
               ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return settingsProvider.translate('amount') + ' is required';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: settingsProvider.translate('description'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _amountController,
+                decoration: InputDecoration(
+                  labelText: settingsProvider.translate('amount'),
+                  border: const OutlineInputBorder(),
+                  prefixText: 'kr ',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return settingsProvider.translate('amountRequired');
+                  }
+                  if (double.tryParse(value) == null) {
+                    return settingsProvider.translate('invalidAmount');
+                  }
+                  return null;
+                },
               ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: Text(settingsProvider.translate('date')),
-              subtitle: Text(
-                '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+              const SizedBox(height: 16),
+              ListTile(
+                title: Text(settingsProvider.translate('date')),
+                subtitle: Text(
+                  '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                ),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () => _selectDate(context),
               ),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: () => _selectDate(context),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _updateExpense,
-              child:
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : Text(settingsProvider.translate('save')),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _updateExpense,
+                child:
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : Text(settingsProvider.translate('save')),
+              ),
+            ],
+          ),
         ),
       ),
     );

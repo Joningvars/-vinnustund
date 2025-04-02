@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/screens/job_overview_screen.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({Key? key}) : super(key: key);
@@ -539,21 +540,14 @@ class _JobsScreenState extends State<JobsScreen>
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          settingsProvider.translate('jobs'),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        elevation: 0,
-        scrolledUnderElevation: 0,
+      appBar: CustomAppBar(
+        title: settingsProvider.translate('jobs'),
+        showBackButton: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_forever),
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
+            icon: const Icon(Icons.delete),
+            onPressed: () {
+              showDialog(
                 context: context,
                 builder:
                     (context) => AlertDialog(
@@ -563,31 +557,22 @@ class _JobsScreenState extends State<JobsScreen>
                       ),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.pop(context, false),
+                          onPressed: () => Navigator.pop(context),
                           child: Text(settingsProvider.translate('cancel')),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
+                          onPressed: () {
+                            jobsProvider.clearAllJobs();
+                            Navigator.pop(context);
+                          },
+                          child: Text(
+                            settingsProvider.translate('delete'),
+                            style: TextStyle(color: Colors.red),
                           ),
-                          child: Text(settingsProvider.translate('delete')),
                         ),
                       ],
                     ),
               );
-
-              if (confirmed == true) {
-                await jobsProvider.clearAllJobs();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(settingsProvider.translate('jobDeleted')),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              }
             },
           ),
         ],
@@ -595,7 +580,7 @@ class _JobsScreenState extends State<JobsScreen>
           controller: _tabController,
           tabs: [
             Tab(text: settingsProvider.translate('myJobs')),
-            Tab(text: settingsProvider.translate('sharedJobsSelectButton')),
+            Tab(text: settingsProvider.translate('sharedJobs')),
             Tab(text: settingsProvider.translate('createNewJob')),
             Tab(text: settingsProvider.translate('joinJob')),
           ],

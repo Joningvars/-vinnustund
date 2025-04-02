@@ -12,6 +12,7 @@ import 'package:timagatt/services/pdf_export_service.dart';
 import 'package:intl/intl.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
+import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -32,26 +33,8 @@ class HomeScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        scrolledUnderElevation: 0,
-        forceMaterialTransparency: true,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Date header
-            Text(
-              timeEntriesProvider.formatDate(DateTime.now()),
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            Text(
-              timeEntriesProvider.translate('hoursWorked'),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 28,
-              ),
-            ),
-          ],
-        ),
+      appBar: CustomAppBar(
+        title: timeEntriesProvider.translate('hoursWorked'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Padding(
@@ -83,6 +66,8 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
+        scrolledUnderElevation: 0,
+        elevation: 0,
       ),
       body: SafeArea(
         child: StreamBuilder<List<TimeEntry>>(
