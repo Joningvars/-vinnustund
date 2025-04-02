@@ -474,6 +474,8 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
             fontSize: 28,
           ),
         ),
+        scrolledUnderElevation: 0,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.file_download),
@@ -498,6 +500,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 children: [
                   TabBar(
                     controller: _tabController,
+                    dividerColor: Colors.transparent,
                     tabs: [
                       Tab(
                         text: Provider.of<TimeEntriesProvider>(
@@ -552,15 +555,15 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               Expanded(
                 child: InkWell(
                   onTap: _selectDateRange,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: 24,
+                      vertical: 17,
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardTheme.color,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -725,15 +728,15 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               Expanded(
                 child: InkWell(
                   onTap: _selectDateRange,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: 24,
+                      vertical: 16,
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardTheme.color,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,

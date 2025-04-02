@@ -548,6 +548,7 @@ class _JobsScreenState extends State<JobsScreen>
           ),
         ),
         elevation: 0,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_forever),
@@ -601,6 +602,7 @@ class _JobsScreenState extends State<JobsScreen>
           indicatorColor: theme.colorScheme.primary,
           labelColor: theme.colorScheme.primary,
           unselectedLabelColor: theme.textTheme.bodyMedium?.color,
+          dividerColor: Colors.transparent,
         ),
       ),
       body: TabBarView(
@@ -646,7 +648,9 @@ class _JobsScreenState extends State<JobsScreen>
   ) {
     // Filter to only show non-shared jobs
     final regularJobs =
-        jobsProvider.jobs.where((job) => !job.isShared).toList();
+        jobsProvider.jobs
+            .where((job) => !job.isShared && job.connectionCode == null)
+            .toList();
 
     if (regularJobs.isEmpty) {
       return Center(
