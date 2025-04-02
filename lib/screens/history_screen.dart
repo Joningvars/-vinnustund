@@ -435,7 +435,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             DateTime.now().subtract(const Duration(days: 7)) ||
                         _selectedJobId != null)
                       IconButton(
-                        icon: const Icon(Icons.file_present_outlined),
+                        icon: const Icon(Icons.download),
                         onPressed: () => _navigateToExport(context),
                       ),
                   ],

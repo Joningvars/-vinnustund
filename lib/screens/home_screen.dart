@@ -32,6 +32,58 @@ class HomeScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        scrolledUnderElevation: 0,
+        forceMaterialTransparency: true,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date header
+            Text(
+              timeEntriesProvider.formatDate(DateTime.now()),
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Text(
+              timeEntriesProvider.translate('hoursWorked'),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 28,
+              ),
+            ),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Row(
+              children: [
+                _buildPeriodSelector(
+                  timeEntriesProvider.translate('today'),
+                  timeEntriesProvider.selectedPeriod == 'Day',
+                  timeEntriesProvider,
+                  context,
+                ),
+                _buildPeriodSelector(
+                  timeEntriesProvider.translate('week'),
+                  timeEntriesProvider.selectedPeriod == 'Week',
+                  timeEntriesProvider,
+                  context,
+                ),
+                _buildPeriodSelector(
+                  timeEntriesProvider.translate('month'),
+                  timeEntriesProvider.selectedPeriod == 'Month',
+                  timeEntriesProvider,
+                  context,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: StreamBuilder<List<TimeEntry>>(
           stream: timeEntriesProvider.getTimeEntriesStream(),
@@ -62,111 +114,91 @@ class HomeScreen extends StatelessWidget {
               }
             }
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date header
-                  Text(
-                    timeEntriesProvider.formatDate(DateTime.now()),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                  Container(
+                    margin: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardTheme.color,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Hours progress
+                          HoursProgress(
+                            hoursWorked:
+                                timeEntriesProvider
+                                    .getHoursWorkedForSelectedJob(),
+                            targetHours: calculatePeriodTarget(
+                              timeEntriesProvider.selectedPeriod,
+                              timeEntriesProvider.targetHours,
+                            ),
+                            period: timeEntriesProvider.selectedPeriod,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    timeEntriesProvider.translate('hoursWorked'),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: _buildJobSelector(jobsProvider, context),
+                  ),
+
+                  Container(
+                    margin: const EdgeInsets.all(16.0),
+                    child: ClockButton(
+                      onBreakPressed: timeEntriesProvider.toggleBreak,
+                      isClockedIn: timeEntriesProvider.isClockedIn,
+                      isOnBreak: timeEntriesProvider.isOnBreak,
+                      selectedJob: timeEntriesProvider.selectedJob,
+                      onPressed: () {
+                        if (timeEntriesProvider.isClockedIn) {
+                          timeEntriesProvider.clockOut(context);
+                        } else {
+                          timeEntriesProvider.clockIn(context);
+                        }
+                      },
                     ),
                   ),
-                  const SizedBox(height: 8),
-
-                  // Period selector
-                  Row(
-                    children: [
-                      _buildPeriodSelector(
-                        timeEntriesProvider.translate('today'),
-                        timeEntriesProvider.selectedPeriod == 'Day',
-                        timeEntriesProvider,
-                        context,
+                  // Recent time entries section
+                  Container(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                timeEntriesProvider.translate('recentEntries'),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  // Navigate to the history tab (index 2)
+                                  timeEntriesProvider.setSelectedTabIndex(2);
+                                },
+                                child: Text(
+                                  timeEntriesProvider.translate('viewAll'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRecentEntries(context, timeEntriesProvider),
+                        ],
                       ),
-                      _buildPeriodSelector(
-                        timeEntriesProvider.translate('week'),
-                        timeEntriesProvider.selectedPeriod == 'Week',
-                        timeEntriesProvider,
-                        context,
-                      ),
-                      _buildPeriodSelector(
-                        timeEntriesProvider.translate('month'),
-                        timeEntriesProvider.selectedPeriod == 'Month',
-                        timeEntriesProvider,
-                        context,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Hours progress
-                  HoursProgress(
-                    hoursWorked:
-                        timeEntriesProvider.getHoursWorkedForSelectedJob(),
-                    targetHours: calculatePeriodTarget(
-                      timeEntriesProvider.selectedPeriod,
-                      timeEntriesProvider.targetHours,
                     ),
-                    period: timeEntriesProvider.selectedPeriod,
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // Job selector
-                  _buildJobSelector(jobsProvider, context),
-
-                  const SizedBox(height: 24),
-
-                  // Clock in/out section with integrated break button
-                  ClockButton(
-                    onBreakPressed: timeEntriesProvider.toggleBreak,
-                    isClockedIn: timeEntriesProvider.isClockedIn,
-                    isOnBreak: timeEntriesProvider.isOnBreak,
-                    selectedJob: timeEntriesProvider.selectedJob,
-                    onPressed: () {
-                      if (timeEntriesProvider.isClockedIn) {
-                        timeEntriesProvider.clockOut(context);
-                      } else {
-                        timeEntriesProvider.clockIn(context);
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Recent time entries
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        timeEntriesProvider.translate('recentEntries'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // Navigate to the history tab (index 2)
-                          timeEntriesProvider.setSelectedTabIndex(2);
-                        },
-                        child: Text(timeEntriesProvider.translate('viewAll')),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _buildRecentEntries(context, timeEntriesProvider),
                 ],
               ),
             );
@@ -204,7 +236,7 @@ class HomeScreen extends StatelessWidget {
             color:
                 isSelected
                     ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                    : Colors.transparent,
+                    : Theme.of(context).cardTheme.color,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color:
@@ -236,41 +268,57 @@ class HomeScreen extends StatelessWidget {
       context,
       listen: false,
     );
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
 
     // Combine regular and shared jobs for selection
     final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
-    return StyledDropdown<Job>(
-      value:
-          timeEntriesProvider.selectedJob ??
-          (allJobs.isNotEmpty ? allJobs.first : null),
-      onChanged: (Job? newValue) {
-        if (newValue != null) {
-          timeEntriesProvider.selectedJob = newValue;
-          jobsProvider.setSelectedJob(newValue);
-        }
-      },
-      items:
-          allJobs.map<DropdownMenuItem<Job>>((Job job) {
-            return DropdownMenuItem<Job>(
-              key: ValueKey(job.id),
-              value: job,
-              child: Row(
-                children: [
-                  Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: job.color,
-                      shape: BoxShape.circle,
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            settingsProvider.translate('selectJob'),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ),
+        ),
+        StyledDropdown<Job>(
+          value:
+              timeEntriesProvider.selectedJob ??
+              (allJobs.isNotEmpty ? allJobs.first : null),
+          onChanged: (Job? newValue) {
+            if (newValue != null) {
+              timeEntriesProvider.selectedJob = newValue;
+              jobsProvider.setSelectedJob(newValue);
+            }
+          },
+          items:
+              allJobs.map<DropdownMenuItem<Job>>((Job job) {
+                return DropdownMenuItem<Job>(
+                  key: ValueKey(job.id),
+                  value: job,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: job.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(job.name),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(job.name),
-                ],
-              ),
-            );
-          }).toList(),
+                );
+              }).toList(),
+        ),
+      ],
     );
   }
 

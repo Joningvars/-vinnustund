@@ -538,9 +538,6 @@ class _JobsScreenState extends State<JobsScreen>
     final theme = Theme.of(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
-    // Combine regular and shared jobs
-    final allJobs = [...jobsProvider.jobs, ...sharedJobsProvider.sharedJobs];
-
     return Scaffold(
       appBar: AppBar(
         title: Text(

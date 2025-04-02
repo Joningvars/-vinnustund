@@ -7,11 +7,11 @@ final lightTheme = ThemeData(
     seedColor: Colors.blue,
     brightness: Brightness.light,
   ),
-  scaffoldBackgroundColor: Colors.grey.shade100,
+  scaffoldBackgroundColor: Colors.white,
   textTheme: GoogleFonts.comfortaaTextTheme(),
   cardTheme: CardTheme(
     elevation: 0,
-    color: Colors.grey.shade200,
+    color: Colors.grey.shade50,
     margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
   ),
@@ -27,7 +27,7 @@ final lightTheme = ThemeData(
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
-    fillColor: Colors.grey.shade100,
+    fillColor: Colors.grey.shade50,
     hintStyle: TextStyle(color: Colors.grey.shade500),
     labelStyle: TextStyle(color: Colors.grey.shade700),
     border: OutlineInputBorder(

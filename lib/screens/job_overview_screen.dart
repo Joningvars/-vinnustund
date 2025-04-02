@@ -1,18 +1,31 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../models/job.dart';
-import '../models/time_entry.dart';
-import '../models/expense.dart';
-import '../providers/jobs_provider.dart';
-import '../providers/time_entries_provider.dart';
-import '../providers/expenses_provider.dart';
+import 'package:timagatt/models/job.dart';
+import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/models/expense.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/providers/settings_provider.dart';
+import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/expenses_provider.dart';
+import 'package:timagatt/screens/job/add_expense_screen.dart';
+import 'package:timagatt/screens/job/edit_expense_screen.dart';
+import 'package:timagatt/widgets/common/styled_dropdown.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/database_service.dart';
 import '../widgets/time_entry_card.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../widgets/common/styled_dropdown.dart';
+import 'package:flutter/rendering.dart';
+import 'package:open_file/open_file.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -34,6 +47,8 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   String? _selectedUserId;
   List<String> _userIds = [];
   List<String> _userNames = [];
+  List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _pendingRequests = [];
 
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
@@ -42,7 +57,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     // Add listener to track tab changes
     _tabController.addListener(() {
@@ -50,6 +65,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
     });
 
     _loadData();
+    _loadMembers();
   }
 
   @override
@@ -79,6 +95,63 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
       debugPrint('Error loading data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadMembers() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      // Get members from the job's connectedUsers list
+      if (widget.job.connectedUsers != null) {
+        final membersSnapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .where(
+                  FieldPath.documentId,
+                  whereIn: widget.job.connectedUsers!,
+                )
+                .get();
+
+        _members =
+            membersSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {
+                'id': doc.id,
+                'name': data['name'] ?? 'Unknown User',
+                'email': data['email'] ?? '',
+                'isCreator': doc.id == widget.job.creatorId,
+              };
+            }).toList();
+      }
+
+      // Get pending requests if the current user is the creator
+      if (widget.job.creatorId == currentUser.uid &&
+          widget.job.connectionCode != null) {
+        final requestsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(widget.job.connectionCode)
+                .collection('joinRequests')
+                .get();
+
+        _pendingRequests =
+            requestsSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {
+                'id': doc.id,
+                'userId': data['userId'],
+                'userName': data['userName'] ?? 'Unknown User',
+                'userEmail': data['userEmail'] ?? '',
+                'timestamp': data['timestamp'],
+              };
+            }).toList();
+      }
+
+      setState(() {});
+    } catch (e) {
+      print('Error loading members: $e');
     }
   }
 
@@ -412,6 +485,13 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
             fontSize: 28,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download),
+            onPressed: _exportToPDF,
+            tooltip: 'Export to PDF',
+          ),
+        ],
       ),
       floatingActionButton:
           _tabController.index == 1
@@ -440,12 +520,21 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                           context,
                         ).translate('expenses'),
                       ),
+                      Tab(
+                        text: Provider.of<SettingsProvider>(
+                          context,
+                        ).translate('members'),
+                      ),
                     ],
                   ),
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [_buildTimeEntriesTab(), _buildExpensesTab()],
+                      children: [
+                        _buildTimeEntriesTab(),
+                        _buildExpensesTab(),
+                        _buildMembersTab(),
+                      ],
                     ),
                   ),
                 ],
@@ -822,6 +911,113 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                     },
                   ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildMembersTab() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isCreator = currentUser?.uid == widget.job.creatorId;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Members section
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  Provider.of<TimeEntriesProvider>(
+                    context,
+                  ).translate('members'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                ..._members.map(
+                  (member) => Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(member['name'][0].toUpperCase()),
+                      ),
+                      title: Text(member['name']),
+                      subtitle: Text(member['email']),
+                      trailing:
+                          member['isCreator']
+                              ? const Text('Creator')
+                              : isCreator
+                              ? IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed:
+                                    () => _handleMemberAction(
+                                      member['id'],
+                                      'remove',
+                                    ),
+                              )
+                              : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Pending requests section (only for creator)
+        if (isCreator && _pendingRequests.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pending Requests',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  ..._pendingRequests.map(
+                    (request) => Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(request['userName'][0].toUpperCase()),
+                        ),
+                        title: Text(request['userName']),
+                        subtitle: Text(request['userEmail']),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.check_circle_outline),
+                              color: Colors.green,
+                              onPressed:
+                                  () => _handleMemberAction(
+                                    request['userId'],
+                                    'approve',
+                                  ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel_outlined),
+                              color: Colors.red,
+                              onPressed:
+                                  () => _handleMemberAction(
+                                    request['userId'],
+                                    'deny',
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1205,5 +1401,677 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         }
       }
     }
+  }
+
+  Future<void> _handleMemberAction(String userId, String action) async {
+    try {
+      if (action == 'remove') {
+        // Remove member from connectedUsers
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(widget.job.connectionCode)
+            .update({
+              'connectedUsers': FieldValue.arrayRemove([userId]),
+            });
+
+        // Remove from user's jobs collection
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('jobs')
+            .doc(widget.job.id)
+            .delete();
+
+        // Refresh members list
+        await _loadMembers();
+      } else if (action == 'approve') {
+        // Find the request in pendingRequests
+        final request = _pendingRequests.firstWhere(
+          (r) => r['userId'] == userId,
+        );
+
+        // Add user to connectedUsers
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(widget.job.connectionCode)
+            .update({
+              'connectedUsers': FieldValue.arrayUnion([userId]),
+            });
+
+        // Add job to user's jobs collection
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('jobs')
+            .doc(widget.job.id)
+            .set(widget.job.toJson());
+
+        // Delete the request
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(widget.job.connectionCode)
+            .collection('joinRequests')
+            .doc(request['id'])
+            .delete();
+
+        // Refresh members and requests lists
+        await _loadMembers();
+      } else if (action == 'deny') {
+        // Find the request in pendingRequests
+        final request = _pendingRequests.firstWhere(
+          (r) => r['userId'] == userId,
+        );
+
+        // Delete the request
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .doc(widget.job.connectionCode)
+            .collection('joinRequests')
+            .doc(request['id'])
+            .delete();
+
+        // Refresh requests list
+        await _loadMembers();
+      }
+    } catch (e) {
+      print('Error handling member action: $e');
+    }
+  }
+
+  Future<void> _exportToPDF() async {
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+      final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+        context,
+        listen: false,
+      );
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+
+      // Get all time entries for this job
+      final jobEntries =
+          _entries.where((entry) => entry.jobId == widget.job.id).toList();
+      final jobExpenses =
+          _expenses.where((expense) => expense.jobId == widget.job.id).toList();
+
+      if (jobEntries.isEmpty && jobExpenses.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(settingsProvider.translate('noEntriesForExport')),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Create a PDF document with custom theme
+      final pdf = pw.Document(
+        theme: pw.ThemeData.withFont(
+          base: pw.Font.ttf(
+            await rootBundle.load(
+              'assets/fonts/Comfortaa/Comfortaa-Regular.ttf',
+            ),
+          ),
+          bold: pw.Font.ttf(
+            await rootBundle.load('assets/fonts/Comfortaa/Comfortaa-Bold.ttf'),
+          ),
+        ),
+      );
+
+      // Load logo
+      final logoImage = pw.MemoryImage(
+        (await rootBundle.load('assets/icons/logo.png')).buffer.asUint8List(),
+      );
+
+      // Define colors
+      final primaryColor = PdfColor.fromHex('#3D5AFE');
+      final accentColor = PdfColor.fromHex('#00C853');
+      final bgColor = PdfColors.white;
+      final lightGrey = PdfColor.fromHex('#F5F5F5');
+      final mediumGrey = PdfColor.fromHex('#9E9E9E');
+      final textColor = PdfColors.black;
+
+      // Sort entries by date (newest first)
+      jobEntries.sort((a, b) => b.startTime.compareTo(a.startTime));
+      jobExpenses.sort((a, b) => b.date.compareTo(a.date));
+
+      // Calculate totals
+      final totalDuration = jobEntries.fold<Duration>(
+        Duration.zero,
+        (total, entry) => total + entry.duration,
+      );
+      final totalHours = totalDuration.inHours;
+      final totalMinutes = totalDuration.inMinutes % 60;
+      final totalExpenses = jobExpenses.fold<double>(
+        0,
+        (total, expense) => total + expense.amount,
+      );
+
+      // Add content to PDF
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(30),
+          header: (pw.Context context) {
+            return pw.Column(
+              children: [
+                // Header with logo and title
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Row(
+                      children: [
+                        pw.Image(logoImage, width: 40, height: 40),
+                        pw.SizedBox(width: 10),
+                        pw.Text(
+                          'Tímagátt',
+                          style: pw.TextStyle(
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.Text(
+                      DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                      style: pw.TextStyle(fontSize: 14, color: mediumGrey),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 20),
+                // Job title and summary
+                pw.Container(
+                  margin: const pw.EdgeInsets.symmetric(vertical: 15),
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    color: lightGrey,
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        widget.job.name,
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            settingsProvider.translate('totalHours') +
+                                ': ' +
+                                '$totalHours,${totalMinutes.toString().padLeft(2, '0')}',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              color: primaryColor,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                          pw.Text(
+                            settingsProvider.translate('totalExpenses') +
+                                ': ' +
+                                '${totalExpenses.toInt()} kr',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              color: accentColor,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+          build: (pw.Context context) {
+            return [
+              // Time Entries Section
+              if (jobEntries.isNotEmpty) ...[
+                pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 20),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        settingsProvider.translate('timeEntries'),
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Container(
+                        decoration: pw.BoxDecoration(
+                          borderRadius: pw.BorderRadius.circular(8),
+                          border: pw.Border.all(color: lightGrey, width: 1),
+                        ),
+                        child: pw.Table(
+                          border: pw.TableBorder.symmetric(
+                            inside: pw.BorderSide(color: lightGrey, width: 0.5),
+                          ),
+                          columnWidths: {
+                            0: const pw.FlexColumnWidth(1.0), // Date
+                            1: const pw.FlexColumnWidth(1.0), // User
+                            2: const pw.FlexColumnWidth(0.8), // Clock In
+                            3: const pw.FlexColumnWidth(0.8), // Clock Out
+                            4: const pw.FlexColumnWidth(0.6), // Hours
+                            5: const pw.FlexColumnWidth(2.0), // Description
+                          },
+                          children: [
+                            // Header row
+                            pw.TableRow(
+                              decoration: pw.BoxDecoration(
+                                color: primaryColor,
+                                borderRadius: pw.BorderRadius.only(
+                                  topLeft: pw.Radius.circular(8),
+                                  topRight: pw.Radius.circular(8),
+                                ),
+                              ),
+                              children: [
+                                _buildTableHeader(
+                                  settingsProvider.translate('date'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('name'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('clockInPDF'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('clockOutPDF'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('hours'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('description'),
+                                ),
+                              ],
+                            ),
+                            // Data rows
+                            ...jobEntries.asMap().entries.map((entry) {
+                              final isEven = entry.key % 2 == 0;
+                              final hours = entry.value.duration.inHours;
+                              final minutes =
+                                  entry.value.duration.inMinutes % 60;
+                              return pw.TableRow(
+                                decoration: pw.BoxDecoration(
+                                  color:
+                                      isEven
+                                          ? bgColor
+                                          : PdfColor(
+                                            lightGrey.red,
+                                            lightGrey.green,
+                                            lightGrey.blue,
+                                            0.5,
+                                          ),
+                                ),
+                                children: [
+                                  _buildTableCell(
+                                    timeEntriesProvider.formatDate(
+                                      entry.value.startTime,
+                                    ),
+                                  ),
+                                  _buildTableCell(
+                                    entry.value.userName ?? 'Unknown',
+                                  ),
+                                  _buildTableCell(
+                                    timeEntriesProvider.formatTime(
+                                      entry.value.startTime,
+                                    ),
+                                  ),
+                                  _buildTableCell(
+                                    timeEntriesProvider.formatTime(
+                                      entry.value.endTime,
+                                    ),
+                                  ),
+                                  _buildTableCell(
+                                    '$hours,${minutes.toString().padLeft(2, '0')}',
+                                  ),
+                                  _buildTableCell(
+                                    entry.value.description ?? '-',
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Expenses Section
+              if (jobExpenses.isNotEmpty) ...[
+                pw.Container(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        settingsProvider.translate('expenses'),
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                          color: accentColor,
+                        ),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Container(
+                        decoration: pw.BoxDecoration(
+                          borderRadius: pw.BorderRadius.circular(8),
+                          border: pw.Border.all(color: lightGrey, width: 1),
+                        ),
+                        child: pw.Table(
+                          border: pw.TableBorder.symmetric(
+                            inside: pw.BorderSide(color: lightGrey, width: 0.5),
+                          ),
+                          columnWidths: {
+                            0: const pw.FlexColumnWidth(1.0), // Date
+                            1: const pw.FlexColumnWidth(1.0), // User
+                            2: const pw.FlexColumnWidth(1.0), // Amount
+                            3: const pw.FlexColumnWidth(2.0), // Description
+                          },
+                          children: [
+                            // Header row
+                            pw.TableRow(
+                              decoration: pw.BoxDecoration(
+                                color: accentColor,
+                                borderRadius: pw.BorderRadius.only(
+                                  topLeft: pw.Radius.circular(8),
+                                  topRight: pw.Radius.circular(8),
+                                ),
+                              ),
+                              children: [
+                                _buildTableHeader(
+                                  settingsProvider.translate('date'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('name'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('amount'),
+                                ),
+                                _buildTableHeader(
+                                  settingsProvider.translate('description'),
+                                ),
+                              ],
+                            ),
+                            // Data rows
+                            ...jobExpenses.asMap().entries.map((entry) {
+                              final isEven = entry.key % 2 == 0;
+                              return pw.TableRow(
+                                decoration: pw.BoxDecoration(
+                                  color:
+                                      isEven
+                                          ? bgColor
+                                          : PdfColor(
+                                            lightGrey.red,
+                                            lightGrey.green,
+                                            lightGrey.blue,
+                                            0.5,
+                                          ),
+                                ),
+                                children: [
+                                  _buildTableCell(
+                                    timeEntriesProvider.formatDate(
+                                      entry.value.date,
+                                    ),
+                                  ),
+                                  _buildTableCell(
+                                    entry.value.userName ?? 'Unknown',
+                                  ),
+                                  _buildTableCell(
+                                    '${entry.value.amount.toInt()} kr',
+                                  ),
+                                  _buildTableCell(
+                                    entry.value.description ?? '-',
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ];
+          },
+        ),
+      );
+
+      // Save the PDF
+      final output = await getTemporaryDirectory();
+      final file = File(
+        '${output.path}/job_report_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      await file.writeAsBytes(await pdf.save());
+
+      if (mounted) {
+        // Show success dialog with modern styling
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Success icon
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 50,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Success message
+                    Text(
+                      settingsProvider.translate('exportComplete'),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.titleLarge?.color,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Text(
+                      settingsProvider.translate('exportCompleteMessage'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // View button
+                        InkWell(
+                          onTap: () {
+                            Navigator.pop(context);
+                            OpenFile.open(file.path);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.visibility,
+                                  color: Theme.of(context).primaryColor,
+                                  size: 28,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  settingsProvider.translate('view'),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Share button
+                        InkWell(
+                          onTap: () async {
+                            Navigator.pop(context);
+                            final url = Uri.file(file.path);
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(
+                                url,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.share,
+                                  color: Colors.purple,
+                                  size: 28,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  settingsProvider.translate('share'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.purple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Close button
+                        InkWell(
+                          onTap: () => Navigator.pop(context),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.close, color: Colors.grey, size: 28),
+                                const SizedBox(height: 8),
+                                Text(
+                                  settingsProvider.translate('close'),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }
+    } catch (e) {
+      print('Error exporting to PDF: $e');
+      if (mounted) {
+        final settingsProvider = Provider.of<SettingsProvider>(
+          context,
+          listen: false,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(settingsProvider.translate('exportError')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  pw.Widget _buildTableHeader(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.white,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildTableCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text, style: pw.TextStyle(fontSize: 9)),
+    );
   }
 }

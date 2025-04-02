@@ -15,6 +15,7 @@ import 'dart:typed_data';
 
 class PdfExportService {
   final TimeEntriesProvider provider;
+  final PdfColor textColor = PdfColor.fromHex('#212121');
 
   PdfExportService(this.provider);
 
@@ -41,7 +42,6 @@ class PdfExportService {
     final primaryColor = PdfColor.fromHex('#3D5AFE');
     final accentColor = PdfColor.fromHex('#00C853');
     final bgColor = PdfColors.white;
-    final textColor = PdfColor.fromHex('#212121');
     final lightGrey = PdfColor.fromHex('#F5F5F5');
     final mediumGrey = PdfColor.fromHex('#9E9E9E');
 
@@ -957,6 +957,337 @@ class PdfExportService {
     final minutes = totalMinutes % 60;
 
     return '$hours ${provider.translate('klst')} $minutes ${provider.translate('mín')}';
+  }
+
+  Future<File> generateJobReportPdf(
+    String jobId,
+    String jobName,
+    List<TimeEntry> entries,
+    List<Map<String, dynamic>> expenses,
+  ) async {
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: pw.Font.ttf(
+          await rootBundle.load('assets/fonts/Comfortaa/Comfortaa-Regular.ttf'),
+        ),
+        bold: pw.Font.ttf(
+          await rootBundle.load('assets/fonts/Comfortaa/Comfortaa-Bold.ttf'),
+        ),
+      ),
+    );
+
+    final logoImage = pw.MemoryImage(
+      (await rootBundle.load('assets/icons/logo.png')).buffer.asUint8List(),
+    );
+
+    // Define colors for a modern, minimalist design
+    final primaryColor = PdfColor.fromHex('#3D5AFE');
+    final accentColor = PdfColor.fromHex('#00C853');
+    final bgColor = PdfColors.white;
+    final lightGrey = PdfColor.fromHex('#F5F5F5');
+    final mediumGrey = PdfColor.fromHex('#9E9E9E');
+
+    // Sort entries by date (newest first)
+    entries.sort((a, b) => b.clockInTime.compareTo(a.clockInTime));
+    expenses.sort(
+      (a, b) => DateTime.parse(b['date']).compareTo(DateTime.parse(a['date'])),
+    );
+
+    // Calculate totals
+    final totalDuration = entries.fold<Duration>(
+      Duration.zero,
+      (total, entry) => total + entry.duration,
+    );
+    final totalHours = totalDuration.inHours;
+    final totalMinutes = totalDuration.inMinutes % 60;
+    final totalExpenses = expenses.fold<double>(
+      0,
+      (total, expense) => total + (expense['amount'] as num).toDouble(),
+    );
+
+    // Add a single page with header and tables
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(30),
+        header: (pw.Context context) {
+          return pw.Column(
+            children: [
+              // Header with logo and title
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Row(
+                    children: [
+                      pw.Image(logoImage, width: 40, height: 40),
+                      pw.SizedBox(width: 10),
+                      pw.Text(
+                        'Tímagátt',
+                        style: pw.TextStyle(
+                          fontSize: 24,
+                          fontWeight: pw.FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Text(
+                    DateFormat('yyyy-MM-dd').format(DateTime.now()),
+                    style: pw.TextStyle(fontSize: 14, color: mediumGrey),
+                  ),
+                ],
+              ),
+
+              // Job title and summary
+              pw.Container(
+                margin: const pw.EdgeInsets.symmetric(vertical: 15),
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  color: lightGrey,
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      jobName,
+                      style: pw.TextStyle(
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    pw.SizedBox(height: 10),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          provider.translate('totalHours') +
+                              ': ' +
+                              '$totalHours,${totalMinutes.toString().padLeft(2, '0')}',
+                          style: pw.TextStyle(
+                            fontSize: 14,
+                            color: primaryColor,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.Text(
+                          provider.translate('totalExpenses') +
+                              ': ' +
+                              '${totalExpenses.toStringAsFixed(2)} kr',
+                          style: pw.TextStyle(
+                            fontSize: 14,
+                            color: accentColor,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+        build: (pw.Context context) {
+          return [
+            // Time Entries Section
+            pw.Container(
+              margin: const pw.EdgeInsets.only(bottom: 20),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    provider.translate('timeEntries'),
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: primaryColor,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Container(
+                    decoration: pw.BoxDecoration(
+                      borderRadius: pw.BorderRadius.circular(8),
+                      border: pw.Border.all(color: lightGrey, width: 1),
+                    ),
+                    child: pw.Table(
+                      border: pw.TableBorder.symmetric(
+                        inside: pw.BorderSide(color: lightGrey, width: 0.5),
+                      ),
+                      columnWidths: {
+                        0: const pw.FlexColumnWidth(1.0), // Date
+                        1: const pw.FlexColumnWidth(1.0), // User
+                        2: const pw.FlexColumnWidth(0.8), // Clock In
+                        3: const pw.FlexColumnWidth(0.8), // Clock Out
+                        4: const pw.FlexColumnWidth(0.6), // Hours
+                        5: const pw.FlexColumnWidth(2.0), // Description
+                      },
+                      children: [
+                        // Header row
+                        pw.TableRow(
+                          decoration: pw.BoxDecoration(
+                            color: primaryColor,
+                            borderRadius: pw.BorderRadius.only(
+                              topLeft: pw.Radius.circular(8),
+                              topRight: pw.Radius.circular(8),
+                            ),
+                          ),
+                          children: [
+                            _buildTableHeader(provider.translate('date')),
+                            _buildTableHeader(provider.translate('name')),
+                            _buildTableHeader(provider.translate('clockInPDF')),
+                            _buildTableHeader(
+                              provider.translate('clockOutPDF'),
+                            ),
+                            _buildTableHeader(provider.translate('hours')),
+                            _buildTableHeader(
+                              provider.translate('description'),
+                            ),
+                          ],
+                        ),
+                        // Data rows
+                        ...entries.map(
+                          (entry) => pw.TableRow(
+                            children: [
+                              _buildTableCellForJobReport(
+                                DateFormat(
+                                  'yyyy-MM-dd',
+                                ).format(entry.clockInTime),
+                              ),
+                              _buildTableCellForJobReport(
+                                entry.userName ?? 'Unknown',
+                              ),
+                              _buildTableCellForJobReport(
+                                DateFormat('HH:mm').format(entry.clockInTime),
+                              ),
+                              _buildTableCellForJobReport(
+                                DateFormat('HH:mm').format(entry.clockOutTime),
+                              ),
+                              _buildTableCellForJobReport(
+                                '${entry.duration.inHours},${(entry.duration.inMinutes % 60).toString().padLeft(2, '0')}',
+                              ),
+                              _buildTableCellForJobReport(
+                                entry.description ?? '',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Expenses Section
+            pw.Container(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    provider.translate('expenses'),
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: accentColor,
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Container(
+                    decoration: pw.BoxDecoration(
+                      borderRadius: pw.BorderRadius.circular(8),
+                      border: pw.Border.all(color: lightGrey, width: 1),
+                    ),
+                    child: pw.Table(
+                      border: pw.TableBorder.symmetric(
+                        inside: pw.BorderSide(color: lightGrey, width: 0.5),
+                      ),
+                      columnWidths: {
+                        0: const pw.FlexColumnWidth(1.0), // Date
+                        1: const pw.FlexColumnWidth(1.0), // User
+                        2: const pw.FlexColumnWidth(1.0), // Amount
+                        3: const pw.FlexColumnWidth(2.0), // Description
+                      },
+                      children: [
+                        // Header row
+                        pw.TableRow(
+                          decoration: pw.BoxDecoration(
+                            color: accentColor,
+                            borderRadius: pw.BorderRadius.only(
+                              topLeft: pw.Radius.circular(8),
+                              topRight: pw.Radius.circular(8),
+                            ),
+                          ),
+                          children: [
+                            _buildTableHeader(provider.translate('date')),
+                            _buildTableHeader(provider.translate('name')),
+                            _buildTableHeader(provider.translate('amount')),
+                            _buildTableHeader(
+                              provider.translate('description'),
+                            ),
+                          ],
+                        ),
+                        // Data rows
+                        ...expenses.map(
+                          (expense) => pw.TableRow(
+                            children: [
+                              _buildTableCellForJobReport(
+                                DateFormat(
+                                  'yyyy-MM-dd',
+                                ).format(DateTime.parse(expense['date'])),
+                              ),
+                              _buildTableCellForJobReport(
+                                expense['userName'] ?? 'Unknown',
+                              ),
+                              _buildTableCellForJobReport(
+                                '${(expense['amount'] as num).toStringAsFixed(2)} kr',
+                              ),
+                              _buildTableCellForJobReport(
+                                expense['description'] ?? '',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    );
+
+    // Save the PDF
+    final output = await getTemporaryDirectory();
+    final file = File(
+      '${output.path}/$jobName-${DateTime.now().millisecondsSinceEpoch}.pdf',
+    );
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
+
+  pw.Widget _buildTableHeader(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.white,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildTableCellForJobReport(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text, style: pw.TextStyle(fontSize: 10, color: textColor)),
+    );
   }
 }
 

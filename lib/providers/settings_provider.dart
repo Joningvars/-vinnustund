@@ -242,6 +242,7 @@ class SettingsProvider extends BaseProvider {
       'passwordChanged': 'Password changed successfully',
       'profile': 'Profile',
       'noName': 'No Name',
+      'selectedJob': 'Selected Job',
       'editProfile': 'Edit Profile',
       'verify': 'Verify',
       'verificationEmailSent': 'Verification email sent',
@@ -263,6 +264,7 @@ class SettingsProvider extends BaseProvider {
       'enterExpenseDetails': 'Enter expense details',
       'amount': 'Amount',
       'noExpenses': 'No expenses yet',
+      'members': 'Members',
     },
     'is': {
       'home': 'Heim',
@@ -310,7 +312,9 @@ class SettingsProvider extends BaseProvider {
       'entries': 'færslur',
       'noEntries': 'Engar tímafærslur',
       'delete': 'Eyða',
+      'members': 'Meðlimir',
       'deleteEntry': 'Eyða færslu',
+      'selectedJob': 'Valið verk',
       'deleteEntryConfirm':
           'Ertu viss um að þú viljir eyða þessari tímafærslu?',
       'timeEntryDeleted': 'Tímafærslu eytt',

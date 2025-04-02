@@ -165,7 +165,13 @@ class JobsProvider extends BaseProvider {
       jobs.removeWhere((job) => job.id == jobId);
       sharedJobs.removeWhere((job) => job.id == jobId);
 
-      // If it's a shared job, we need to handle it differently
+      // Delete all time entries for this job first
+      if (databaseService != null) {
+        print('🗑️ Deleting all time entries for job: $jobId');
+        await databaseService!.deleteAllTimeEntriesForJob(jobId);
+      }
+
+      // If it's a shared job, handle shared job deletion
       if (jobToDelete.isShared) {
         await _deleteSharedJob(jobToDelete);
       } else {
@@ -202,8 +208,24 @@ class JobsProvider extends BaseProvider {
 
       // Check if current user is the creator
       if (job.creatorId == currentUserId) {
-        // If creator, delete the shared job document
+        // If creator, delete the shared job document and all its entries
         if (job.connectionCode != null) {
+          // Delete all entries in the shared job's entries collection
+          print(
+            '🗑️ Deleting shared job entries for connection code: ${job.connectionCode}',
+          );
+          final entriesSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('sharedJobs')
+                  .doc(job.connectionCode)
+                  .collection('entries')
+                  .get();
+
+          for (var doc in entriesSnapshot.docs) {
+            await doc.reference.delete();
+          }
+
+          // Delete the shared job document itself
           await FirebaseFirestore.instance
               .collection('sharedJobs')
               .doc(job.connectionCode)
@@ -242,7 +264,11 @@ class JobsProvider extends BaseProvider {
 
   Future<void> saveJobsToLocalStorage() async {
     final prefs = await SharedPreferences.getInstance();
-    final jobsJson = jsonEncode(jobs.map((job) => job.toJson()).toList());
+    // Only save non-shared jobs to local storage
+    final nonSharedJobs = jobs.where((job) => !job.isShared).toList();
+    final jobsJson = jsonEncode(
+      nonSharedJobs.map((job) => job.toJson()).toList(),
+    );
     await prefs.setString('jobs', jobsJson);
   }
 

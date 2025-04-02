@@ -117,111 +117,117 @@ class _HoursProgressState extends State<HoursProgress>
       (a, b) => (b['hours'] as double).compareTo(a['hours'] as double),
     );
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Main circular progress indicator
-        Expanded(
-          flex: 3,
-          child: Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 180,
-                    height: 180,
-                    child: AnimatedBuilder(
-                      animation: _progressAnimation,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: JobProgressPainter(
-                            progress: _progressAnimation.value,
-                            jobsWithPercentages: jobsWithPercentages,
-                            backgroundColor: Colors.grey.shade200,
-                          ),
-                          child: Container(),
-                        );
-                      },
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: widget.hoursWorked),
-                        duration: const Duration(milliseconds: 750),
-                        builder: (context, value, child) {
-                          return Text(
-                            value.toStringAsFixed(1),
-                            style: const TextStyle(
-                              fontSize: 40,
-                              fontWeight: FontWeight.bold,
+    return Card(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Main circular progress indicator
+          Expanded(
+            flex: 4,
+            child: Column(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      height: 180,
+                      child: AnimatedBuilder(
+                        animation: _progressAnimation,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: JobProgressPainter(
+                              progress: _progressAnimation.value,
+                              jobsWithPercentages: jobsWithPercentages,
+                              backgroundColor: Colors.grey.shade200,
                             ),
+                            child: Container(),
                           );
                         },
                       ),
-                      Text(
-                        '${timeProvider.translate('of')} ${widget.targetHours} ${timeProvider.translate('hours')}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(
+                            begin: 0,
+                            end: widget.hoursWorked,
+                          ),
+                          duration: const Duration(milliseconds: 750),
+                          builder: (context, value, child) {
+                            return Text(
+                              value.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        timeProvider.translate(widget.period.toLowerCase()),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade500,
+                        Text(
+                          '${timeProvider.translate('of')} ${widget.targetHours} ${timeProvider.translate('hours')}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          timeProvider.translate(widget.period.toLowerCase()),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  timeProvider.translate('totalHours'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                timeProvider.translate('totalHours'),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-
-        // Job hours breakdown
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                timeProvider.translate('hoursbyJob'),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.bold,
+          const SizedBox(width: 16),
+          // Job hours breakdown
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  timeProvider.translate('hoursbyJob'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              ...jobsWithPercentages.map((jobData) {
-                final job = jobData['job'] as Job;
-                final hours = jobData['hours'] as double;
-                final progressValue = jobData['percentage'] as double;
+                const SizedBox(height: 12),
+                ...jobsWithPercentages.map((jobData) {
+                  final job = jobData['job'] as Job;
+                  final hours = jobData['hours'] as double;
+                  final progressValue = jobData['percentage'] as double;
 
-                return AnimatedJobProgressItem(
-                  job: job,
-                  hours: hours,
-                  progress: progressValue,
-                );
-              }),
-            ],
+                  return AnimatedJobProgressItem(
+                    job: job,
+                    hours: hours,
+                    progress: progressValue,
+                  );
+                }),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

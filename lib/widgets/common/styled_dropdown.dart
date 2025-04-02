@@ -9,6 +9,7 @@ class StyledDropdown<T> extends StatelessWidget {
   final bool isExpanded;
   final double? width;
   final EdgeInsets? contentPadding;
+  final Color? backgroundColor;
 
   const StyledDropdown({
     Key? key,
@@ -20,6 +21,7 @@ class StyledDropdown<T> extends StatelessWidget {
     this.isExpanded = true,
     this.width,
     this.contentPadding,
+    this.backgroundColor,
   }) : super(key: key);
 
   @override
@@ -28,7 +30,7 @@ class StyledDropdown<T> extends StatelessWidget {
       data: Theme.of(context).copyWith(
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Theme.of(context).cardTheme.color,
+          fillColor: backgroundColor ?? Theme.of(context).cardTheme.color,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
@@ -55,14 +57,15 @@ class StyledDropdown<T> extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             prefixIcon: prefix,
           ),
-          dropdownColor: Theme.of(context).colorScheme.surface,
+          dropdownColor:
+              backgroundColor ?? Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
           elevation: 4,
           isExpanded: isExpanded,
           menuMaxHeight: 300,
           alignment: AlignmentDirectional.bottomStart,
           hint: hint != null ? Text(hint!) : null,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: Theme.of(context).colorScheme.onSurface,
             fontSize: 15,
           ),

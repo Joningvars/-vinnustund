@@ -394,8 +394,7 @@ class SharedJobsProvider extends BaseProvider {
       isPublic: true,
     );
 
-    // Add to local jobs list
-    jobs.add(job);
+    // Add to shared jobs list only
     sharedJobs.add(job);
 
     // Update the connected users list in Firestore

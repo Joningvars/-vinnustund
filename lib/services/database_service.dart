@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:timagatt/models/job.dart';
@@ -6,6 +7,12 @@ import 'package:timagatt/models/time_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:timagatt/models/expense.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:intl/intl.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore;
@@ -719,18 +726,54 @@ class DatabaseService {
   // Add method to delete all time entries for a job
   Future<void> deleteAllTimeEntriesForJob(String jobId) async {
     try {
-      // Get all time entries for this job
-      final snapshot =
+      print('🗑️ Starting deletion of all time entries for job $jobId');
+
+      // First, check if this is a shared job
+      final jobDoc = await jobsCollection.doc(jobId).get();
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      final isShared = jobData?['isShared'] ?? false;
+      final connectionCode = jobData?['connectionCode'];
+
+      // Delete from user's own collection
+      print('🗑️ Deleting entries from user collection');
+      final userEntriesSnapshot =
           await timeEntriesCollection.where('jobId', isEqualTo: jobId).get();
 
-      // Delete each time entry
-      for (var doc in snapshot.docs) {
+      for (var doc in userEntriesSnapshot.docs) {
         await doc.reference.delete();
       }
 
-      print('Deleted all time entries for job $jobId');
+      // If it's a shared job, also delete from shared collection
+      if (isShared && connectionCode != null) {
+        print('🗑️ Deleting entries from shared job collection');
+        final sharedEntriesSnapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        for (var doc in sharedEntriesSnapshot.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // Delete from any collection group queries
+      print('🗑️ Cleaning up any remaining entries');
+      final collectionGroupSnapshot =
+          await _firestore
+              .collectionGroup('timeEntries')
+              .where('jobId', isEqualTo: jobId)
+              .get();
+
+      for (var doc in collectionGroupSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      print('✅ Successfully deleted all time entries for job $jobId');
     } catch (e) {
-      print('Error deleting time entries for job $jobId: $e');
+      print('❌ Error deleting time entries for job $jobId: $e');
       throw e;
     }
   }
@@ -1307,6 +1350,315 @@ class DatabaseService {
     } catch (e) {
       print('Error getting job by ID: $e');
       return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> getJobDataForExport(String jobId) async {
+    try {
+      print('📊 Getting all data for job $jobId for export');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get the job document
+      final jobDoc = await jobsCollection.doc(jobId).get();
+      if (!jobDoc.exists) {
+        throw Exception('Job not found');
+      }
+
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      final isShared = jobData?['isShared'] ?? false;
+      final connectionCode = jobData?['connectionCode'];
+
+      // Get all time entries
+      List<TimeEntry> entries;
+      if (isShared && connectionCode != null) {
+        // For shared jobs, get entries from the shared collection
+        final entriesSnapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .where('jobId', isEqualTo: jobId)
+                .orderBy('clockInTime', descending: true)
+                .get();
+
+        entries =
+            entriesSnapshot.docs.map((doc) {
+              final data = doc.data();
+              DateTime parseDateTime(dynamic value) {
+                if (value is Timestamp) {
+                  return value.toDate();
+                } else if (value is String) {
+                  return DateTime.parse(value);
+                }
+                throw Exception('Invalid date format');
+              }
+
+              return TimeEntry(
+                id: doc.id,
+                jobId: data['jobId'],
+                jobName: data['jobName'],
+                jobColor: ui.Color(data['jobColor']),
+                clockInTime: parseDateTime(data['clockInTime']),
+                clockOutTime: parseDateTime(data['clockOutTime']),
+                duration: Duration(minutes: data['duration']),
+                description: data['description'],
+                userId: data['userId'],
+                userName: data['userName'],
+                date: parseDateTime(data['clockInTime']),
+              );
+            }).toList();
+      } else {
+        // For regular jobs, get entries from user's collection
+        entries = await loadTimeEntriesForJob(jobId);
+      }
+
+      // Get all expenses
+      List<Expense> expenses;
+      if (isShared && connectionCode != null) {
+        // For shared jobs, get expenses from the shared collection
+        final expensesSnapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('expenses')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        expenses =
+            expensesSnapshot.docs
+                .map((doc) => Expense.fromJson({'id': doc.id, ...doc.data()}))
+                .toList();
+      } else {
+        // For regular jobs, get expenses from user's collection
+        expenses = await getExpensesForJob(jobId);
+      }
+
+      // Get user names for all entries and expenses
+      final userIds =
+          {
+            ...entries.map((e) => e.userId),
+            ...expenses.map((e) => e.userId),
+          }.toList();
+      final userNames = await getUserNames(userIds);
+
+      // Calculate totals
+      final totalHours = entries.fold<double>(
+        0,
+        (sum, entry) => sum + entry.duration.inMinutes / 60,
+      );
+      final totalExpenses = expenses.fold<double>(
+        0,
+        (sum, expense) => sum + expense.amount,
+      );
+
+      // Return all data in a structured format
+      return {
+        'job': {
+          'id': jobId,
+          'name': jobData?['name'] ?? 'Unnamed Job',
+          'color': jobData?['color'],
+          'description': jobData?['description'],
+          'isShared': isShared,
+          'connectionCode': connectionCode,
+          'creatorId': jobData?['creatorId'],
+          'createdAt': jobData?['createdAt']?.toDate().toIso8601String(),
+        },
+        'entries':
+            entries
+                .map(
+                  (e) => {
+                    'id': e.id,
+                    'userId': e.userId,
+                    'userName': e.userName ?? userNames[e.userId] ?? 'Unknown',
+                    'clockInTime': e.clockInTime.toIso8601String(),
+                    'clockOutTime': e.clockOutTime.toIso8601String(),
+                    'duration': e.duration.inMinutes,
+                    'description': e.description,
+                  },
+                )
+                .toList(),
+        'expenses':
+            expenses
+                .map(
+                  (e) => {
+                    'id': e.id,
+                    'userId': e.userId,
+                    'userName': e.userName ?? userNames[e.userId] ?? 'Unknown',
+                    'date': e.date.toIso8601String(),
+                    'amount': e.amount,
+                    'description': e.description,
+                    'receiptUrl': e.receiptUrl,
+                  },
+                )
+                .toList(),
+        'totals': {'totalHours': totalHours, 'totalExpenses': totalExpenses},
+      };
+    } catch (e) {
+      print('❌ Error getting job data for export: $e');
+      rethrow;
+    }
+  }
+
+  Future<String> exportJobToPdf(String jobId) async {
+    try {
+      print('📄 Starting PDF export for job $jobId');
+      final data = await getJobDataForExport(jobId);
+      final job = data['job'] as Map<String, dynamic>;
+      final entries = data['entries'] as List<dynamic>;
+      final expenses = data['expenses'] as List<dynamic>;
+      final totals = data['totals'] as Map<String, dynamic>;
+
+      // Create a temporary directory for the PDF
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          '${job['name']}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filePath = '${tempDir.path}/$fileName';
+
+      // Create PDF document
+      final pdf = pw.Document();
+      final font = await rootBundle.load(
+        "assets/fonts/Poppins/Poppins-Regular.ttf",
+      );
+      final ttf = pw.Font.ttf(font);
+
+      // Add content to PDF
+      pdf.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
+            pageFormat: PdfPageFormat.a4,
+            theme: pw.ThemeData.withFont(base: ttf),
+          ),
+          build:
+              (context) => [
+                // Header
+                pw.Header(
+                  level: 0,
+                  child: pw.Text(
+                    job['name'],
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Job details
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: const pw.BorderRadius.all(
+                      pw.Radius.circular(5),
+                    ),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Job Details',
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Text('ID: ${job['id']}'),
+                      pw.Text('Description: ${job['description'] ?? 'N/A'}'),
+                      pw.Text('Created: ${job['createdAt'] ?? 'N/A'}'),
+                      pw.Text(
+                        'Type: ${job['isShared'] ? 'Shared Job' : 'Personal Job'}',
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Time entries
+                pw.Header(level: 1, child: pw.Text('Time Entries')),
+                pw.Table.fromTextArray(
+                  headers: ['Date', 'User', 'Duration', 'Description'],
+                  data:
+                      entries
+                          .map(
+                            (entry) => [
+                              DateFormat(
+                                'yyyy-MM-dd',
+                              ).format(DateTime.parse(entry['clockInTime'])),
+                              entry['userName'],
+                              '${(entry['duration'] / 60).toStringAsFixed(1)} hours',
+                              entry['description'] ?? '',
+                            ],
+                          )
+                          .toList(),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Expenses
+                pw.Header(level: 1, child: pw.Text('Expenses')),
+                pw.Table.fromTextArray(
+                  headers: ['Date', 'User', 'Amount', 'Description'],
+                  data:
+                      expenses
+                          .map(
+                            (expense) => [
+                              DateFormat(
+                                'yyyy-MM-dd',
+                              ).format(DateTime.parse(expense['date'])),
+                              expense['userName'],
+                              '${expense['amount'].toStringAsFixed(2)} kr',
+                              expense['description'] ?? '',
+                            ],
+                          )
+                          .toList(),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Totals
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: const pw.BorderRadius.all(
+                      pw.Radius.circular(5),
+                    ),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Summary',
+                        style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Text(
+                        'Total Hours: ${totals['totalHours'].toStringAsFixed(1)}',
+                      ),
+                      pw.Text(
+                        'Total Expenses: ${totals['totalExpenses'].toStringAsFixed(2)} kr',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+        ),
+      );
+
+      // Save the PDF
+      final file = File(filePath);
+      await file.writeAsBytes(await pdf.save());
+      print('✅ PDF exported successfully to $filePath');
+
+      return filePath;
+    } catch (e) {
+      print('❌ Error exporting job to PDF: $e');
+      rethrow;
     }
   }
 }

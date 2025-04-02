@@ -11,9 +11,20 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isConnectedThroughSharedJob(userId) {
+      return isAuthenticated() && (
+        // Check if the user is connected to any shared job with the target user
+        exists(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)) &&
+        (
+          get(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)).data.connectedUsers.hasAny([request.auth.uid])
+        )
+      );
+    }
+
     // User document rules
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      allow read: if isOwner(userId) || isConnectedThroughSharedJob(userId);
       allow write: if isOwner(userId);
       
       // User's jobs collection
