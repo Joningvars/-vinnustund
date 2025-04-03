@@ -19,10 +19,11 @@ import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timagatt/screens/onboarding_screen.dart';
-import 'package:timagatt/localization/app_localizations.dart';
+import 'package:timagatt/localization/app_localizations.dart'
+    as AppLocalizations;
 import 'package:timagatt/screens/splash_screen.dart';
-import 'package:timagatt/utils/theme/darkmode.dart';
-import 'package:timagatt/utils/theme/lightmode.dart';
+import 'package:timagatt/utils/theme/darkmode.dart' as darkTheme;
+import 'package:timagatt/utils/theme/lightmode.dart' as lightTheme;
 import 'package:flutter/services.dart';
 import 'package:timagatt/widgets/custom_nav_bar.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
@@ -33,8 +34,281 @@ import 'package:timagatt/screens/job_overview_screen.dart';
 import 'package:timagatt/providers/expenses_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/services/database_service.dart';
+import 'package:timagatt/screens/time_clock_screen.dart';
+import 'package:timagatt/screens/onboarding_screen.dart';
+import 'package:timagatt/screens/auth/login_screen.dart';
+import 'package:timagatt/screens/time_clock_screen.dart';
+import 'package:timagatt/screens/home_screen.dart';
+import 'package:timagatt/screens/add_time_screen.dart';
+import 'package:timagatt/screens/history_screen.dart';
+import 'package:timagatt/screens/settings_screen.dart';
+import 'package:timagatt/screens/jobs_screen.dart';
+import 'package:timagatt/screens/job_overview_screen.dart';
+import 'package:timagatt/models/job.dart';
+import 'package:timagatt/utils/routes.dart';
+import 'package:timagatt/utils/page_transitions.dart';
+import 'package:go_router/go_router.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// Define routes
+final router = GoRouter(
+  navigatorKey: navigatorKey,
+  initialLocation: '/',
+  routes: [
+    GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
+    GoRoute(
+      path: '/onboarding',
+      pageBuilder:
+          (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const OnboardingScreen(),
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
+          ),
+    ),
+    GoRoute(
+      path: '/login',
+      pageBuilder:
+          (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const LoginScreen(),
+            transitionDuration: const Duration(milliseconds: 300),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
+          ),
+    ),
+    ShellRoute(
+      builder: (context, state, child) {
+        return Scaffold(
+          body: child,
+          bottomNavigationBar: Consumer<SettingsProvider>(
+            builder:
+                (context, settings, _) => CustomNavBar(
+                  currentIndex: settings.selectedTabIndex,
+                  onTap: (index) {
+                    // Dismiss keyboard when switching tabs
+                    FocusScope.of(context).unfocus();
+                    settings.setSelectedTabIndex(index);
+                    // Navigate to the appropriate route
+                    switch (index) {
+                      case 0:
+                        context.go('/home');
+                        break;
+                      case 1:
+                        context.go('/add-time');
+                        break;
+                      case 2:
+                        context.go('/history');
+                        break;
+                      case 3:
+                        context.go('/jobs');
+                        break;
+                      case 4:
+                        context.go('/settings');
+                        break;
+                    }
+                  },
+                  activeColor: Theme.of(context).primaryColor,
+                  inactiveColor: Colors.grey,
+                  indicatorColor: Theme.of(context).primaryColor,
+                  indicatorHeight: 1,
+                  items: [
+                    CustomNavBarItem(
+                      title: settings.translate('home'),
+                      icon: Icons.home_outlined,
+                    ),
+                    CustomNavBarItem(
+                      title: settings.translate('add'),
+                      icon: Icons.add_circle_outline,
+                    ),
+                    CustomNavBarItem(
+                      title: settings.translate('history'),
+                      icon: Icons.history_outlined,
+                    ),
+                    CustomNavBarItem(
+                      title: settings.translate('jobs'),
+                      icon: Icons.work_history_outlined,
+                    ),
+                    CustomNavBarItem(
+                      title: settings.translate('settings'),
+                      icon: Icons.settings_outlined,
+                    ),
+                  ],
+                ),
+          ),
+        );
+      },
+      routes: [
+        GoRoute(
+          path: '/home',
+          pageBuilder:
+              (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const HomeScreen(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
+              ),
+        ),
+        GoRoute(
+          path: '/add-time',
+          pageBuilder:
+              (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const AddTimeScreen(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
+              ),
+        ),
+        GoRoute(
+          path: '/history',
+          pageBuilder:
+              (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const HistoryScreen(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
+              ),
+        ),
+        GoRoute(
+          path: '/jobs',
+          pageBuilder:
+              (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const JobsScreen(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
+              ),
+        ),
+        GoRoute(
+          path: '/settings',
+          pageBuilder:
+              (context, state) => CustomTransitionPage<void>(
+                key: state.pageKey,
+                child: const SettingsScreen(),
+                transitionDuration: const Duration(milliseconds: 200),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  return FadeTransition(
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOut,
+                    ),
+                    child: child,
+                  );
+                },
+              ),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/job-overview',
+      pageBuilder:
+          (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: JobOverviewScreen(job: state.extra as Job),
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
+          ),
+    ),
+  ],
+);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -101,31 +375,24 @@ void main() async {
               ),
         ),
       ],
-      child: MyApp(showOnboarding: showOnboarding),
+      child: MyApp(),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final bool showOnboarding;
-
-  const MyApp({super.key, required this.showOnboarding});
+  MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-
-    return MaterialApp(
+    return MaterialApp.router(
+      routerConfig: router,
       title: 'Tímagátt',
       debugShowCheckedModeBanner: false,
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      themeMode: settingsProvider.themeMode,
-      navigatorKey: navigatorKey,
-
-      // Add localization support
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
+      theme: lightTheme.lightTheme,
+      darkTheme: darkTheme.darkTheme,
+      themeMode: Provider.of<SettingsProvider>(context).themeMode,
+      localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -134,39 +401,7 @@ class MyApp extends StatelessWidget {
         Locale('en', ''), // English
         Locale('is', ''), // Icelandic
       ],
-      locale: settingsProvider.locale,
-
-      // Define all routes
-      routes: {
-        Routes.splash: (context) => const SplashScreen(),
-        Routes.onboarding: (context) => const OnboardingScreen(),
-        Routes.login: (context) => const LoginScreen(),
-        Routes.main: (context) => const TimeClockScreen(),
-        Routes.home: (context) => const HomeScreen(),
-        Routes.addTime: (context) => const AddTimeScreen(),
-        Routes.history: (context) => const HistoryScreen(),
-        Routes.settings: (context) => const SettingsScreen(),
-        '/jobs': (context) => const JobsScreen(),
-        '/job-overview':
-            (context) => JobOverviewScreen(
-              job: ModalRoute.of(context)!.settings.arguments as Job,
-            ),
-      },
-
-      // Determine initial route
-      initialRoute: showOnboarding ? Routes.onboarding : Routes.splash,
-
-      // Handle route generation for dynamic routes
-      onGenerateRoute: (settings) {
-        if (settings.name == Routes.main) {
-          // Force home tab when navigating to main screen
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            settingsProvider.notifyListeners();
-          });
-          return MaterialPageRoute(builder: (_) => const TimeClockScreen());
-        }
-        return null;
-      },
+      locale: Provider.of<SettingsProvider>(context).locale,
     );
   }
 }
@@ -185,6 +420,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
   DateTime? clockInTime;
   DateTime? clockOutTime;
   DateTime? breakStartTime;
+  late PageController _pageController;
 
   // For the time range selector
   TimeOfDay startTime = TimeOfDay(hour: 9, minute: 0);
@@ -222,6 +458,14 @@ class _TimeClockScreenState extends State<TimeClockScreen>
       duration: const Duration(seconds: 2),
     );
 
+    _pageController = PageController(
+      initialPage:
+          Provider.of<SettingsProvider>(
+            context,
+            listen: false,
+          ).selectedTabIndex,
+    );
+
     _selectedJob = _jobs.first;
 
     // Initialize with some mock data
@@ -252,6 +496,27 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     _calculateHoursWorkedThisWeek();
   }
 
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    if (_pageController.page?.round() != settingsProvider.selectedTabIndex) {
+      _pageController.animateToPage(
+        settingsProvider.selectedTabIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   void _calculateHoursWorkedThisWeek() {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
@@ -266,13 +531,6 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     setState(() {
       _hoursWorkedThisWeek = totalMinutes ~/ 60;
     });
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _timer?.cancel();
-    super.dispose();
   }
 
   void clockIn() {
@@ -713,8 +971,12 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
-      body: IndexedStack(
-        index: settingsProvider.selectedTabIndex,
+      body: PageView(
+        physics: const NeverScrollableScrollPhysics(),
+        controller: _pageController,
+        onPageChanged: (index) {
+          settingsProvider.setSelectedTabIndex(index);
+        },
         children: const [
           HomeScreen(),
           AddTimeScreen(),

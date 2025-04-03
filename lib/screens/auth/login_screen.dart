@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../utils/routes.dart';
 
@@ -99,17 +100,23 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
+      // Clear existing data first
+      await jobsProvider.clearAllJobs();
+      await timeEntriesProvider.clearAllTimeEntries();
+
+      // Sign in with Firebase
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _email,
         password: _password,
       );
 
-      // Navigate to main screen
+      // Load new user's data
+      await jobsProvider.loadJobs();
+      await timeEntriesProvider.loadTimeEntries();
+
+      // Navigate to home screen using GoRouter
       if (mounted) {
-        // Load data from providers
-        await jobsProvider.loadJobs();
-        await timeEntriesProvider.loadTimeEntries();
-        Navigator.of(context).pushReplacementNamed(Routes.main);
+        context.go('/home');
       }
     } on FirebaseAuthException catch (e) {
       setState(() {

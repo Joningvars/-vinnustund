@@ -74,11 +74,26 @@ class _HoursProgressState extends State<HoursProgress>
     final timeProvider = Provider.of<TimeEntriesProvider>(context);
     final jobsProvider = Provider.of<JobsProvider>(context);
 
+    // Calculate job hours based on selected period
+    DateTime startDate;
+    DateTime endDate = DateTime.now();
+
+    switch (widget.period) {
+      case 'Day':
+        startDate = DateTime(endDate.year, endDate.month, endDate.day);
+        break;
+      case 'Week':
+        startDate = endDate.subtract(Duration(days: endDate.weekday - 1));
+        break;
+      case 'Month':
+        startDate = DateTime(endDate.year, endDate.month, 1);
+        break;
+      default:
+        startDate = endDate.subtract(const Duration(days: 30));
+    }
+
     // Calculate job hours
-    final jobHours = timeProvider.getHoursByJobInPeriod(
-      DateTime.now().subtract(Duration(days: 30)),
-      DateTime.now(),
-    );
+    final jobHours = timeProvider.getHoursByJobInPeriod(startDate, endDate);
 
     // Create a list of jobs with their hours and percentages
     final jobsWithPercentages =

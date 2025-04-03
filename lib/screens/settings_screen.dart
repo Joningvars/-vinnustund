@@ -11,6 +11,10 @@ import 'package:timagatt/screens/job/shared_jobs_screen.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:timagatt/services/database_service.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
+import 'package:timagatt/screens/job_overview_screen.dart';
+import 'package:timagatt/utils/navigation.dart';
+import 'package:timagatt/screens/auth/login_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -47,23 +51,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Scaffold(
-      appBar: CustomAppBar(
-        title: settingsProvider.translate('settings'),
-        showBackButton: true,
-      ),
+      appBar: CustomAppBar(title: settingsProvider.translate('settings')),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 24,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 24),
                     // Add profile section at the top
                     _buildProfileSection(context),
 
@@ -440,18 +437,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await FirebaseAuth.instance.signOut();
 
-      // Navigate to login screen using named route
-      Navigator.of(context).pushReplacementNamed(Routes.login);
+      // Use GoRouter to navigate to login screen
+      if (context.mounted) {
+        context.go('/login');
+      }
     } catch (e) {
-      print('Error signing out: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error signing out: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   void _navigateToSharedJobs(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SharedJobsScreen()),
-    );
+    Navigation.push(context, const SharedJobsScreen());
   }
 
   Widget _buildProfileSection(BuildContext context) {
@@ -493,7 +496,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               future: DatabaseService(uid: user.uid).getUserData(user.uid),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Text("Loading...");
+                  return const Center(
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
                 }
 
                 String displayName;

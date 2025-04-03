@@ -1661,4 +1661,21 @@ class DatabaseService {
       rethrow;
     }
   }
+
+  Future<void> clearAllTimeEntries() async {
+    try {
+      // Clear user's time entries collection
+      final snapshot = await timeEntriesCollection.get();
+
+      // Delete each time entry document
+      for (var doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      print('Cleared all time entries for user: $uid');
+    } catch (e) {
+      print('Error clearing time entries: $e');
+      rethrow;
+    }
+  }
 }

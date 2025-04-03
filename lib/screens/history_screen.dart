@@ -8,8 +8,10 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/models/job.dart';
 import 'package:timagatt/screens/export_screen.dart';
+import 'package:timagatt/screens/job_overview_screen.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
+import 'package:timagatt/utils/navigation.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:timagatt/widgets/app_logo.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 
 import '../utils/routes.dart'; // Import for Routes
 
@@ -26,10 +27,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (user != null) {
       // User is logged in, navigate to main screen
-      Navigator.of(context).pushReplacementNamed(Routes.main);
+      context.go('/home');
     } else {
       // User is not logged in, navigate to login screen
-      Navigator.of(context).pushReplacementNamed(Routes.login);
+      context.go('/login');
     }
   }
 

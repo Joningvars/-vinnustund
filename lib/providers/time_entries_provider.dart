@@ -697,28 +697,24 @@ class TimeEntriesProvider extends BaseProvider {
     DateTime startDate,
     DateTime endDate,
   ) {
-    // Early return if no time entries exist
     if (timeEntries.isEmpty) return {};
 
     final Map<String, double> hoursByJob = {};
 
-    // Get all jobs with time entries in the period
-    final jobIds =
-        timeEntries
-            .where(
-              (entry) =>
-                  entry.clockInTime.isAfter(startDate) &&
-                  entry.clockInTime.isBefore(endDate) &&
-                  entry.clockOutTime != null,
-            )
-            .map((entry) => entry.jobId)
-            .toSet();
+    // Filter entries that fall within the period and have clock out times
+    final entriesInPeriod = timeEntries.where(
+      (entry) =>
+          entry.clockInTime.isAfter(
+            startDate.subtract(const Duration(seconds: 1)),
+          ) &&
+          entry.clockInTime.isBefore(endDate.add(const Duration(days: 1))) &&
+          entry.clockOutTime != null,
+    );
 
-    // Early return if no jobs found
-    if (jobIds.isEmpty) return {};
-
-    for (var jobId in jobIds) {
-      hoursByJob[jobId] = calculateHoursForJob(jobId, startDate, endDate);
+    // Calculate hours for each job
+    for (var entry in entriesInPeriod) {
+      final hours = entry.duration.inMinutes / 60.0;
+      hoursByJob[entry.jobId] = (hoursByJob[entry.jobId] ?? 0) + hours;
     }
 
     return hoursByJob;
@@ -1164,25 +1160,47 @@ class TimeEntriesProvider extends BaseProvider {
     // Get user names
     final userNames = await getUserNames(userIds.cast<String>());
 
-    // Update entries
+    // Update entries in bulk
+    bool hasUpdates = false;
     for (final entry in entriesWithoutNames) {
       if (entry.userId != null && userNames.containsKey(entry.userId)) {
-        final updatedEntry = TimeEntry(
-          date: entry.date,
-          id: entry.id,
-          jobId: entry.jobId,
-          jobName: entry.jobName,
-          jobColor: entry.jobColor,
-          clockInTime: entry.clockInTime,
-          clockOutTime: entry.clockOutTime,
-          duration: entry.duration,
-          description: entry.description,
-          userId: entry.userId,
-          userName: userNames[entry.userId],
-        );
+        final index = timeEntries.indexWhere((e) => e.id == entry.id);
+        if (index != -1) {
+          final updatedEntry = TimeEntry(
+            date: entry.date,
+            id: entry.id,
+            jobId: entry.jobId,
+            jobName: entry.jobName,
+            jobColor: entry.jobColor,
+            clockInTime: entry.clockInTime,
+            clockOutTime: entry.clockOutTime,
+            duration: entry.duration,
+            description: entry.description,
+            userId: entry.userId,
+            userName: userNames[entry.userId],
+          );
 
-        await updateTimeEntry(updatedEntry);
+          // Update in Firebase silently
+          if (databaseService != null) {
+            try {
+              await databaseService!.updateTimeEntry(updatedEntry);
+            } catch (e) {
+              print('Error updating time entry in Firebase: $e');
+            }
+          }
+
+          // Update local list
+          timeEntries[index] = updatedEntry;
+          hasUpdates = true;
+        }
       }
+    }
+
+    // Save to local storage if there were any updates
+    if (hasUpdates) {
+      await saveTimeEntriesToLocalStorage();
+      // Notify listeners only once after all updates are complete
+      notifyListeners();
     }
   }
 
@@ -1395,5 +1413,33 @@ class TimeEntriesProvider extends BaseProvider {
       print('❌ Error getting hours worked for shared job: $e');
       return 0.0;
     }
+  }
+
+  Future<void> clearAllTimeEntries() async {
+    // Clear local data
+    timeEntries = [];
+    _allJobEntries.clear();
+    isClockedIn = false;
+    isOnBreak = false;
+    clockInTime = null;
+    clockOutTime = null;
+    breakStartTime = null;
+    hoursWorkedThisWeek = 0;
+    lastProcessedEntriesKey = '';
+
+    // Clear local storage
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('timeEntries');
+
+    // Clear Firebase data if available
+    if (databaseService != null) {
+      try {
+        await databaseService!.clearAllTimeEntries();
+      } catch (e) {
+        print('Error clearing time entries from Firebase: $e');
+      }
+    }
+
+    notifyListeners();
   }
 }

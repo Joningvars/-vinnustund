@@ -9,6 +9,7 @@ import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
+import 'package:go_router/go_router.dart';
 
 class AddTimeScreen extends StatefulWidget {
   const AddTimeScreen({super.key});
@@ -313,7 +314,10 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _submitTimeEntry(context, provider),
+                    onPressed:
+                        _isSubmitting
+                            ? null
+                            : () => _submitTimeEntry(context, provider),
                     style: ElevatedButton.styleFrom(
                       textStyle: Theme.of(
                         context,
@@ -322,7 +326,19 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                         color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),
-                    child: Text(provider.translate('submit')),
+                    child:
+                        _isSubmitting
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                            : Text(provider.translate('submit')),
                   ),
                 ),
               ],
@@ -600,59 +616,60 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
       date: start,
     );
 
-    // Save to user's entries
-    final success = await provider.addTimeEntry(entry);
+    setState(() {
+      _isSubmitting = true;
+    });
 
-    // If the job is shared, also try both direct methods
-    if (success &&
-        provider.selectedJob!.isShared &&
-        provider.selectedJob!.connectionCode != null) {
-      // Try the direct save method
-      final directSaveResult = await provider.saveSharedJobEntry(
-        entry,
-        provider.selectedJob!.connectionCode!,
-      );
-      print('Direct save result: $directSaveResult');
+    try {
+      // Save to user's entries
+      final success = await provider.addTimeEntry(entry);
 
-      // Try the test write method
-      final testWriteResult = await provider.testFirestoreWrite(
-        entry,
-        provider.selectedJob!.connectionCode!,
-      );
-      print('Test write result: $testWriteResult');
-    }
-
-    if (success) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.translate('timeEntryAdded')),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Reset form
-        provider.descriptionController.clear();
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding time entry'),
-            backgroundColor: Colors.red,
-          ),
+      // If the job is shared, also try both direct methods
+      if (success &&
+          provider.selectedJob!.isShared &&
+          provider.selectedJob!.connectionCode != null) {
+        await provider.saveSharedJobEntry(
+          entry,
+          provider.selectedJob!.connectionCode!,
         );
       }
+
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(provider.translate('timeEntryAdded')),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Reset form
+          provider.descriptionController.clear();
+
+          // Navigate to home screen
+          context.go('/home');
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error adding time entry'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
-
-    // Navigate to home screen and update the UI
-    provider.calculateHoursWorkedThisWeek();
-    provider.notifyListeners();
-
-    // Navigate to home tab
-    provider.setSelectedTabIndex(0);
-    Navigator.of(context).popUntil((route) => route.isFirst);
   }
+
+  // Add this state variable at the top of the class
+  bool _isSubmitting = false;
 
   Widget _buildTimeDisplay(TimeEntriesProvider provider) {
     // Calculate duration between start and end time

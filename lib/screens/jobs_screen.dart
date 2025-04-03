@@ -10,6 +10,8 @@ import 'package:timagatt/screens/job_overview_screen.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
+import 'package:timagatt/utils/navigation.dart';
+import 'package:go_router/go_router.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({Key? key}) : super(key: key);
@@ -772,12 +774,7 @@ class _JobsScreenState extends State<JobsScreen>
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => JobOverviewScreen(job: job),
-                  ),
-                );
+                context.go('/job-overview', extra: job);
               },
             ),
           ),
@@ -1287,12 +1284,7 @@ class _SharedJobsTabState extends State<SharedJobsTab>
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => JobOverviewScreen(job: job),
-                ),
-              );
+              context.go('/job-overview', extra: job);
             },
           ),
         );
