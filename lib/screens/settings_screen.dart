@@ -33,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Ensure settings are loaded
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<SettingsProvider>(context, listen: false).loadSettings();
+      Provider.of<SettingsProvider>(context, listen: false).loadUserProfile();
     });
   }
 
@@ -477,8 +478,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               radius: 48,
               backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
               child: Text(
-                (user.displayName?.isNotEmpty == true)
-                    ? user.displayName![0].toUpperCase()
+                (settingsProvider.userName?.isNotEmpty == true)
+                    ? settingsProvider.userName![0].toUpperCase()
                     : (user.email?.isNotEmpty == true)
                     ? user.email![0].toUpperCase()
                     : '?',
@@ -491,40 +492,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
 
-            // User name - with proper error handling
-            FutureBuilder<Map<String, dynamic>?>(
-              future: DatabaseService(uid: user.uid).getUserData(user.uid),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-
-                String displayName;
-                try {
-                  final userData = snapshot.data;
-                  displayName = userData?['name'] ?? user.displayName ?? '';
-                  if (displayName.isEmpty) {
-                    displayName = settingsProvider.translate('noName');
-                  }
-                } catch (e) {
-                  print('Error getting user name: $e');
-                  displayName =
-                      user.displayName ?? settingsProvider.translate('noName');
-                }
-
-                return Text(
-                  displayName,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
-              },
+            // User name
+            Text(
+              settingsProvider.userName ?? '',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             // Email
@@ -619,14 +592,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       listen: false,
     );
-    final nameController = TextEditingController(text: user.displayName);
-
-    // Get the user's name from Firestore
-    DatabaseService(uid: user.uid).getUserData(user.uid).then((userData) {
-      if (userData != null && userData['name'] != null) {
-        nameController.text = userData['name'];
-      }
-    });
+    final nameController = TextEditingController(
+      text: settingsProvider.userName ?? user.displayName,
+    );
 
     showDialog(
       context: context,
@@ -660,6 +628,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   // Update display name in Firebase Auth
                   await user.updateDisplayName(nameController.text.trim());
+
+                  // Update cached name in SettingsProvider
+                  await settingsProvider.updateUserName(
+                    nameController.text.trim(),
+                  );
 
                   Navigator.pop(context);
 

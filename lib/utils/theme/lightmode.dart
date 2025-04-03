@@ -12,7 +12,7 @@ final lightTheme = ThemeData(
     onPrimary: Colors.white,
     tertiary: timerGreen,
   ),
-  scaffoldBackgroundColor: Colors.white,
+  scaffoldBackgroundColor: Colors.grey.shade100,
   textTheme: GoogleFonts.comfortaaTextTheme(),
   cardTheme: CardTheme(
     elevation: 0,

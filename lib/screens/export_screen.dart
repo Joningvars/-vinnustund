@@ -89,10 +89,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:
-                        isDarkMode
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
+                    color: Theme.of(context).cardTheme.color,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -125,10 +122,7 @@ class _ExportScreenState extends State<ExportScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:
-                        isDarkMode
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
+                    color: Theme.of(context).cardTheme.color,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

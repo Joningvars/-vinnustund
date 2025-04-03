@@ -9,6 +9,7 @@ class SettingsProvider extends BaseProvider {
   bool use24HourFormat = true;
   int targetHours = 173;
   int selectedTabIndex = 0;
+  String? userName;
 
   // Translations map
   Map<String, Map<String, String>> translations = {
@@ -748,5 +749,26 @@ class SettingsProvider extends BaseProvider {
     } else {
       return ThemeMode.system;
     }
+  }
+
+  Future<void> loadUserProfile() async {
+    if (databaseService != null && FirebaseAuth.instance.currentUser != null) {
+      try {
+        final userData = await databaseService!.getUserData(
+          FirebaseAuth.instance.currentUser!.uid,
+        );
+        if (userData != null && userData['name'] != null) {
+          userName = userData['name'];
+          notifyListeners();
+        }
+      } catch (e) {
+        print('Error loading user profile: $e');
+      }
+    }
+  }
+
+  Future<void> updateUserName(String newName) async {
+    userName = newName;
+    notifyListeners();
   }
 }
