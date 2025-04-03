@@ -8,6 +8,8 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:timagatt/services/pdf_export_service.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/widgets/common/styled_dropdown.dart';
+import 'package:timagatt/models/job.dart';
 
 class ExportScreen extends StatefulWidget {
   final DateTime startDate;
@@ -288,7 +290,7 @@ class _ExportScreenState extends State<ExportScreen> {
   Widget _buildQuickSelectButton(String text, VoidCallback onTap) {
     return Expanded(
       child: Material(
-        color: Colors.grey.shade100,
+        color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () {
@@ -299,19 +301,12 @@ class _ExportScreenState extends State<ExportScreen> {
           splashColor: Theme.of(context).primaryColor.withOpacity(0.1),
           highlightColor: Theme.of(context).primaryColor.withOpacity(0.05),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
             child: Text(
               text,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade800,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ),
         ),
@@ -393,99 +388,53 @@ class _ExportScreenState extends State<ExportScreen> {
 
   Widget _buildJobFilter() {
     final jobsProvider = Provider.of<JobsProvider>(context);
+    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+
+    // Combine regular and shared jobs for selection
+    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          Provider.of<TimeEntriesProvider>(context).translate('filterByJob'),
+          timeEntriesProvider.translate('filterByJob'),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _buildJobFilterButton(
-                Provider.of<TimeEntriesProvider>(context).translate('allJobs'),
-                null,
-                selectedJobId == null,
-              ),
-              ...jobsProvider.jobs.map((job) {
-                return Padding(
-                  padding: const EdgeInsets.only(left: 8.0),
-                  child: _buildJobFilterButton(
-                    job.name,
-                    job.id,
-                    selectedJobId == job.id,
-                    job.color,
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildJobFilterButton(
-    String text,
-    String? jobId,
-    bool isSelected, [
-    Color? jobColor,
-  ]) {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedJobId = jobId;
-        });
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color:
-              isSelected
-                  ? (jobColor?.withOpacity(0.2) ??
-                      Theme.of(context).primaryColor.withOpacity(0.1))
-                  : Colors.grey.shade100,
-          border: Border.all(
-            color:
-                isSelected
-                    ? (jobColor ?? Theme.of(context).primaryColor)
-                    : Colors.grey.shade300,
-            width: 1,
-          ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (jobColor != null) ...[
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: jobColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              text,
-              style: TextStyle(
-                color:
-                    isSelected
-                        ? (jobColor ?? Theme.of(context).primaryColor)
-                        : Colors.grey.shade700,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
+        StyledDropdown<String?>(
+          value: selectedJobId,
+          onChanged: (String? newValue) {
+            setState(() {
+              selectedJobId = newValue;
+            });
+          },
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text(timeEntriesProvider.translate('allJobs')),
             ),
+            ...allJobs.map<DropdownMenuItem<String?>>((Job job) {
+              return DropdownMenuItem<String?>(
+                value: job.id,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: job.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(job.name),
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ),
-      ),
+      ],
     );
   }
 }

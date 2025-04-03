@@ -68,9 +68,36 @@ class TimeEntriesProvider extends BaseProvider {
 
   @override
   void dispose() {
+    if (_settingsProvider != null) {
+      _settingsProvider!.removeListener(_onSettingsChanged);
+    }
     _timer?.cancel();
     descriptionController.dispose();
     super.dispose();
+  }
+
+  void setSettingsProvider(SettingsProvider provider) {
+    _settingsProvider = provider;
+    // Update target hours immediately
+    targetHours = provider.targetHours;
+    // Add listener for future changes
+    provider.addListener(_onSettingsChanged);
+    notifyListeners();
+  }
+
+  void _onSettingsChanged() {
+    if (_settingsProvider != null) {
+      targetHours = _settingsProvider!.targetHours;
+      notifyListeners();
+    }
+  }
+
+  void setTargetHours(int hours) {
+    targetHours = hours;
+    if (_settingsProvider != null) {
+      _settingsProvider!.setTargetHours(hours);
+    }
+    notifyListeners();
   }
 
   Future<void> loadTimeEntries() async {
@@ -438,10 +465,6 @@ class TimeEntriesProvider extends BaseProvider {
     await loadTimeEntries();
   }
 
-  void setSettingsProvider(SettingsProvider provider) {
-    _settingsProvider = provider;
-  }
-
   String translate(String key) {
     if (_settingsProvider != null) {
       return _settingsProvider!.translate(key);
@@ -495,10 +518,6 @@ class TimeEntriesProvider extends BaseProvider {
     }
 
     return end.difference(start);
-  }
-
-  void setJobsProvider(JobsProvider provider) {
-    _jobsProvider = provider;
   }
 
   List<Job> get jobs => _jobsProvider?.jobs ?? [];
@@ -643,14 +662,6 @@ class TimeEntriesProvider extends BaseProvider {
     use24HourFormat = !use24HourFormat;
     if (_settingsProvider != null) {
       _settingsProvider!.setTimeFormat(use24HourFormat);
-    }
-    notifyListeners();
-  }
-
-  void setTargetHours(int hours) {
-    targetHours = hours;
-    if (_settingsProvider != null) {
-      _settingsProvider!.setTargetHours(hours);
     }
     notifyListeners();
   }
@@ -1440,6 +1451,11 @@ class TimeEntriesProvider extends BaseProvider {
       }
     }
 
+    notifyListeners();
+  }
+
+  void setJobsProvider(JobsProvider provider) {
+    _jobsProvider = provider;
     notifyListeners();
   }
 }

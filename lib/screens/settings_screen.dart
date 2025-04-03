@@ -586,6 +586,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onPressed: () => _showEditProfileDialog(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      foregroundColor: theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -598,6 +599,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onPressed: () => _showChangePasswordDialog(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      foregroundColor: theme.colorScheme.onSurface,
                     ),
                   ),
                 ),

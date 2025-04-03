@@ -441,7 +441,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
               ),
-
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  settingsProvider.translate('selectDateRange'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               // Date range selector
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -455,11 +465,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 8,
+                          vertical: 14,
                         ),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
+                          color: Theme.of(context).cardTheme.color,
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,

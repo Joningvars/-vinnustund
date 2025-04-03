@@ -52,7 +52,7 @@ class StyledDropdown<T> extends StatelessWidget {
         decoration: InputDecoration(
           contentPadding:
               contentPadding ??
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           prefixIcon: prefix,
         ),
         dropdownColor: backgroundColor ?? Theme.of(context).colorScheme.surface,
