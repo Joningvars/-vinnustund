@@ -10,6 +10,7 @@ class StyledDropdown<T> extends StatelessWidget {
   final double? width;
   final EdgeInsets? contentPadding;
   final Color? backgroundColor;
+  final Color? dropdownIconColor;
 
   const StyledDropdown({
     Key? key,
@@ -22,6 +23,7 @@ class StyledDropdown<T> extends StatelessWidget {
     this.width,
     this.contentPadding,
     this.backgroundColor,
+    this.dropdownIconColor,
   }) : super(key: key);
 
   @override
@@ -30,7 +32,7 @@ class StyledDropdown<T> extends StatelessWidget {
       data: Theme.of(context).copyWith(
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: backgroundColor ?? Theme.of(context).cardTheme.color,
+          fillColor: backgroundColor ?? Theme.of(context).colorScheme.surface,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -65,6 +67,10 @@ class StyledDropdown<T> extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: Theme.of(context).colorScheme.onSurface,
           fontSize: 15,
+        ),
+        icon: Icon(
+          Icons.arrow_drop_down,
+          color: dropdownIconColor ?? Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );

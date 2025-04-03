@@ -417,101 +417,100 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Scaffold(
         appBar: CustomAppBar(
           title: timeEntriesProvider.translate('history'),
-          actions: [
-            if (_startDate !=
-                    DateTime.now().subtract(const Duration(days: 7)) ||
-                _selectedJobId != null)
-              IconButton(
-                icon: const Icon(Icons.download),
-                onPressed: () => _navigateToExport(context),
-              ),
-          ],
+          showExportButton: true,
+          onExportPressed: () => _navigateToExport(context),
         ),
         body: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title section with export button
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Export button
-                  ],
+              // Filter card
+              Card(
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text(
-                  settingsProvider.translate('selectDateRange'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Date range selector
+                      Text(
+                        settingsProvider.translate('selectDateRange'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap:
+                            () =>
+                                _selectDateRange(context, timeEntriesProvider),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withOpacity(0.1)
+                                    : Theme.of(context).scaffoldBackgroundColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                dateRangeText,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Icon(
+                                Icons.calendar_today,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Job filter section
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            timeEntriesProvider.translate('filterByJob'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          // Total hours display
+                          Text(
+                            '$totalFilteredHours ${timeEntriesProvider.translate('klst')} $totalFilteredRemainingMinutes ${timeEntriesProvider.translate('mín')}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Job selection
+                      _buildJobFilter(context),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              // Date range selector
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Date range button
-                    InkWell(
-                      onTap:
-                          () => _selectDateRange(context, timeEntriesProvider),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardTheme.color,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              dateRangeText,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            const Icon(Icons.calendar_today, size: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Job filter section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          timeEntriesProvider.translate('filterByJob'),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        // Total hours display
-                        Text(
-                          '$totalFilteredHours ${timeEntriesProvider.translate('klst')} $totalFilteredRemainingMinutes ${timeEntriesProvider.translate('mín')}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Job selection - exactly like home page
-                    _buildJobFilter(context),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
 
               // Entries list
               Expanded(
@@ -904,38 +903,63 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // Combine regular and shared jobs for selection
     final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
-    return StyledDropdown<String?>(
-      value: _selectedJobId,
-      onChanged: (String? newValue) {
-        setState(() {
-          _selectedJobId = newValue;
-        });
-      },
-      items: [
-        DropdownMenuItem<String?>(
-          value: null,
-          child: Text(timeEntriesProvider.translate('allJobs')),
-        ),
-        ...allJobs.map<DropdownMenuItem<String?>>((Job job) {
-          return DropdownMenuItem<String?>(
-            value: job.id,
-            child: Row(
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: job.color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(job.name),
-              ],
+    return Container(
+      decoration: BoxDecoration(
+        color:
+            Theme.of(context).brightness == Brightness.light
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
+                : Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: StyledDropdown<String?>(
+        value: _selectedJobId,
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedJobId = newValue;
+          });
+        },
+        backgroundColor:
+            Theme.of(context).brightness == Brightness.light
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Theme.of(context).scaffoldBackgroundColor,
+        items: [
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text(
+              timeEntriesProvider.translate('allJobs'),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          );
-        }).toList(),
-      ],
+          ),
+          ...allJobs.map<DropdownMenuItem<String?>>((Job job) {
+            return DropdownMenuItem<String?>(
+              value: job.id,
+              child: Row(
+                children: [
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: job.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    job.name,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 }

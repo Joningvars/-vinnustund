@@ -94,9 +94,11 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
                             color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.grey.shade900
-                                    : Colors.grey.shade100,
+                                Theme.of(context).brightness == Brightness.light
+                                    ? Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withOpacity(0.1)
+                                    : Theme.of(context).scaffoldBackgroundColor,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Material(
@@ -168,9 +170,14 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                                       decoration: BoxDecoration(
                                         color:
                                             Theme.of(context).brightness ==
-                                                    Brightness.dark
-                                                ? Colors.grey.shade900
-                                                : Colors.grey.shade100,
+                                                    Brightness.light
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withOpacity(0.1)
+                                                : Theme.of(
+                                                  context,
+                                                ).scaffoldBackgroundColor,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
@@ -224,9 +231,14 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
                                       decoration: BoxDecoration(
                                         color:
                                             Theme.of(context).brightness ==
-                                                    Brightness.dark
-                                                ? Colors.grey.shade900
-                                                : Colors.grey.shade100,
+                                                    Brightness.light
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withOpacity(0.1)
+                                                : Theme.of(
+                                                  context,
+                                                ).scaffoldBackgroundColor,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
