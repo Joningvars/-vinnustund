@@ -30,6 +30,7 @@ class SharedJobsProvider extends BaseProvider {
   SettingsProvider? _settingsProvider;
   bool isLoading = false;
   String? error;
+  StreamSubscription? _notificationsSubscription;
 
   bool get isInitialized => _isInitialized;
   String? get currentUserId => _auth.currentUser?.uid;
@@ -40,11 +41,13 @@ class SharedJobsProvider extends BaseProvider {
   void onUserAuthenticated() {
     startNotificationChecks();
     listenToSharedJobs();
+    _setupNotificationsListener();
   }
 
   @override
   void onUserLoggedOut() {
     _notificationTimer?.cancel();
+    _notificationsSubscription?.cancel();
     pendingRequests = [];
     sharedJobs = [];
     _sharedJobsSubscription?.cancel();
@@ -54,6 +57,7 @@ class SharedJobsProvider extends BaseProvider {
   @override
   void dispose() {
     _notificationTimer?.cancel();
+    _notificationsSubscription?.cancel();
     _sharedJobsSubscription?.cancel();
     super.dispose();
   }
@@ -124,14 +128,23 @@ class SharedJobsProvider extends BaseProvider {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return 0;
 
-    final snapshot =
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .where('userId', isEqualTo: user.uid)
-            .where('status', isEqualTo: 'pending')
-            .get();
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('notifications')
+              .where('type', isEqualTo: 'job_invitation')
+              .where('status', isEqualTo: 'pending')
+              .get();
 
-    return snapshot.docs.length;
+      _pendingRequestCount = snapshot.docs.length;
+      notifyListeners();
+      return _pendingRequestCount;
+    } catch (e) {
+      print('Error getting pending request count: $e');
+      return 0;
+    }
   }
 
   Future<void> loadPendingRequests() async {
@@ -528,25 +541,17 @@ class SharedJobsProvider extends BaseProvider {
 
       print('✅ Job created successfully in Firestore');
 
-      // Add to local jobs list
-      jobs.add(job);
+      // Add only to sharedJobs list
       sharedJobs.add(job);
-
-      // Save to local storage
-      await saveJobsToLocalStorage();
 
       // Notify listeners
       notifyListeners();
 
-      print('✅ Job added to local lists and storage');
-
-      // Navigate to jobs overview
-      navigateToJobsOverview(context);
-
+      print('✅ Job added to sharedJobs list');
       return job;
     } catch (e) {
       print('❌ Error creating shared job: $e');
-      return null;
+      throw e;
     }
   }
 
@@ -1504,5 +1509,203 @@ class SharedJobsProvider extends BaseProvider {
       print('Error adding shared job: $e');
       rethrow;
     }
+  }
+
+  Future<void> sendJobInvitation(String jobId, String targetEmail) async {
+    try {
+      print(
+        '🔄 Starting to send job invitation for job: $jobId to email: $targetEmail',
+      );
+
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        print('❌ No authenticated user found');
+        throw Exception('User not authenticated');
+      }
+      print('👤 Current user: ${currentUser.uid}');
+
+      // Get the job details
+      print('📝 Fetching job details...');
+      final jobDoc = await _firestore.collection('sharedJobs').doc(jobId).get();
+      if (!jobDoc.exists) {
+        print('❌ Job not found');
+        throw Exception('Job not found');
+      }
+      print('✅ Job found: ${jobDoc.data()}');
+
+      // Find user by email
+      print('🔍 Looking up user by email: $targetEmail');
+      final userQuery =
+          await _firestore
+              .collection('users')
+              .where('email', isEqualTo: targetEmail)
+              .get();
+
+      if (userQuery.docs.isEmpty) {
+        print('❌ No user found with email: $targetEmail');
+        throw Exception('User not found');
+      }
+
+      final targetUser = userQuery.docs.first;
+      print('✅ Target user found: ${targetUser.id}');
+
+      // Check if user is already connected
+      final connectedUsers =
+          jobDoc.data()?['connectedUsers'] as List<dynamic>? ?? [];
+      if (connectedUsers.contains(targetUser.id)) {
+        print('❌ User already connected to job');
+        throw Exception('User already connected to this job');
+      }
+
+      // Create notification for target user
+      print('📝 Creating notification for target user');
+      final notificationRef =
+          _firestore
+              .collection('users')
+              .doc(targetUser.id)
+              .collection('notifications')
+              .doc();
+
+      await notificationRef.set({
+        'jobId': jobId,
+        'jobName': jobDoc.data()?['name'] ?? 'Unknown Job',
+        'jobConnectionCode': jobId,
+        'senderId': currentUser.uid,
+        'senderName': currentUser.displayName ?? 'Unknown User',
+        'recipientId': targetUser.id,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'type': 'job_invitation',
+      });
+      print('✅ Notification created');
+
+      // Add to pending requests regardless of job type
+      print('📝 Adding user to pending requests');
+      await _firestore.collection('sharedJobs').doc(jobId).update({
+        'pendingRequests': FieldValue.arrayUnion([targetUser.id]),
+      });
+      print('✅ User added to pending requests');
+
+      notifyListeners();
+      print('✅ Listeners notified');
+    } catch (e) {
+      print('❌ Error sending job invitation: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
+      rethrow;
+    }
+  }
+
+  Future<Job?> getJobById(String jobId) async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('jobs').doc(jobId).get();
+
+      if (doc.exists) {
+        return Job.fromFirestore(doc);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting job: $e');
+      return null;
+    }
+  }
+
+  Future<void> handleJobInvitation(String notificationId, bool accept) async {
+    try {
+      print('🔄 Handling job invitation: $notificationId, accept: $accept');
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get the notification document from the user's notifications subcollection
+      final notificationDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .collection('notifications')
+              .doc(notificationId)
+              .get();
+
+      if (!notificationDoc.exists) {
+        throw Exception('Notification not found');
+      }
+
+      final notificationData = notificationDoc.data()!;
+      final jobConnectionCode = notificationData['jobConnectionCode'];
+
+      // Update notification status
+      await notificationDoc.reference.update({
+        'status': accept ? 'accepted' : 'rejected',
+      });
+
+      if (accept) {
+        // Get the job document
+        final jobDoc =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(jobConnectionCode)
+                .get();
+
+        if (!jobDoc.exists) {
+          throw Exception('Job not found');
+        }
+
+        final jobData = jobDoc.data()!;
+
+        // Add user to connectedUsers and remove from pendingRequests
+        await jobDoc.reference.update({
+          'connectedUsers': FieldValue.arrayUnion([currentUser.uid]),
+          'pendingRequests': FieldValue.arrayRemove([currentUser.uid]),
+        });
+
+        // Create job in user's collection
+        final job = Job(
+          id: jobConnectionCode,
+          name: jobData['name'] ?? 'Unknown Job',
+          color: Color(jobData['color'] ?? Colors.blue.value),
+          isShared: true,
+          isPublic: jobData['isPublic'] ?? false,
+          connectionCode: jobConnectionCode,
+          creatorId: jobData['creatorId'],
+          connectedUsers: List<String>.from(jobData['connectedUsers'] ?? [])
+            ..add(currentUser.uid),
+        );
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('jobs')
+            .doc(jobConnectionCode)
+            .set(job.toJson());
+      }
+
+      notifyListeners();
+      print('✅ Successfully handled job invitation');
+    } catch (e) {
+      print('❌ Error handling job invitation: $e');
+      throw e;
+    }
+  }
+
+  void _setupNotificationsListener() {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Cancel existing subscription if any
+    _notificationsSubscription?.cancel();
+
+    // Listen to notifications collection
+    _notificationsSubscription = _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('notifications')
+        .where('status', isEqualTo: 'pending')
+        .where('type', isEqualTo: 'job_invitation')
+        .snapshots()
+        .listen((snapshot) {
+          _pendingRequestCount = snapshot.docs.length;
+          notifyListeners();
+        });
   }
 }

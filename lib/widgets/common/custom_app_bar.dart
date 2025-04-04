@@ -3,6 +3,8 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/screens/notifications_screen.dart';
 import 'package:timagatt/utils/navigation.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -65,35 +67,42 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     if (showNotificationIcon) {
       appBarActions.add(
-        IconButton(
-          icon: Stack(
-            children: [
-              const Icon(Icons.notifications_outlined),
-              if (notificationCount != null && notificationCount! > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: Text(
-                      notificationCount.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 8),
-                      textAlign: TextAlign.center,
+        Consumer<SharedJobsProvider>(
+          builder: (context, provider, child) {
+            final count = provider.pendingRequestCount;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications),
+                  onPressed: () => context.push('/notifications'),
+                ),
+                if (count > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          onPressed: () {
-            Navigation.push(context, const NotificationsScreen());
+              ],
+            );
           },
         ),
       );

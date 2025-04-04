@@ -26,6 +26,8 @@ import 'package:flutter/rendering.dart';
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'dart:async';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -39,16 +41,20 @@ class JobOverviewScreen extends StatefulWidget {
 class _JobOverviewScreenState extends State<JobOverviewScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoading = false;
   List<TimeEntry> _entries = [];
   List<Expense> _expenses = [];
-  bool _isLoading = true;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  String? _selectedUserId;
   List<String> _userIds = [];
   List<String> _userNames = [];
   List<Map<String, dynamic>> _members = [];
   List<Map<String, dynamic>> _pendingRequests = [];
+  DateTime? _startDate;
+  DateTime? _endDate;
+  String? _selectedUserId;
+  final TextEditingController _emailController = TextEditingController();
+  StreamSubscription? _membersSubscription;
+  StreamSubscription? _entriesSubscription;
+  StreamSubscription? _expensesSubscription;
 
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
@@ -58,20 +64,134 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-
-    // Add listener to track tab changes
     _tabController.addListener(() {
-      setState(() {}); // Force rebuild when tab changes
+      // This ensures the FloatingActionButton updates when the tab changes
+      setState(() {});
     });
-
     _loadData();
-    _loadMembers();
+    _setupMembersListener();
+    _setupEntriesListener();
+    _setupExpensesListener();
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(() {});
     _tabController.dispose();
+    _emailController.dispose();
+    _membersSubscription?.cancel();
+    _entriesSubscription?.cancel();
+    _expensesSubscription?.cancel();
     super.dispose();
+  }
+
+  void _setupMembersListener() {
+    if (!widget.job.isShared) return;
+
+    final jobRef = FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .doc(widget.job.connectionCode);
+
+    _membersSubscription = jobRef.snapshots().listen((snapshot) async {
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data();
+      if (data == null) return;
+
+      final List<String> connectedUserIds = List<String>.from(
+        data['connectedUsers'] ?? [],
+      );
+
+      // Fetch user details for all connected users
+      if (connectedUserIds.isNotEmpty) {
+        final usersSnapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .where(FieldPath.documentId, whereIn: connectedUserIds)
+                .get();
+
+        final List<Map<String, dynamic>> updatedMembers =
+            usersSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {
+                'id': doc.id,
+                'name': data['name'] ?? 'Unknown User',
+                'email': data['email'] ?? '',
+                'isCreator': doc.id == widget.job.creatorId,
+              };
+            }).toList();
+
+        if (mounted) {
+          setState(() {
+            _members = updatedMembers;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _members = [];
+          });
+        }
+      }
+
+      // Also update pending requests if user is creator
+      if (widget.job.creatorId == FirebaseAuth.instance.currentUser?.uid) {
+        await _loadPendingRequests();
+      }
+    });
+  }
+
+  Future<void> _loadPendingRequests() async {
+    if (!widget.job.isShared) return;
+
+    try {
+      final requestsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(widget.job.connectionCode)
+              .collection('joinRequests')
+              .get();
+
+      if (requestsSnapshot.docs.isEmpty) {
+        setState(() {
+          _pendingRequests = [];
+        });
+        return;
+      }
+
+      // Get user IDs from requests
+      final userIds =
+          requestsSnapshot.docs.map((doc) => doc.data()['userId']).toList();
+
+      // Get user data in batch
+      final usersSnapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: userIds)
+              .get();
+
+      // Create a map of user IDs to user data
+      final userDataMap = {
+        for (var doc in usersSnapshot.docs) doc.id: doc.data(),
+      };
+
+      setState(() {
+        _pendingRequests =
+            requestsSnapshot.docs.map((doc) {
+              final data = doc.data();
+              final userData = userDataMap[data['userId']];
+              return {
+                'id': doc.id,
+                'userId': data['userId'],
+                'userName': userData?['name'] ?? 'Unknown User',
+                'userEmail': userData?['email'] ?? '',
+                'timestamp': data['timestamp'],
+              };
+            }).toList();
+      });
+    } catch (e) {
+      print('Error loading pending requests: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -81,78 +201,169 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         context,
         listen: false,
       );
-      final entries = await databaseService.getTimeEntriesForJob(widget.job.id);
-      final expenses = await databaseService.getExpensesForJob(widget.job.id);
+      List<TimeEntry> entries = [];
+      List<Expense> expenses = [];
 
-      setState(() {
-        _entries = entries;
-        _expenses = expenses;
-        _userIds = entries.map((e) => e.userId).toSet().toList();
-        _userNames =
-            entries.map((e) => e.userName ?? 'Unknown').toSet().toList();
-      });
-    } catch (e) {
-      debugPrint('Error loading data: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadMembers() async {
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return;
-
-      // Get members from the job's connectedUsers list
-      if (widget.job.connectedUsers != null) {
-        final membersSnapshot =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .where(
-                  FieldPath.documentId,
-                  whereIn: widget.job.connectedUsers!,
-                )
-                .get();
-
-        _members =
-            membersSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'id': doc.id,
-                'name': data['name'] ?? 'Unknown User',
-                'email': data['email'] ?? '',
-                'isCreator': doc.id == widget.job.creatorId,
-              };
-            }).toList();
-      }
-
-      // Get pending requests if the current user is the creator
-      if (widget.job.creatorId == currentUser.uid &&
-          widget.job.connectionCode != null) {
-        final requestsSnapshot =
+      if (widget.job.isShared && widget.job.connectionCode != null) {
+        // For shared jobs, fetch entries from the sharedJobs collection
+        final entriesSnapshot =
             await FirebaseFirestore.instance
                 .collection('sharedJobs')
                 .doc(widget.job.connectionCode)
-                .collection('joinRequests')
+                .collection('entries')
+                .orderBy('clockInTime', descending: true)
                 .get();
 
-        _pendingRequests =
-            requestsSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'id': doc.id,
-                'userId': data['userId'],
-                'userName': data['userName'] ?? 'Unknown User',
-                'userEmail': data['userEmail'] ?? '',
-                'timestamp': data['timestamp'],
-              };
-            }).toList();
+        entries =
+            entriesSnapshot.docs
+                .map((doc) => TimeEntry.fromFirestore(doc))
+                .toList();
+
+        // Fetch expenses from shared jobs collection
+        final expensesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(widget.job.connectionCode)
+                .collection('expenses')
+                .orderBy('timestamp', descending: true)
+                .get();
+
+        expenses =
+            expensesSnapshot.docs
+                .map((doc) => Expense.fromFirestore(doc))
+                .toList();
+      } else {
+        // For personal jobs, use the existing method
+        entries = await databaseService.getTimeEntriesForJob(widget.job.id);
+        expenses = await databaseService.getExpensesForJob(widget.job.id);
       }
 
-      setState(() {});
+      if (mounted) {
+        setState(() {
+          _entries = entries;
+          _expenses = expenses;
+          _userIds =
+              {
+                ...entries.map((e) => e.userId),
+                ...expenses.map((e) => e.userId),
+              }.toList();
+          _userNames =
+              [
+                ...entries.map((e) => e.userName ?? 'Unknown'),
+                ...expenses.map((e) => e.userName ?? 'Unknown'),
+              ].toSet().toList();
+        });
+      }
     } catch (e) {
-      print('Error loading members: $e');
+      debugPrint('Error loading data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _setupEntriesListener() {
+    if (!widget.job.isShared || widget.job.connectionCode == null) return;
+
+    // Cancel any existing subscription
+    _entriesSubscription?.cancel();
+
+    final entriesRef = FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .doc(widget.job.connectionCode)
+        .collection('entries')
+        .orderBy('clockInTime', descending: true);
+
+    print(
+      '🔄 Setting up entries listener for shared job: ${widget.job.connectionCode}',
+    );
+
+    _entriesSubscription = entriesRef.snapshots().listen(
+      (snapshot) async {
+        print('📝 Received entries update. Count: ${snapshot.docs.length}');
+
+        final entries =
+            snapshot.docs.map((doc) => TimeEntry.fromFirestore(doc)).toList();
+
+        // Also fetch expenses
+        final expensesSnapshot =
+            await FirebaseFirestore.instance
+                .collection('sharedJobs')
+                .doc(widget.job.connectionCode)
+                .collection('expenses')
+                .get();
+
+        final expenses =
+            expensesSnapshot.docs
+                .map((doc) => Expense.fromFirestore(doc))
+                .toList();
+
+        if (mounted) {
+          setState(() {
+            _entries = entries;
+            _expenses = expenses;
+            _userIds =
+                {
+                  ...entries.map((e) => e.userId),
+                  ...expenses.map((e) => e.userId),
+                }.toList();
+            _userNames =
+                [
+                  ...entries.map((e) => e.userName ?? 'Unknown'),
+                  ...expenses.map((e) => e.userName ?? 'Unknown'),
+                ].toSet().toList();
+          });
+        }
+      },
+      onError: (error) {
+        print('❌ Error in entries listener: $error');
+      },
+    );
+  }
+
+  void _setupExpensesListener() {
+    if (!widget.job.isShared || widget.job.connectionCode == null) return;
+
+    print('🔄 Setting up expenses listener for job: ${widget.job.name}');
+
+    final expensesRef = FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .doc(widget.job.connectionCode)
+        .collection('expenses');
+
+    _expensesSubscription = expensesRef
+        .orderBy('date', descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            print(
+              '📊 Received expenses update: ${snapshot.docs.length} expenses',
+            );
+
+            final expenses =
+                snapshot.docs.map((doc) => Expense.fromFirestore(doc)).toList();
+
+            if (mounted) {
+              setState(() {
+                _expenses = expenses;
+                // Update user IDs and names
+                final allUserIds =
+                    {..._userIds, ...expenses.map((e) => e.userId)}.toList();
+                final allUserNames =
+                    {
+                      ..._userNames,
+                      ...expenses.map((e) => e.userName ?? 'Unknown'),
+                    }.toList();
+                _userIds = allUserIds;
+                _userNames = allUserNames;
+              });
+            }
+          },
+          onError: (error) {
+            print('❌ Error in expenses listener: $error');
+          },
+        );
   }
 
   List<TimeEntry> _getFilteredEntries() {
@@ -468,6 +679,10 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final theme = Theme.of(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+      context,
+      listen: false,
+    );
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -478,6 +693,87 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: () => _exportToPDF(context),
           ),
+          if (widget.job.isShared)
+            IconButton(
+              icon: const Icon(Icons.person_add),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: Text(settingsProvider.translate('inviteUser')),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextField(
+                              controller: _emailController,
+                              decoration: InputDecoration(
+                                labelText: settingsProvider.translate('email'),
+                                hintText: settingsProvider.translate(
+                                  'enterEmail',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(
+                              settingsProvider.translate('cancel'),
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final email = _emailController.text.trim();
+                              if (email.isNotEmpty) {
+                                try {
+                                  await sharedJobsProvider.sendJobInvitation(
+                                    widget.job.id,
+                                    email,
+                                  );
+                                  if (mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          settingsProvider.translate(
+                                            'invitationSent',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          settingsProvider.translate('error'),
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            child: Text(
+                              settingsProvider.translate('invite'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                );
+              },
+            ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -899,6 +1195,8 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   Widget _buildMembersTab() {
     final currentUser = FirebaseAuth.instance.currentUser;
     final isCreator = currentUser?.uid == widget.job.creatorId;
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -907,9 +1205,22 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              Provider.of<TimeEntriesProvider>(context).translate('members'),
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  Provider.of<TimeEntriesProvider>(
+                    context,
+                  ).translate('members'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (isCreator)
+                  ElevatedButton.icon(
+                    onPressed: () => _showInviteUserDialog(context),
+                    icon: const Icon(Icons.person_add),
+                    label: Text(settingsProvider.translate('inviteUser')),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
             ..._members.map(
@@ -927,8 +1238,10 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                           ? IconButton(
                             icon: const Icon(Icons.remove_circle_outline),
                             onPressed:
-                                () =>
-                                    _handleMemberAction(member['id'], 'remove'),
+                                () => _handleMemberAction(
+                                  member['email'],
+                                  'remove',
+                                ),
                           )
                           : null,
                 ),
@@ -966,7 +1279,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                             color: Colors.green,
                             onPressed:
                                 () => _handleMemberAction(
-                                  request['userId'],
+                                  request['userEmail'],
                                   'approve',
                                 ),
                           ),
@@ -975,7 +1288,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                             color: Colors.red,
                             onPressed:
                                 () => _handleMemberAction(
-                                  request['userId'],
+                                  request['userEmail'],
                                   'deny',
                                 ),
                           ),
@@ -990,6 +1303,122 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         ],
       ],
     );
+  }
+
+  Future<void> _showInviteUserDialog(BuildContext context) async {
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+      context,
+      listen: false,
+    );
+    final TextEditingController emailController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(settingsProvider.translate('inviteUser')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(
+                    labelText: settingsProvider.translate('email'),
+                    hintText: settingsProvider.translate('enterEmail'),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(settingsProvider.translate('cancel')),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final email = emailController.text.trim();
+                  if (email.isNotEmpty) {
+                    try {
+                      // Create a notification for the user instead of directly adding them
+                      await sharedJobsProvider.sendJobInvitation(
+                        widget.job.id,
+                        email,
+                      );
+                      if (mounted) {
+                        Navigator.pop(context, true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              settingsProvider.translate('invitationSent'),
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${settingsProvider.translate('error')}: ${e.toString()}',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }
+                },
+                child: Text(settingsProvider.translate('invite')),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _handleMemberAction(String email, String action) async {
+    try {
+      final provider = Provider.of<SharedJobsProvider>(context, listen: false);
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+
+      if (action == 'approve') {
+        // Instead of directly adding the user, create a notification
+        await provider.sendJobInvitation(widget.job.id, email);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invitation sent to $email'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (action == 'deny') {
+        await provider.denyJoinRequest(widget.job.id, email);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Request denied'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      // Refresh the members and requests
+      await _loadPendingRequests();
+    } catch (e) {
+      print('Error handling member action: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _deleteExpense(Expense expense) async {
@@ -1348,81 +1777,6 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
           }
         }
       }
-    }
-  }
-
-  Future<void> _handleMemberAction(String userId, String action) async {
-    try {
-      if (action == 'remove') {
-        // Remove member from connectedUsers
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(widget.job.connectionCode)
-            .update({
-              'connectedUsers': FieldValue.arrayRemove([userId]),
-            });
-
-        // Remove from user's jobs collection
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('jobs')
-            .doc(widget.job.id)
-            .delete();
-
-        // Refresh members list
-        await _loadMembers();
-      } else if (action == 'approve') {
-        // Find the request in pendingRequests
-        final request = _pendingRequests.firstWhere(
-          (r) => r['userId'] == userId,
-        );
-
-        // Add user to connectedUsers
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(widget.job.connectionCode)
-            .update({
-              'connectedUsers': FieldValue.arrayUnion([userId]),
-            });
-
-        // Add job to user's jobs collection
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .collection('jobs')
-            .doc(widget.job.id)
-            .set(widget.job.toJson());
-
-        // Delete the request
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(widget.job.connectionCode)
-            .collection('joinRequests')
-            .doc(request['id'])
-            .delete();
-
-        // Refresh members and requests lists
-        await _loadMembers();
-      } else if (action == 'deny') {
-        // Find the request in pendingRequests
-        final request = _pendingRequests.firstWhere(
-          (r) => r['userId'] == userId,
-        );
-
-        // Delete the request
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(widget.job.connectionCode)
-            .collection('joinRequests')
-            .doc(request['id'])
-            .delete();
-
-        // Refresh requests list
-        await _loadMembers();
-      }
-    } catch (e) {
-      print('Error handling member action: $e');
     }
   }
 

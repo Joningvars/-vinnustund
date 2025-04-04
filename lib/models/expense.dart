@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Expense {
   final String id;
@@ -44,6 +45,23 @@ class Expense {
       userId: json['userId'],
       userName: json['userName'],
       receiptUrl: json['receiptUrl'],
+    );
+  }
+
+  static Expense fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Expense(
+      id: data['id'] ?? doc.id,
+      jobId: data['jobId'] ?? '',
+      description: data['description'] ?? '',
+      amount: (data['amount'] ?? 0.0).toDouble(),
+      date:
+          data['date'] is Timestamp
+              ? (data['date'] as Timestamp).toDate()
+              : DateTime.parse(data['date']),
+      userId: data['userId'] ?? '',
+      userName: data['userName'],
+      receiptUrl: data['receiptUrl'],
     );
   }
 

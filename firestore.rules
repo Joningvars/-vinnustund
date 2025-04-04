@@ -11,81 +11,79 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isJobOwner(jobId) {
+    function isJobCreator(jobId) {
       return isAuthenticated() && (
-        // Check if the job exists in the user's jobs collection
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)/jobs/$(jobId))
+        exists(/databases/$(database)/documents/sharedJobs/$(jobId)) &&
+        get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid
       );
     }
 
-    function isConnectedThroughSharedJob(jobId) {
+    function isJobCreatorOrHasPendingInvitation(jobId) {
       return isAuthenticated() && (
-        // Check if the user is connected to any shared job with the target user
         exists(/databases/$(database)/documents/sharedJobs/$(jobId)) &&
-        (
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
-        )
+        get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+        hasPendingInvitation(jobId)
       );
+    }
+
+    function hasValidNotification(jobId) {
+      let notifications = get(/databases/$(database)/documents/users/$(request.auth.uid)/notifications).data;
+      return isAuthenticated() && notifications != null && notifications.jobId == jobId && notifications.status == 'pending';
+    }
+
+    function hasAcceptedInvitation(jobId) {
+      let notifications = get(/databases/$(database)/documents/users/$(request.auth.uid)/notifications).data;
+      return isAuthenticated() && notifications != null && notifications.jobId == jobId && notifications.status == 'accepted';
+    }
+
+    function hasPendingInvitation(jobId) {
+      let notifications = get(/databases/$(database)/documents/users/$(request.auth.uid)/notifications).data;
+      return isAuthenticated() && notifications != null && notifications.jobId == jobId && notifications.type == 'job_invitation' && notifications.status == 'pending';
     }
 
     // User document rules
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
       
       // User's jobs collection
       match /jobs/{jobId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
       }
       
       // User's time entries collection
       match /timeEntries/{entryId} {
         allow read, write: if isOwner(userId);
-        allow delete: if isOwner(userId) || (
-          // Allow deletion when deleting the associated job
-          request.method == 'delete' && 
-          resource != null
-        );
       }
       
       // User's expenses collection
       match /expenses/{expenseId} {
         allow read, write: if isOwner(userId);
       }
+
+      // User's notifications collection
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated();
+        allow delete: if isAuthenticated();
+      }
     }
 
     // Shared jobs collection
     match /sharedJobs/{jobId} {
-      allow read: if isAuthenticated() && (
-        resource == null || // Allow reading if document doesn't exist yet
-        resource.data.creatorId == request.auth.uid ||
-        resource.data.connectedUsers.hasAny([request.auth.uid])
-      );
-      
-      allow create: if isAuthenticated() && 
-        request.resource.data.creatorId == request.auth.uid &&
-        request.resource.data.connectedUsers.hasAny([request.auth.uid]);
-      
-      allow update: if isAuthenticated() && (
-        resource.data.creatorId == request.auth.uid ||
-        resource.data.connectedUsers.hasAny([request.auth.uid])
-      );
-      
-      allow delete: if isAuthenticated() && 
-        resource.data.creatorId == request.auth.uid;
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.creatorId == request.auth.uid;
 
       // Shared job entries collection
       match /entries/{entryId} {
-        allow read: if isAuthenticated() && (
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
-        );
-        
-        allow create: if isAuthenticated() && (
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
-        );
-        
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
         allow update, delete: if isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
           get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid
@@ -94,49 +92,31 @@ service cloud.firestore {
 
       // Shared job expenses collection
       match /expenses/{expenseId} {
-        allow read: if isAuthenticated() && (
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
-        );
-        
-        allow create: if isAuthenticated() && (
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
-        );
-        
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
         allow update, delete: if isAuthenticated() && (
           resource.data.userId == request.auth.uid ||
           get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid
         );
       }
+
+      // Join requests subcollection
+      match /joinRequests/{requestId} {
+        allow read, write: if isAuthenticated();
+      }
     }
 
-    // Join requests collection
+    // Join requests collection (root level)
     match /joinRequests/{requestId} {
-      allow read: if isAuthenticated() && (
-        resource == null || // Allow reading if document doesn't exist yet
-        resource.data.requesterId == request.auth.uid ||
-        resource.data.creatorId == request.auth.uid
-      );
-      
-      allow list: if isAuthenticated() && (
-        request.query.filters.size() == 2 &&
-        request.query.filters[0].field == 'creatorId' &&
-        request.query.filters[0].value == request.auth.uid &&
-        request.query.filters[1].field == 'status' &&
-        request.query.filters[1].value == 'pending'
-      );
-      
-      allow create: if isAuthenticated() && 
-        request.resource.data.requesterId == request.auth.uid;
-      
-      allow update: if isAuthenticated() && 
-        resource.data.creatorId == request.auth.uid;
-      
-      allow delete: if isAuthenticated() && (
-        resource.data.requesterId == request.auth.uid ||
-        resource.data.creatorId == request.auth.uid
-      );
+      allow read, write: if isAuthenticated();
+    }
+
+    // Notifications collection (root level)
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
   }
-} 
+}

@@ -9,6 +9,7 @@ import 'package:timagatt/screens/home_screen.dart';
 import 'package:timagatt/screens/add_time_screen.dart';
 import 'package:timagatt/screens/history_screen.dart';
 import 'package:timagatt/screens/jobs_screen.dart';
+import 'package:timagatt/screens/notifications_screen.dart';
 import 'package:timagatt/screens/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -307,6 +308,29 @@ final router = GoRouter(
             },
           ),
     ),
+    GoRoute(
+      path: '/notifications',
+      pageBuilder:
+          (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const NotificationsScreen(),
+            transitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInOut,
+                ),
+                child: child,
+              );
+            },
+          ),
+    ),
   ],
 );
 
@@ -318,6 +342,17 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Show system UI (status bar)
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
 
   // Initialize date formatting for all locales
   await initializeDateFormatting();

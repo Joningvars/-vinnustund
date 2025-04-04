@@ -120,18 +120,27 @@ class TimeEntry {
 
   static TimeEntry fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    DateTime parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      }
+      throw Exception('Invalid date format');
+    }
+
     return TimeEntry(
       id: data['id'] ?? doc.id,
       jobId: data['jobId'] ?? '',
       jobName: data['jobName'] ?? 'Unknown Job',
       jobColor: Color(data['jobColor'] ?? Colors.grey.value),
-      clockInTime: DateTime.parse(data['clockInTime']),
-      clockOutTime: DateTime.parse(data['clockOutTime']),
+      clockInTime: parseDateTime(data['clockInTime']),
+      clockOutTime: parseDateTime(data['clockOutTime']),
       duration: Duration(minutes: data['duration']),
       description: data['description'] ?? '',
-      date: DateTime.parse(data['date']),
+      date: parseDateTime(data['clockInTime']),
       userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
+      userName: data['userName'] ?? 'Unknown User',
       use24HourFormat: data['use24HourFormat'] ?? false,
     );
   }
