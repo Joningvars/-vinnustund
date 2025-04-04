@@ -275,6 +275,8 @@ class SettingsProvider extends BaseProvider {
       'specialOffer': 'Special Offer',
       'joinRequest': 'Join Request',
       'notification': 'Notification',
+      'noDescription': 'No description',
+      'creator': 'Creator',
     },
     'is': {
       'home': 'Heim',
@@ -546,6 +548,8 @@ class SettingsProvider extends BaseProvider {
       'specialOffer': 'Sérstakt tilboð',
       'joinRequest': 'Beiðni um að tengjast',
       'notification': 'Tilkynning',
+      'noDescription': 'Engin lýsing',
+      'creator': 'Stofnandi',
     },
   };
 

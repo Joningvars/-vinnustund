@@ -974,7 +974,12 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                             ),
                             const SizedBox(height: 8),
                           ],
-                          TimeEntryCard(entry: entry),
+                          TimeEntryCard(
+                            entry: entry,
+                            isCreator:
+                                entry.userId ==
+                                FirebaseAuth.instance.currentUser?.uid,
+                          ),
                         ],
                       );
                     },
@@ -1097,9 +1102,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 ),
               ),
               Text(
-                formatAmount(
-                  filteredExpenses.fold(0.0, (sum, e) => sum + e.amount),
-                ),
+                '${filteredExpenses.fold(0.0, (sum, e) => sum + e.amount).toStringAsFixed(0)} kr',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -1150,39 +1153,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                             ),
                             const SizedBox(height: 8),
                           ],
-                          Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            elevation: 0,
-                            color: Theme.of(context).cardTheme.color,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ListTile(
-                              title: Text(
-                                expense.description,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${expense.userName ?? 'Unknown'}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                              trailing: Text(
-                                formatAmount(expense.amount),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              onTap: () => _editExpense(expense),
-                              onLongPress: () => _deleteExpense(expense),
-                            ),
-                          ),
+                          _buildExpenseCard(expense),
                         ],
                       );
                     },
@@ -1233,7 +1204,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                   subtitle: Text(member['email']),
                   trailing:
                       member['isCreator']
-                          ? const Text('Creator')
+                          ? Text(settingsProvider.translate('creator'))
                           : isCreator
                           ? IconButton(
                             icon: const Icon(Icons.remove_circle_outline),
@@ -1419,6 +1390,79 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
         ),
       );
     }
+  }
+
+  Widget _buildExpenseCard(Expense expense) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final isCreator =
+        FirebaseAuth.instance.currentUser?.uid == widget.job.creatorId;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      color: Theme.of(context).cardTheme.color,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ListTile(
+        title: Text(
+          expense.description,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+        subtitle: Text(
+          '${expense.userName ?? 'Unknown'}',
+          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${expense.amount.toStringAsFixed(0)} kr',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            if (isCreator) ...[
+              const SizedBox(width: 8),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    _deleteExpense(expense);
+                  } else if (value == 'edit') {
+                    _editExpense(expense);
+                  }
+                },
+                itemBuilder:
+                    (context) => [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Text(
+                              settingsProvider.translate('edit'),
+                              style: const TextStyle(color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.delete, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Text(
+                              settingsProvider.translate('delete'),
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteExpense(Expense expense) async {
@@ -2369,6 +2413,151 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
     return pw.Padding(
       padding: const pw.EdgeInsets.all(8),
       child: pw.Text(text, style: pw.TextStyle(fontSize: 9)),
+    );
+  }
+}
+
+class TimeEntryCard extends StatelessWidget {
+  final TimeEntry entry;
+  final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
+  final bool isCreator;
+
+  const TimeEntryCard({
+    Key? key,
+    required this.entry,
+    this.onDelete,
+    this.onEdit,
+    required this.isCreator,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final duration = entry.clockOutTime.difference(entry.clockInTime);
+    final hours = duration.inHours;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row with name and creator options
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    entry.userName ?? settingsProvider.translate('noName'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (isCreator)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        onDelete?.call();
+                      } else if (value == 'edit') {
+                        onEdit?.call();
+                      }
+                    },
+                    itemBuilder:
+                        (context) => [
+                          if (onEdit != null)
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.edit, color: Colors.blue),
+                                  const SizedBox(width: 8),
+                                  Text(settingsProvider.translate('edit')),
+                                ],
+                              ),
+                            ),
+                          if (onDelete != null)
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.delete, color: Colors.red),
+                                  const SizedBox(width: 8),
+                                  Text(settingsProvider.translate('delete')),
+                                ],
+                              ),
+                            ),
+                        ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Description
+            Text(
+              entry.description?.isEmpty ?? true
+                  ? settingsProvider.translate('noDescription')
+                  : entry.description!,
+              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+
+            // Clock times and duration in a row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Clock in
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      settingsProvider.translate('clockIn'),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('HH:mm').format(entry.clockInTime),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                // Clock out
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      settingsProvider.translate('clockOut'),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('HH:mm').format(entry.clockOutTime),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                // Total hours
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      settingsProvider.translate('totalHours'),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$hours ${settingsProvider.translate('hours')}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
