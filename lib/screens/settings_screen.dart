@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/utils/routes.dart';
 import 'package:timagatt/screens/export_screen.dart';
-import 'package:timagatt/screens/job/shared_jobs_screen.dart';
 import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:timagatt/services/database_service.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
@@ -452,10 +451,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
-  }
-
-  void _navigateToSharedJobs(BuildContext context) {
-    Navigation.push(context, const SharedJobsScreen());
   }
 
   Widget _buildProfileSection(BuildContext context) {

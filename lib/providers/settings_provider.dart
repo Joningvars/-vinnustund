@@ -277,6 +277,8 @@ class SettingsProvider extends BaseProvider {
       'notification': 'Notification',
       'noDescription': 'No description',
       'creator': 'Creator',
+      'invitationSent': 'Invitation sent successfully',
+      'invitationFailed': 'Failed to send invitation',
     },
     'is': {
       'home': 'Heim',
@@ -550,6 +552,8 @@ class SettingsProvider extends BaseProvider {
       'notification': 'Tilkynning',
       'noDescription': 'Engin lýsing',
       'creator': 'Stofnandi',
+      'invitationSent': 'Boðskort sent',
+      'invitationFailed': 'Villa við að senda boðskort',
     },
   };
 

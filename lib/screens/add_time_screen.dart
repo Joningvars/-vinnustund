@@ -10,6 +10,7 @@ import 'package:timagatt/widgets/add_job_button.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 import 'package:go_router/go_router.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
 
 class AddTimeScreen extends StatefulWidget {
   const AddTimeScreen({super.key});
@@ -26,7 +27,13 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
       final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
-      final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+      final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+        context,
+        listen: false,
+      );
+
+      // Combine regular and shared jobs for selection
+      final allJobs = [...jobsProvider.jobs, ...sharedJobsProvider.sharedJobs];
 
       if (allJobs.isNotEmpty && provider.selectedJob == null) {
         provider.setSelectedJob(allJobs.first);
@@ -730,9 +737,10 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
   Widget _buildJobSelector(BuildContext context) {
     final jobsProvider = Provider.of<JobsProvider>(context);
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
 
     // Combine regular and shared jobs for selection
-    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+    final allJobs = [...jobsProvider.jobs, ...sharedJobsProvider.sharedJobs];
 
     // If the selected job no longer exists, clear it
     if (timeEntriesProvider.selectedJob != null &&

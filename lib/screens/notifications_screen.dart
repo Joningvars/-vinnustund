@@ -46,24 +46,30 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     if (currentUser == null) return;
 
     try {
+      print('🔄 Loading notifications...');
       final snapshot =
           await FirebaseFirestore.instance
               .collection('users')
               .doc(currentUser.uid)
               .collection('notifications')
-              .orderBy('timestamp', descending: true)
+              .orderBy('createdAt', descending: true)
               .get();
 
-      setState(() {
-        _notifications =
-            snapshot.docs.map((doc) {
-              final data = doc.data();
-              data['id'] = doc.id;
-              return data;
-            }).toList();
-      });
+      print('📝 Found ${snapshot.docs.length} notifications');
+
+      if (mounted) {
+        setState(() {
+          _notifications =
+              snapshot.docs.map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                print('📌 Notification data: $data');
+                return data;
+              }).toList();
+        });
+      }
     } catch (e) {
-      print('Error loading notifications: $e');
+      print('❌ Error loading notifications: $e');
     }
   }
 
@@ -83,7 +89,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       appBar: CustomAppBar(
         title: settingsProvider.translate('notifications'),
         showBackButton: true,
-        notificationCount: _pendingRequestCount,
+        showNotificationIcon: false,
         showRefreshButton: _tabController.index == 2,
         onRefreshPressed:
             _tabController.index == 2 ? _loadPendingRequestCount : null,
@@ -151,7 +157,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Widget _buildJobRequestsList() {
+    print('🔄 Building job requests list');
+    print('📝 Notifications count: ${_notifications.length}');
+
     if (_notifications.isEmpty) {
+      print('❌ No notifications found');
       return Center(
         child: Text(
           Provider.of<SettingsProvider>(context).translate('noNotifications'),
@@ -165,10 +175,15 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       itemCount: _notifications.length,
       itemBuilder: (context, index) {
         final notification = _notifications[index];
+        print('🔍 Processing notification: $notification');
+
         final type = notification['type'];
         final status = notification['status'];
+        print('📌 Type: $type, Status: $status');
 
-        if (type == 'job_invitation') {
+        // Handle both job_invitation and joinRequest types
+        if (type == 'job_invitation' || type == 'joinRequest') {
+          print('✅ Building notification card');
           return Card(
             margin: const EdgeInsets.only(bottom: 16),
             child: ListTile(
@@ -177,9 +192,21 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 child: Icon(Icons.work_outline, color: Colors.blue.shade700),
               ),
               title: Text(notification['jobName'] ?? 'Unknown Job'),
-              subtitle: Text(
-                '${notification['senderName']} invited you to join this job',
-              ),
+              subtitle:
+                  notification['requesterName'] != null
+                      ? Text(
+                        '${notification['requesterName']} wants to join this job',
+                        style: TextStyle(color: Colors.grey[700]),
+                      )
+                      : notification['senderName'] != null
+                      ? Text(
+                        '${notification['senderName']} invited you to join this job',
+                        style: TextStyle(color: Colors.grey[700]),
+                      )
+                      : Text(
+                        'Someone wants to join this job',
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
               trailing:
                   status == 'pending'
                       ? Row(
@@ -189,33 +216,40 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                             icon: const Icon(Icons.check_circle_outline),
                             color: Colors.green,
                             onPressed: () async {
+                              print('✅ Accepting invitation/request');
                               final sharedJobsProvider =
                                   Provider.of<SharedJobsProvider>(
                                     context,
                                     listen: false,
                                   );
-                              final jobsProvider = Provider.of<JobsProvider>(
-                                context,
-                                listen: false,
-                              );
 
                               await sharedJobsProvider.handleJobInvitation(
                                 notification['id'],
                                 true,
                               );
 
-                              // Refresh jobs lists
-                              await jobsProvider.loadJobs();
-                              await sharedJobsProvider.loadSharedJobs();
+                              // Update the notification status locally
+                              setState(() {
+                                notification['status'] = 'accepted';
+                              });
 
-                              // Refresh notifications
-                              await _loadNotifications();
+                              // Remove the notification after a delay
+                              Future.delayed(Duration(seconds: 2), () {
+                                if (mounted) {
+                                  setState(() {
+                                    _notifications.removeWhere(
+                                      (n) => n['id'] == notification['id'],
+                                    );
+                                  });
+                                }
+                              });
                             },
                           ),
                           IconButton(
                             icon: const Icon(Icons.cancel_outlined),
                             color: Colors.red,
                             onPressed: () async {
+                              print('❌ Rejecting invitation/request');
                               final sharedJobsProvider =
                                   Provider.of<SharedJobsProvider>(
                                     context,
@@ -227,40 +261,53 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                                 false,
                               );
 
-                              // Refresh notifications
-                              await _loadNotifications();
+                              // Update the notification status locally
+                              setState(() {
+                                notification['status'] = 'rejected';
+                              });
+
+                              // Remove the notification after a delay
+                              Future.delayed(Duration(seconds: 2), () {
+                                if (mounted) {
+                                  setState(() {
+                                    _notifications.removeWhere(
+                                      (n) => n['id'] == notification['id'],
+                                    );
+                                  });
+                                }
+                              });
                             },
                           ),
                         ],
                       )
-                      : Text(
-                        status == 'accepted' ? 'Accepted' : 'Rejected',
-                        style: TextStyle(
+                      : Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
                           color:
-                              status == 'accepted' ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
+                              status == 'accepted'
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          status == 'accepted' ? 'Accepted' : 'Rejected',
+                          style: TextStyle(
+                            color:
+                                status == 'accepted'
+                                    ? Colors.green
+                                    : Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-              onTap: () async {
-                if (status == 'accepted') {
-                  final job = await Provider.of<SharedJobsProvider>(
-                    context,
-                    listen: false,
-                  ).getJobById(notification['jobId']);
-                  if (job != null && mounted) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => JobOverviewScreen(job: job),
-                      ),
-                    );
-                  }
-                }
-              },
             ),
           );
         }
 
+        print('⚠️ Unhandled notification type: $type');
         return const SizedBox.shrink();
       },
     );

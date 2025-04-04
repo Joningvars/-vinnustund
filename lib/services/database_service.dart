@@ -728,13 +728,35 @@ class DatabaseService {
     try {
       print('🗑️ Starting deletion of all time entries for job $jobId');
 
-      // Delete from user's own collection only
+      // First check if this is a shared job
+      final jobDoc = await jobsCollection.doc(jobId).get();
+      final jobData = jobDoc.data() as Map<String, dynamic>?;
+      final isShared = jobData?['isShared'] ?? false;
+      final connectionCode = jobData?['connectionCode'];
+
+      // Delete from user's own collection
       print('🗑️ Deleting entries from user collection');
       final userEntriesSnapshot =
           await timeEntriesCollection.where('jobId', isEqualTo: jobId).get();
 
       for (var doc in userEntriesSnapshot.docs) {
         await doc.reference.delete();
+      }
+
+      // If it's a shared job, also delete from shared collection
+      if (isShared && connectionCode != null) {
+        print('🗑️ Deleting entries from shared job collection');
+        final sharedEntriesSnapshot =
+            await _firestore
+                .collection('sharedJobs')
+                .doc(connectionCode)
+                .collection('entries')
+                .where('jobId', isEqualTo: jobId)
+                .get();
+
+        for (var doc in sharedEntriesSnapshot.docs) {
+          await doc.reference.delete();
+        }
       }
 
       print('✅ Successfully deleted all time entries for job $jobId');

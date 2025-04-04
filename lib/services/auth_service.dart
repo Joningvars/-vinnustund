@@ -72,7 +72,7 @@ class AuthService {
       // Create first job
       await jobsProvider.addJob(
         'Verkefni A',
-        Colors.blue,
+        Colors.orange,
         'Skráðu tíma sem þú vinnur að persónulegum verkefnum',
       );
 
@@ -110,6 +110,28 @@ class AuthService {
       );
 
       await timeEntriesProvider.addTimeEntry(dummyEntry);
+
+      // Get Verkefni B to create a time entry for it
+      final jobB = jobsProvider.jobs.firstWhere(
+        (job) => job.name == 'Verkefni B',
+      );
+
+      // Create a 2-hour time entry for job B
+      final twoHoursAgo = now.subtract(const Duration(hours: 2));
+      final dummyEntryB = TimeEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        jobId: jobB.id,
+        jobName: jobB.name,
+        jobColor: jobB.color,
+        clockInTime: twoHoursAgo,
+        clockOutTime: now,
+        duration: const Duration(hours: 2),
+        description: '',
+        userId: userCredential.user!.uid,
+        date: twoHoursAgo,
+      );
+
+      await timeEntriesProvider.addTimeEntry(dummyEntryB);
 
       return userCredential;
     } catch (e) {

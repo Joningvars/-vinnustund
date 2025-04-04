@@ -50,17 +50,13 @@ class JobsProvider extends BaseProvider {
           );
         }
 
-        // Separate regular and shared jobs
+        // Only load non-shared jobs into the main list
         jobs = loadedJobs.where((job) => !job.isShared).toList();
-        sharedJobs = loadedJobs.where((job) => job.isShared).toList();
-
-        print('📊 Separated jobs:');
-        print('- Regular jobs: ${jobs.length}');
-        print('- Shared jobs: ${sharedJobs.length}');
+        print('📊 Regular jobs: ${jobs.length}');
 
         // Set a default selected job if none is selected
-        if (selectedJob == null && (jobs.isNotEmpty || sharedJobs.isNotEmpty)) {
-          selectedJob = jobs.isNotEmpty ? jobs.first : sharedJobs.first;
+        if (selectedJob == null && jobs.isNotEmpty) {
+          selectedJob = jobs.first;
         }
 
         notifyListeners();

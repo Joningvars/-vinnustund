@@ -755,7 +755,6 @@ class _JobsScreenState extends State<JobsScreen>
     TimeEntriesProvider timeEntriesProvider,
     ThemeData theme,
   ) {
-    final codeController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
@@ -842,7 +841,7 @@ class _JobsScreenState extends State<JobsScreen>
 
             // Code input field
             TextFormField(
-              controller: codeController,
+              controller: _codeController,
               decoration: InputDecoration(
                 labelText: timeEntriesProvider.translate('connectionCode'),
                 hintText: 'ABC-123',
@@ -856,7 +855,7 @@ class _JobsScreenState extends State<JobsScreen>
                   onPressed: () async {
                     final data = await Clipboard.getData('text/plain');
                     if (data?.text != null) {
-                      codeController.text = data!.text!.trim();
+                      _codeController.text = data!.text!.trim();
                     }
                   },
                 ),
@@ -1199,6 +1198,10 @@ class _JobsScreenState extends State<JobsScreen>
     try {
       final provider = Provider.of<SharedJobsProvider>(context, listen: false);
       final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
 
       // Debug print to confirm method is being called
       print('🔍 DEBUG: Calling connectUserToJob with code: $code');
@@ -1212,23 +1215,19 @@ class _JobsScreenState extends State<JobsScreen>
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Successfully joined job'),
+              content: Text(settingsProvider.translate('jobJoined')),
               backgroundColor: Colors.green,
             ),
           );
 
-          // Close the dialog
-          Navigator.pop(context);
-
           // Navigate to the shared jobs tab (index 1)
           _tabController.animateTo(1);
         } else {
+          // If success is false, it means a join request was sent for a private job
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Failed to join job. Please check the code and try again.',
-              ),
-              backgroundColor: Colors.red,
+              content: Text(settingsProvider.translate('joinRequestSent')),
+              backgroundColor: Colors.blue,
             ),
           );
         }

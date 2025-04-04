@@ -262,9 +262,13 @@ class HomeScreen extends StatelessWidget {
       context,
       listen: false,
     );
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(
+      context,
+      listen: false,
+    );
 
     // Combine regular and shared jobs for selection
-    final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+    final allJobs = [...jobsProvider.jobs, ...sharedJobsProvider.sharedJobs];
 
     // If the selected job no longer exists, clear it
     if (timeEntriesProvider.selectedJob != null &&
