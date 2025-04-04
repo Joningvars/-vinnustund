@@ -545,39 +545,6 @@ class _JobsScreenState extends State<JobsScreen>
       appBar: CustomAppBar(
         title: settingsProvider.translate('jobs'),
         showBackButton: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder:
-                    (context) => AlertDialog(
-                      title: Text(settingsProvider.translate('deleteJob')),
-                      content: Text(
-                        settingsProvider.translate('deleteJobConfirm'),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(settingsProvider.translate('cancel')),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            jobsProvider.clearAllJobs();
-                            Navigator.pop(context);
-                          },
-                          child: Text(
-                            settingsProvider.translate('delete'),
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ),
-              );
-            },
-          ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: [
