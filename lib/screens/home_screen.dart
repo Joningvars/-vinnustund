@@ -364,7 +364,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildRecentEntry(TimeEntry entry, TimeEntriesProvider provider) {
-    final job = provider.getJobById(entry.jobId);
     final hours = entry.duration.inHours;
     final minutes = entry.duration.inMinutes % 60;
 
@@ -379,7 +378,7 @@ class HomeScreen extends StatelessWidget {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: job?.color ?? Colors.grey,
+                color: entry.jobColor,
                 shape: BoxShape.circle,
               ),
             ),
@@ -391,7 +390,7 @@ class HomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    job?.name ?? provider.translate('unknownJob'),
+                    entry.jobName,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,

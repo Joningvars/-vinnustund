@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
 import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/models/job.dart';
+import 'package:timagatt/models/time_entry.dart';
 
 class HoursProgress extends StatefulWidget {
   final double hoursWorked;
@@ -98,27 +99,29 @@ class _HoursProgressState extends State<HoursProgress>
     // Create a list of jobs with their hours and percentages
     final jobsWithPercentages =
         jobHours.entries.map((entry) {
-          // Find the job by ID, first in regular jobs, then in shared jobs
-          Job? job = jobsProvider.jobs.firstWhere(
-            (j) => j.id == entry.key,
+          // Get the first time entry for this job to get its name and color
+          final jobEntry = timeProvider.timeEntries.firstWhere(
+            (e) => e.jobId == entry.key,
             orElse:
-                () => Job(id: entry.key, name: 'Unknown', color: Colors.grey),
+                () => TimeEntry(
+                  id: '',
+                  jobId: entry.key,
+                  jobName: 'Unknown Job',
+                  jobColor: Colors.grey,
+                  clockInTime: DateTime.now(),
+                  clockOutTime: DateTime.now(),
+                  duration: const Duration(),
+                  date: DateTime.now(),
+                  userId: '',
+                ),
           );
 
-          // If job is still unknown, try to find it in shared jobs
-          if (job.name == 'Unknown' && jobsProvider.sharedJobs.isNotEmpty) {
-            final sharedJob = jobsProvider.sharedJobs.firstWhere(
-              (j) => j.id == entry.key,
-              orElse:
-                  () => Job(id: entry.key, name: 'Unknown', color: Colors.grey),
-            );
-            if (sharedJob.name != 'Unknown') {
-              job = sharedJob;
-            }
-          }
-
           return {
-            'job': job,
+            'job': Job(
+              id: entry.key,
+              name: jobEntry.jobName,
+              color: jobEntry.jobColor,
+            ),
             'hours': entry.value,
             'percentage':
                 widget.targetHours > 0
