@@ -734,6 +734,12 @@ class _AddTimeScreenState extends State<AddTimeScreen> {
     // Combine regular and shared jobs for selection
     final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
 
+    // If the selected job no longer exists, clear it
+    if (timeEntriesProvider.selectedJob != null &&
+        !allJobs.any((job) => job.id == timeEntriesProvider.selectedJob!.id)) {
+      timeEntriesProvider.clearSelectedJob();
+    }
+
     return StyledDropdown<Job>(
       value:
           timeEntriesProvider.selectedJob ??

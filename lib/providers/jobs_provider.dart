@@ -50,18 +50,17 @@ class JobsProvider extends BaseProvider {
           );
         }
 
-        // Only include non-shared jobs in the regular jobs list
+        // Separate regular and shared jobs
         jobs = loadedJobs.where((job) => !job.isShared).toList();
-        // Clear shared jobs list as it's managed by SharedJobsProvider
-        sharedJobs = [];
+        sharedJobs = loadedJobs.where((job) => job.isShared).toList();
 
         print('📊 Separated jobs:');
         print('- Regular jobs: ${jobs.length}');
         print('- Shared jobs: ${sharedJobs.length}');
 
         // Set a default selected job if none is selected
-        if (selectedJob == null && jobs.isNotEmpty) {
-          selectedJob = jobs.first;
+        if (selectedJob == null && (jobs.isNotEmpty || sharedJobs.isNotEmpty)) {
+          selectedJob = jobs.isNotEmpty ? jobs.first : sharedJobs.first;
         }
 
         notifyListeners();
@@ -159,7 +158,7 @@ class JobsProvider extends BaseProvider {
 
         // Update TimeEntriesProvider if available
         if (_timeEntriesProvider != null) {
-          _timeEntriesProvider!.setSelectedJob(newSelectedJob);
+          _timeEntriesProvider!.clearSelectedJob();
         }
       }
 

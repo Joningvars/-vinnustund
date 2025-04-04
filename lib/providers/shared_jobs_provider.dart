@@ -10,10 +10,14 @@ import 'dart:math';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/models/time_entry.dart';
+import 'package:timagatt/services/database_service.dart';
 
 class SharedJobsProvider extends BaseProvider {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final DatabaseService _databaseService = DatabaseService(
+    uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+  );
   bool _isInitialized = false;
   int _pendingRequestCount = 0;
   Map<String, String> _userNames = {};
@@ -24,6 +28,8 @@ class SharedJobsProvider extends BaseProvider {
   List<Job> jobs = [];
   List<Job> sharedJobs = [];
   SettingsProvider? _settingsProvider;
+  bool isLoading = false;
+  String? error;
 
   bool get isInitialized => _isInitialized;
   String? get currentUserId => _auth.currentUser?.uid;
@@ -767,26 +773,60 @@ class SharedJobsProvider extends BaseProvider {
       );
 
       // Process jobs from sharedJobs collection
-      final loadedJobs =
-          [...sharedJobsSnapshot.docs, ...joinedJobsSnapshot.docs].map((doc) {
-            final data = doc.data();
-            print('🔍 Processing shared job: ${data['name']} (${data['id']})');
-            return Job(
-              id: doc.id, // Use document ID as both ID and connection code
+      final loadedJobs = <Job>[];
+      final processedCodes = <String>{};
+
+      // Process created jobs
+      for (final doc in sharedJobsSnapshot.docs) {
+        final data = doc.data();
+        final code = doc.id;
+        if (!processedCodes.contains(code)) {
+          print('🔍 Processing created job: ${data['name']} (${code})');
+          loadedJobs.add(
+            Job(
+              id: code,
               name: data['name'] ?? 'Unnamed Job',
               color: Color(data['color'] ?? Colors.blue.value),
               isShared: true,
               isPublic: data['isPublic'] ?? true,
-              connectionCode: doc.id,
+              connectionCode: code,
               creatorId: data['creatorId'],
               connectedUsers:
                   data['connectedUsers'] != null
                       ? List<String>.from(data['connectedUsers'])
                       : [],
-            );
-          }).toList();
+            ),
+          );
+          processedCodes.add(code);
+        }
+      }
 
-      print('✅ Loaded ${loadedJobs.length} shared jobs');
+      // Process joined jobs
+      for (final doc in joinedJobsSnapshot.docs) {
+        final data = doc.data();
+        final code = doc.id;
+        if (!processedCodes.contains(code)) {
+          print('🔍 Processing joined job: ${data['name']} (${code})');
+          loadedJobs.add(
+            Job(
+              id: code,
+              name: data['name'] ?? 'Unnamed Job',
+              color: Color(data['color'] ?? Colors.blue.value),
+              isShared: true,
+              isPublic: data['isPublic'] ?? true,
+              connectionCode: code,
+              creatorId: data['creatorId'],
+              connectedUsers:
+                  data['connectedUsers'] != null
+                      ? List<String>.from(data['connectedUsers'])
+                      : [],
+            ),
+          );
+          processedCodes.add(code);
+        }
+      }
+
+      print('✅ Loaded ${loadedJobs.length} unique shared jobs');
       sharedJobs = loadedJobs;
       notifyListeners();
     } catch (e) {
@@ -1211,86 +1251,83 @@ class SharedJobsProvider extends BaseProvider {
         .collection('sharedJobs')
         .where('creatorId', isEqualTo: currentUserId)
         .snapshots()
-        .listen(
-          (snapshot) {
-            print(
-              '📥 Received ${snapshot.docs.length} created shared jobs from Firestore',
-            );
+        .listen((snapshot) {
+          print(
+            '📥 Received ${snapshot.docs.length} created shared jobs from Firestore',
+          );
 
-            final createdJobs =
-                snapshot.docs.map((doc) {
+          final processedCodes = <String>{};
+          final updatedJobs = <Job>[];
+
+          // Process created jobs
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final code = doc.id;
+            if (!processedCodes.contains(code)) {
+              print('🔍 Processing created job: ${data['name']} (${code})');
+              updatedJobs.add(
+                Job(
+                  id: code,
+                  name: data['name'] ?? 'Unnamed Job',
+                  color: Color(data['color'] ?? Colors.blue.value),
+                  isShared: true,
+                  isPublic: data['isPublic'] ?? true,
+                  connectionCode: code,
+                  creatorId: data['creatorId'],
+                  connectedUsers:
+                      data['connectedUsers'] != null
+                          ? List<String>.from(data['connectedUsers'])
+                          : [],
+                ),
+              );
+              processedCodes.add(code);
+            }
+          }
+
+          // Also get jobs where user is in connectedUsers
+          FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .where('connectedUsers', arrayContains: currentUserId)
+              .get()
+              .then((joinedSnapshot) {
+                print(
+                  '📥 Received ${joinedSnapshot.docs.length} joined shared jobs from Firestore',
+                );
+
+                // Process joined jobs
+                for (final doc in joinedSnapshot.docs) {
                   final data = doc.data();
-                  print(
-                    '🔍 Processing created job: ${data['name']} (${data['id']})',
-                  );
-                  return Job(
-                    id: data['id'] ?? '',
-                    name: data['name'] ?? 'Unnamed Job',
-                    color: Color(data['color'] ?? Colors.blue.value),
-                    isShared: true,
-                    isPublic: data['isPublic'] ?? true,
-                    connectionCode: doc.id,
-                    creatorId: data['creatorId'],
-                    connectedUsers:
-                        data['connectedUsers'] != null
-                            ? List<String>.from(data['connectedUsers'])
-                            : [],
-                  );
-                }).toList();
+                  final code = doc.id;
+                  if (!processedCodes.contains(code)) {
+                    print(
+                      '🔍 Processing joined job: ${data['name']} (${code})',
+                    );
+                    updatedJobs.add(
+                      Job(
+                        id: code,
+                        name: data['name'] ?? 'Unnamed Job',
+                        color: Color(data['color'] ?? Colors.blue.value),
+                        isShared: true,
+                        isPublic: data['isPublic'] ?? true,
+                        connectionCode: code,
+                        creatorId: data['creatorId'],
+                        connectedUsers:
+                            data['connectedUsers'] != null
+                                ? List<String>.from(data['connectedUsers'])
+                                : [],
+                      ),
+                    );
+                    processedCodes.add(code);
+                  }
+                }
 
-            // Also get jobs where user is in connectedUsers
-            FirebaseFirestore.instance
-                .collection('sharedJobs')
-                .where('connectedUsers', arrayContains: currentUserId)
-                .get()
-                .then((joinedSnapshot) {
-                  print(
-                    '📥 Received ${joinedSnapshot.docs.length} joined shared jobs from Firestore',
-                  );
-
-                  final joinedJobs =
-                      joinedSnapshot.docs.map((doc) {
-                        final data = doc.data();
-                        print(
-                          '🔍 Processing joined job: ${data['name']} (${data['id']})',
-                        );
-                        return Job(
-                          id: data['id'] ?? '',
-                          name: data['name'] ?? 'Unnamed Job',
-                          color: Color(data['color'] ?? Colors.blue.value),
-                          isShared: true,
-                          isPublic: data['isPublic'] ?? true,
-                          connectionCode: doc.id,
-                          creatorId: data['creatorId'],
-                          connectedUsers:
-                              data['connectedUsers'] != null
-                                  ? List<String>.from(data['connectedUsers'])
-                                  : [],
-                        );
-                      }).toList();
-
-                  // Combine created and joined jobs, removing duplicates based on connection code
-                  final allJobs = [...createdJobs, ...joinedJobs];
-                  final uniqueJobs = allJobs.fold<List<Job>>([], (list, job) {
-                    if (!list.any(
-                      (j) => j.connectionCode == job.connectionCode,
-                    )) {
-                      list.add(job);
-                    }
-                    return list;
-                  });
-
-                  print(
-                    '✅ Updated shared jobs list with ${uniqueJobs.length} unique jobs',
-                  );
-                  sharedJobs = uniqueJobs;
-                  notifyListeners();
-                });
-          },
-          onError: (error) {
-            print('❌ Error in shared jobs listener: $error');
-          },
-        );
+                print(
+                  '✅ Updated shared jobs list with ${updatedJobs.length} unique jobs',
+                );
+                sharedJobs = updatedJobs;
+                notifyListeners();
+              });
+        });
   }
 
   // Add this new method to SharedJobsProvider
@@ -1446,5 +1483,26 @@ class SharedJobsProvider extends BaseProvider {
           _pendingRequestCount = snapshot.docs.length;
           notifyListeners();
         });
+  }
+
+  Future<void> addSharedJob(Job job) async {
+    try {
+      // Check if job already exists in the list
+      if (sharedJobs.any((j) => j.id == job.id)) {
+        print('Job ${job.id} already exists in shared jobs list');
+        return;
+      }
+
+      // Add to shared jobs collection
+      await _databaseService.saveJob(job);
+
+      // Update local state
+      final updatedJobs = [...sharedJobs, job];
+      sharedJobs = updatedJobs;
+      print('Added job ${job.id} to shared jobs list');
+    } catch (e) {
+      print('Error adding shared job: $e');
+      rethrow;
+    }
   }
 }

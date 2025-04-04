@@ -662,7 +662,7 @@ class _JobsScreenState extends State<JobsScreen>
                 // Navigate to Create Job tab
                 _tabController.animateTo(2);
               },
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add, color: Colors.white),
               label: Text(timeEntriesProvider.translate('createFirstJob')),
             ),
           ],
@@ -774,7 +774,7 @@ class _JobsScreenState extends State<JobsScreen>
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                context.go('/job-overview', extra: job);
+                context.push('/job-overview', extra: job);
               },
             ),
           ),
@@ -1124,35 +1124,78 @@ class _JobsScreenState extends State<JobsScreen>
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_addJobFormKey.currentState?.validate() ??
-                                false) {
-                              jobsProvider.addJob(
-                                nameController.text,
-                                selectedColor,
-                                descriptionController.text.isEmpty
-                                    ? null
-                                    : descriptionController.text,
-                              );
+                          onPressed: () async {
+                            if (createJobFormKey.currentState!.validate()) {
+                              final name = nameController.text.trim();
+                              final description =
+                                  descriptionController.text.trim();
 
-                              // Show success message
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    timeEntriesProvider.translate('jobAdded'),
+                              if (isShared) {
+                                // Use SharedJobsProvider for shared jobs
+                                final newJob = Job(
+                                  id: '', // Will be set by the provider
+                                  name: name,
+                                  color: selectedColor,
+                                  description: description,
+                                  isShared: true,
+                                  isPublic: isPublic,
+                                );
+
+                                final createdJob = await sharedJobsProvider
+                                    .createSharedJob(newJob, context);
+                                if (createdJob != null) {
+                                  // Show success message
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        timeEntriesProvider.translate(
+                                          'jobAdded',
+                                        ),
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+
+                                  // Clear form
+                                  nameController.clear();
+                                  descriptionController.clear();
+                                  setStateLocal(() {
+                                    selectedColor = Colors.blue;
+                                    isShared = false;
+                                    isPublic = true;
+                                  });
+                                }
+                              } else {
+                                // Use JobsProvider for regular jobs
+                                final jobsProvider = Provider.of<JobsProvider>(
+                                  context,
+                                  listen: false,
+                                );
+                                await jobsProvider.addJob(
+                                  name,
+                                  selectedColor,
+                                  description,
+                                );
+
+                                // Show success message
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      timeEntriesProvider.translate('jobAdded'),
+                                    ),
+                                    backgroundColor: Colors.green,
                                   ),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
+                                );
 
-                              // Clear form
-                              nameController.clear();
-                              descriptionController.clear();
-                              setStateLocal(() {
-                                selectedColor = Colors.blue;
-                                isShared = false;
-                                isPublic = true;
-                              });
+                                // Clear form
+                                nameController.clear();
+                                descriptionController.clear();
+                                setStateLocal(() {
+                                  selectedColor = Colors.blue;
+                                  isShared = false;
+                                  isPublic = true;
+                                });
+                              }
                             }
                           },
                           child: Text(
@@ -1318,7 +1361,7 @@ class _SharedJobsTabState extends State<SharedJobsTab>
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              context.go('/job-overview', extra: job);
+              context.push('/job-overview', extra: job);
             },
           ),
         );

@@ -522,6 +522,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   }
 
   Widget _buildTimeEntriesTab() {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
     final filteredEntries = _getFilteredEntries();
 
@@ -599,7 +600,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                         );
                       }),
                     ],
-                    hint: timeEntriesProvider.translate('filterByUser'),
+                    hint: settingsProvider.translate('allUsers'),
                   ),
                 ),
             ],
@@ -690,6 +691,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   Widget _buildExpensesTab() {
     final expensesProvider = Provider.of<ExpensesProvider>(context);
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final filteredExpenses =
         _expenses.where((e) {
           if (_startDate != null && e.date.isBefore(_startDate!)) return false;
@@ -772,7 +774,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                         );
                       }),
                     ],
-                    hint: timeEntriesProvider.translate('filterByUser'),
+                    hint: settingsProvider.translate('allUsers'),
                   ),
                 ),
             ],
@@ -1820,7 +1822,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
+                  color: Theme.of(context).cardTheme.color,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -1891,7 +1893,7 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                               children: [
                                 Icon(
                                   Icons.visibility,
-                                  color: Theme.of(context).primaryColor,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 28,
                                 ),
                                 const SizedBox(height: 8),
@@ -1900,7 +1902,8 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).primaryColor,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                               ],
@@ -1910,15 +1913,9 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
 
                         // Share button
                         InkWell(
-                          onTap: () async {
+                          onTap: () {
                             Navigator.pop(context);
-                            final url = Uri.file(file.path);
-                            if (await canLaunchUrl(url)) {
-                              await launchUrl(
-                                url,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            }
+                            Share.shareXFiles([XFile(file.path)]);
                           },
                           borderRadius: BorderRadius.circular(12),
                           child: Container(

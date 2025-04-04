@@ -224,6 +224,8 @@ class HomeScreen extends StatelessWidget {
             color:
                 isSelected
                     ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                    : isDarkMode
+                    ? Theme.of(context).scaffoldBackgroundColor
                     : Theme.of(context).cardTheme.color,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
@@ -263,6 +265,12 @@ class HomeScreen extends StatelessWidget {
 
     // Combine regular and shared jobs for selection
     final allJobs = [...jobsProvider.jobs, ...jobsProvider.sharedJobs];
+
+    // If the selected job no longer exists, clear it
+    if (timeEntriesProvider.selectedJob != null &&
+        !allJobs.any((job) => job.id == timeEntriesProvider.selectedJob!.id)) {
+      timeEntriesProvider.clearSelectedJob();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

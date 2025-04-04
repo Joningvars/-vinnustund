@@ -8,7 +8,7 @@ import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/screens/job_overview_screen.dart';
-import 'package:timagatt/utils/navigation.dart';
+import 'package:go_router/go_router.dart';
 
 class SharedJobsScreen extends StatefulWidget {
   const SharedJobsScreen({Key? key}) : super(key: key);
@@ -177,10 +177,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
   }
 
   void _navigateToJobRequests() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const JobRequestsScreen()),
-    );
+    context.push('/job-requests');
   }
 
   void _showDeleteConfirmation(Job job) {
@@ -195,13 +192,10 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
               'Are you sure you want to delete "${job.name}"? This will remove the job for all connected users.',
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel'),
-              ),
+              TextButton(onPressed: () => context.pop(), child: Text('Cancel')),
               TextButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  context.pop();
                   try {
                     await provider.deleteSharedJob(job);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -303,12 +297,12 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
                 child: Text(settingsProvider.translate('cancel')),
               ),
               TextButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  context.pop();
                   try {
                     if (job.isShared) {
                       await provider.deleteSharedJob(job);
@@ -358,11 +352,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
       context,
       listen: false,
     );
-
-    // Debug print to verify job type
-    print('Job type: ${job.runtimeType}');
-    print('Job: $job');
-    print('Connection code: ${job.connectionCode}');
 
     showDialog(
       context: context,
@@ -416,7 +405,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
                 child: Text(settingsProvider.translate('close')),
               ),
             ],
@@ -709,7 +698,6 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
                 IconButton(
                   icon: Icon(Icons.share),
                   onPressed: () {
-                    // Show share dialog with connection code
                     _showShareCodeDialog(job);
                   },
                 ),
@@ -722,7 +710,7 @@ class _SharedJobsScreenState extends State<SharedJobsScreen>
               ],
             ),
             onTap: () {
-              Navigation.push(context, JobOverviewScreen(job: job));
+              context.push('/job-overview', extra: {'job': job});
             },
           ),
         );
