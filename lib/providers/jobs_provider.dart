@@ -123,43 +123,50 @@ class JobsProvider extends BaseProvider {
 
   Future<void> deleteJob(String jobId) async {
     try {
+      // Find the job to delete
+      final jobToDelete = jobs.firstWhere((job) => job.id == jobId);
+
       // Delete all time entries for this job first
       if (databaseService != null) {
         print('🗑️ Deleting all time entries for job: $jobId');
         await databaseService!.deleteAllTimeEntriesForJob(jobId);
       }
 
-      // Remove from memory
-      jobs.removeWhere((job) => job.id == jobId);
-      sharedJobs.removeWhere((job) => job.id == jobId);
-
-      // Clear from local storage
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('jobs');
-
-      // Delete from Firebase if authenticated
-      if (databaseService != null &&
-          FirebaseAuth.instance.currentUser != null) {
-        final user = FirebaseAuth.instance.currentUser!;
-        final jobsSnapshot =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('jobs')
-                .get();
-
-        for (var doc in jobsSnapshot.docs) {
-          if (doc.id == jobId) {
-            await doc.reference.delete();
-          }
+      // If it's a shared job, handle shared job deletion
+      if (jobToDelete.isShared) {
+        await _deleteSharedJob(jobToDelete);
+      } else {
+        // For regular jobs, just delete from the user's collection
+        if (currentUserId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserId)
+              .collection('jobs')
+              .doc(jobId)
+              .delete();
         }
       }
 
-      // If this was the selected job, clear it
+      // Remove from both lists
+      jobs.removeWhere((job) => job.id == jobId);
+      sharedJobs.removeWhere((job) => job.id == jobId);
+
+      // Update selected job in both providers
       if (selectedJob?.id == jobId) {
-        selectedJob = jobs.isNotEmpty ? jobs.first : null;
+        // Find a new job to select
+        final newSelectedJob = jobs.isNotEmpty ? jobs.first : null;
+        selectedJob = newSelectedJob;
+
+        // Update TimeEntriesProvider if available
+        if (_timeEntriesProvider != null) {
+          _timeEntriesProvider!.setSelectedJob(newSelectedJob);
+        }
       }
 
+      // Save to local storage
+      await saveJobsToLocalStorage();
+
+      // Notify listeners
       notifyListeners();
     } catch (e) {
       print('Error deleting job: $e');

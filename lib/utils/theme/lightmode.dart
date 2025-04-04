@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timagatt/utils/theme/darkmode.dart';
 
+const primaryBlue = Color(0xFF2196F3);
+const timerGreen = Color(0xFF4CAF50);
+
 final lightTheme = ThemeData(
   useMaterial3: true,
   colorScheme: ColorScheme.light(
@@ -16,7 +19,7 @@ final lightTheme = ThemeData(
   textTheme: GoogleFonts.comfortaaTextTheme(),
   cardTheme: CardTheme(
     elevation: 0,
-    color: Colors.grey.shade50,
+    color: Colors.white,
     margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
   ),
@@ -59,4 +62,12 @@ final lightTheme = ThemeData(
     ),
   ),
   dividerTheme: DividerThemeData(thickness: 0.5, color: Colors.grey.shade300),
+  datePickerTheme: DatePickerThemeData(
+    backgroundColor: Colors.white,
+    headerBackgroundColor: primaryBlue,
+    headerForegroundColor: Colors.white,
+    rangeSelectionOverlayColor: MaterialStateProperty.all(
+      Colors.grey.withOpacity(0.2),
+    ),
+  ),
 );

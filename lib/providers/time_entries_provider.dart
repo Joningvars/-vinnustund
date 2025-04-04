@@ -489,10 +489,8 @@ class TimeEntriesProvider extends BaseProvider {
   }
 
   void setSelectedJob(Job? job) {
-    if (job != null) {
-      selectedJob = job;
-      notifyListeners();
-    }
+    selectedJob = job;
+    notifyListeners();
   }
 
   Duration calculateManualDuration() {
@@ -1456,6 +1454,11 @@ class TimeEntriesProvider extends BaseProvider {
 
   void setJobsProvider(JobsProvider provider) {
     _jobsProvider = provider;
+    notifyListeners();
+  }
+
+  void clearSelectedJob() {
+    selectedJob = null;
     notifyListeners();
   }
 }

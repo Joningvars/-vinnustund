@@ -12,6 +12,10 @@ import 'package:timagatt/screens/job_overview_screen.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 import 'package:timagatt/utils/navigation.dart';
+import 'package:timagatt/utils/theme/lightmode.dart' as lightTheme;
+import 'package:timagatt/utils/theme/darkmode.dart' as darkTheme;
+import 'package:timagatt/utils/routes.dart';
+import 'package:go_router/go_router.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -62,6 +66,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       locale: provider.locale,
+      builder: (context, child) {
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        return Theme(
+          data: Theme.of(context).copyWith(
+            datePickerTheme: DatePickerThemeData(
+              rangeSelectionBackgroundColor:
+                  isDarkMode ? Colors.grey.shade700 : Colors.grey.shade200,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (pickedDateRange != null) {
@@ -455,11 +471,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                           decoration: BoxDecoration(
                             color:
-                                Theme.of(context).brightness == Brightness.light
-                                    ? Theme.of(
+                                isDarkMode
+                                    ? Theme.of(context).scaffoldBackgroundColor
+                                    : Theme.of(
                                       context,
-                                    ).colorScheme.primary.withOpacity(0.1)
-                                    : Theme.of(context).scaffoldBackgroundColor,
+                                    ).colorScheme.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -467,18 +483,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             children: [
                               Text(
                                 dateRangeText,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: const TextStyle(fontSize: 16),
                               ),
-                              Icon(
-                                Icons.calendar_today,
-                                size: 20,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
+                              const Icon(Icons.calendar_today, size: 20),
                             ],
                           ),
                         ),
@@ -821,80 +828,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildQuickSelectButton(String text, VoidCallback onTap) {
-    return Expanded(
-      child: Material(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(8),
-          splashColor: Theme.of(context).primaryColor.withOpacity(0.1),
-          highlightColor: Theme.of(context).primaryColor.withOpacity(0.05),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade800,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Period button widget that exactly matches the home page style
-  Widget _buildPeriodButton(String text, bool isSelected, VoidCallback onTap) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final color = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color:
-              isSelected
-                  ? color.withOpacity(0.2)
-                  : isDarkMode
-                  ? Colors.grey.shade900
-                  : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color:
-                isSelected
-                    ? color
-                    : isDarkMode
-                    ? Colors.grey.shade100
-                    : Colors.grey.shade700,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
   // Job filter widget
   Widget _buildJobFilter(BuildContext context) {
     final jobsProvider = Provider.of<JobsProvider>(context);
@@ -905,25 +838,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color:
-            Theme.of(context).brightness == Brightness.light
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.05)
-                : Theme.of(context).scaffoldBackgroundColor,
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: StyledDropdown<String?>(
-        value: _selectedJobId,
-        onChanged: (String? newValue) {
+      child: StyledDropdown<Job?>(
+        value:
+            _selectedJobId == null
+                ? null
+                : allJobs.firstWhere(
+                  (job) => job.id == _selectedJobId,
+                  orElse: () => null as Job,
+                ),
+        onChanged: (Job? newValue) {
           setState(() {
-            _selectedJobId = newValue;
+            _selectedJobId = newValue?.id;
           });
         },
-        backgroundColor:
-            Theme.of(context).brightness == Brightness.light
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         items: [
-          DropdownMenuItem<String?>(
+          DropdownMenuItem<Job?>(
             value: null,
             child: Text(
               timeEntriesProvider.translate('allJobs'),
@@ -933,9 +866,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
           ),
-          ...allJobs.map<DropdownMenuItem<String?>>((Job job) {
-            return DropdownMenuItem<String?>(
-              value: job.id,
+          ...allJobs.map<DropdownMenuItem<Job?>>((Job job) {
+            return DropdownMenuItem<Job?>(
+              value: job,
               child: Row(
                 children: [
                   Container(
@@ -959,6 +892,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             );
           }).toList(),
         ],
+        emptyStateKey: 'noJobsYet',
+        hint: timeEntriesProvider.translate('allJobs'),
       ),
     );
   }
