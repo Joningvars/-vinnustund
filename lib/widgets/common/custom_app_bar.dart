@@ -16,6 +16,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showNotificationIcon;
   final bool showExportButton;
   final VoidCallback? onExportPressed;
+  final int? notificationCount;
+  final bool showRefreshButton;
+  final VoidCallback? onRefreshPressed;
 
   const CustomAppBar({
     super.key,
@@ -30,6 +33,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showNotificationIcon = true,
     this.showExportButton = false,
     this.onExportPressed,
+    this.notificationCount,
+    this.showRefreshButton = false,
+    this.onRefreshPressed,
   });
 
   @override
@@ -38,6 +44,15 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
 
     List<Widget> appBarActions = [];
+
+    if (showRefreshButton) {
+      appBarActions.add(
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: onRefreshPressed,
+        ),
+      );
+    }
 
     if (showExportButton) {
       appBarActions.add(
@@ -54,26 +69,27 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           icon: Stack(
             children: [
               const Icon(Icons.notifications_outlined),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 12,
-                    minHeight: 12,
-                  ),
-                  child: const Text(
-                    '3',
-                    style: TextStyle(color: Colors.white, fontSize: 8),
-                    textAlign: TextAlign.center,
+              if (notificationCount != null && notificationCount! > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 12,
+                      minHeight: 12,
+                    ),
+                    child: Text(
+                      notificationCount.toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 8),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           onPressed: () {

@@ -4,6 +4,7 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/services/auth_service.dart';
 import 'package:timagatt/utils/routes.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
+import 'package:go_router/go_router.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -40,11 +41,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         if (user != null && mounted) {
           // User is now automatically logged in
-
-          // Navigate to home screen and remove all previous routes
-          Navigator.of(
-            context,
-          ).pushNamedAndRemoveUntil(Routes.main, (route) => false);
+          // Navigate to home screen using GoRouter
+          context.go('/home');
         }
       } catch (e) {
         if (mounted) {
@@ -69,6 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: CustomAppBar(
         title: provider.translate('register'),
         showBackButton: true,
+        showNotificationIcon: false,
       ),
       body: SafeArea(
         child: Padding(

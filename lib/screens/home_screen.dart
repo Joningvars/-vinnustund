@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:timagatt/widgets/add_job_button.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
+import 'package:timagatt/providers/shared_jobs_provider.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,7 @@ class HomeScreen extends StatelessWidget {
     final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
     final jobsProvider = Provider.of<JobsProvider>(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
 
     // Add a recovery mechanism
     if (timeEntriesProvider.timeEntries.isEmpty &&
@@ -35,6 +37,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: CustomAppBar(
         title: timeEntriesProvider.translate('hoursWorked'),
+        notificationCount: sharedJobsProvider.pendingRequestCount,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Padding(

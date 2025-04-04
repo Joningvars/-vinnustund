@@ -65,41 +65,6 @@ class JobsProvider extends BaseProvider {
         }
 
         notifyListeners();
-
-        print('📱 Loading from local storage...');
-        // Load from local storage
-        final prefs = await SharedPreferences.getInstance();
-        final jobsJson = prefs.getString('jobs');
-
-        if (jobsJson != null) {
-          final List<dynamic> decoded = jsonDecode(jobsJson);
-          final loadedJobs = decoded.map((item) => Job.fromJson(item)).toList();
-
-          print('📊 Loaded ${loadedJobs.length} jobs from local storage');
-          for (var job in loadedJobs) {
-            print(
-              '📝 Job: ${job.name}, ID: ${job.id}, isShared: ${job.isShared}, connectionCode: ${job.connectionCode}',
-            );
-          }
-
-          // Only include non-shared jobs in the regular jobs list
-          jobs = loadedJobs.where((job) => !job.isShared).toList();
-          // Clear shared jobs list as it's managed by SharedJobsProvider
-          sharedJobs = [];
-
-          print('📊 Separated jobs:');
-          print('- Regular jobs: ${jobs.length}');
-          print('- Shared jobs: ${sharedJobs.length}');
-
-          // Set a default selected job if none is selected
-          if (selectedJob == null && jobs.isNotEmpty) {
-            selectedJob = jobs.first;
-          }
-
-          notifyListeners();
-        } else {
-          print('ℹ️ No jobs found in local storage');
-        }
       }
     } catch (e) {
       print('❌ Error loading jobs: $e');
@@ -121,7 +86,7 @@ class JobsProvider extends BaseProvider {
         isShared: false,
         isPublic: true,
         connectionCode: null,
-        creatorId: null,
+        creatorId: currentUserId,
         connectedUsers: null,
       );
 
@@ -158,31 +123,35 @@ class JobsProvider extends BaseProvider {
 
   Future<void> deleteJob(String jobId) async {
     try {
-      // Find the job to delete
-      final jobToDelete = jobs.firstWhere((job) => job.id == jobId);
-
-      // Remove from both lists
-      jobs.removeWhere((job) => job.id == jobId);
-      sharedJobs.removeWhere((job) => job.id == jobId);
-
       // Delete all time entries for this job first
       if (databaseService != null) {
         print('🗑️ Deleting all time entries for job: $jobId');
         await databaseService!.deleteAllTimeEntriesForJob(jobId);
       }
 
-      // If it's a shared job, handle shared job deletion
-      if (jobToDelete.isShared) {
-        await _deleteSharedJob(jobToDelete);
-      } else {
-        // For regular jobs, just delete from the user's collection
-        if (currentUserId != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUserId)
-              .collection('jobs')
-              .doc(jobId)
-              .delete();
+      // Remove from memory
+      jobs.removeWhere((job) => job.id == jobId);
+      sharedJobs.removeWhere((job) => job.id == jobId);
+
+      // Clear from local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('jobs');
+
+      // Delete from Firebase if authenticated
+      if (databaseService != null &&
+          FirebaseAuth.instance.currentUser != null) {
+        final user = FirebaseAuth.instance.currentUser!;
+        final jobsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('jobs')
+                .get();
+
+        for (var doc in jobsSnapshot.docs) {
+          if (doc.id == jobId) {
+            await doc.reference.delete();
+          }
         }
       }
 
@@ -191,13 +160,10 @@ class JobsProvider extends BaseProvider {
         selectedJob = jobs.isNotEmpty ? jobs.first : null;
       }
 
-      // Save to local storage
-      await saveJobsToLocalStorage();
-
-      // Notify listeners
       notifyListeners();
     } catch (e) {
       print('Error deleting job: $e');
+      throw e; // Re-throw the error to handle it in the UI
     }
   }
 

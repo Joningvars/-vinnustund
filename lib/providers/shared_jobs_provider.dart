@@ -12,15 +12,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/models/time_entry.dart';
 
 class SharedJobsProvider extends BaseProvider {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool _isInitialized = false;
+  int _pendingRequestCount = 0;
+  Map<String, String> _userNames = {};
+  StreamSubscription? _sharedJobsSubscription;
   List<Map<String, dynamic>> pendingRequests = [];
   Timer? _notificationTimer;
   bool isPaidUser = true;
   List<Job> jobs = [];
   List<Job> sharedJobs = [];
   SettingsProvider? _settingsProvider;
-  Map<String, String> _userNames = {};
-  StreamSubscription? _sharedJobsSubscription;
 
+  bool get isInitialized => _isInitialized;
+  String? get currentUserId => _auth.currentUser?.uid;
+  int get pendingRequestCount => _pendingRequestCount;
   bool get isAuthenticated => currentUserId != null;
 
   @override
@@ -108,22 +115,35 @@ class SharedJobsProvider extends BaseProvider {
   }
 
   Future<int> getPendingRequestCount() async {
-    if (databaseService == null) {
-      return 0;
-    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return 0;
+
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('sharedJobs')
+            .where('userId', isEqualTo: user.uid)
+            .where('status', isEqualTo: 'pending')
+            .get();
+
+    return snapshot.docs.length;
+  }
+
+  Future<void> loadPendingRequests() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
     try {
       final snapshot =
-          await FirebaseFirestore.instance
-              .collection('joinRequests')
-              .where('creatorId', isEqualTo: currentUserId)
+          await _firestore
+              .collection('sharedJobs')
+              .where('userId', isEqualTo: user.uid)
               .where('status', isEqualTo: 'pending')
               .get();
 
-      return snapshot.docs.length;
+      _pendingRequestCount = snapshot.docs.length;
+      notifyListeners();
     } catch (e) {
-      print('Error getting pending request count: $e');
-      return 0;
+      print('Error loading pending requests: $e');
     }
   }
 
@@ -1395,5 +1415,36 @@ class SharedJobsProvider extends BaseProvider {
   // Add navigation method
   void navigateToJobsOverview(BuildContext context) {
     Navigator.of(context).pushReplacementNamed('/jobs');
+  }
+
+  Future<void> init() async {
+    if (_isInitialized) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      await loadPendingRequests();
+      _setupSharedJobsListener();
+      _isInitialized = true;
+      notifyListeners();
+    } catch (e) {
+      print('Error initializing SharedJobsProvider: $e');
+    }
+  }
+
+  void _setupSharedJobsListener() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _sharedJobsSubscription = FirebaseFirestore.instance
+        .collection('sharedJobs')
+        .where('userId', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snapshot) {
+          _pendingRequestCount = snapshot.docs.length;
+          notifyListeners();
+        });
   }
 }

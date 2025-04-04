@@ -11,21 +11,27 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isConnectedThroughSharedJob(userId) {
+    function isJobOwner(jobId) {
+      return isAuthenticated() && (
+        // Check if the job exists in the user's jobs collection
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/jobs/$(jobId))
+      );
+    }
+
+    function isConnectedThroughSharedJob(jobId) {
       return isAuthenticated() && (
         // Check if the user is connected to any shared job with the target user
-        exists(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)) &&
+        exists(/databases/$(database)/documents/sharedJobs/$(jobId)) &&
         (
-          get(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)).data.creatorId == request.auth.uid ||
-          get(/databases/$(database)/documents/sharedJobs/$(request.resource.data.connectionCode)).data.connectedUsers.hasAny([request.auth.uid])
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.creatorId == request.auth.uid ||
+          get(/databases/$(database)/documents/sharedJobs/$(jobId)).data.connectedUsers.hasAny([request.auth.uid])
         )
       );
     }
 
     // User document rules
     match /users/{userId} {
-      allow read: if isOwner(userId) || isConnectedThroughSharedJob(userId);
-      allow write: if isOwner(userId);
+      allow read, write: if isOwner(userId);
       
       // User's jobs collection
       match /jobs/{jobId} {
@@ -35,6 +41,11 @@ service cloud.firestore {
       // User's time entries collection
       match /timeEntries/{entryId} {
         allow read, write: if isOwner(userId);
+        allow delete: if isOwner(userId) || (
+          // Allow deletion when deleting the associated job
+          request.method == 'delete' && 
+          resource != null
+        );
       }
       
       // User's expenses collection

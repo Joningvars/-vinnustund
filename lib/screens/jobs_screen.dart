@@ -959,174 +959,208 @@ class _JobsScreenState extends State<JobsScreen>
                 ),
                 const SizedBox(height: 24),
 
-                // Job name field
-                TextFormField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: timeEntriesProvider.translate('jobName'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return timeEntriesProvider.translate('jobNameRequired');
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
+                // Form fields
+                Form(
+                  key: _addJobFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Job name field
+                      TextFormField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: timeEntriesProvider.translate('jobName'),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return timeEntriesProvider.translate(
+                              'jobNameRequired',
+                            );
+                          }
+                          return null;
+                        },
+                      ),
 
-                // Job description field
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(
-                    labelText: timeEntriesProvider.translate('description'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
-                // Color picker
-                Text(
-                  timeEntriesProvider.translate('jobColor'),
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 8,
-                  children:
-                      _colorOptions.map((color) {
-                        final isSelected = selectedColor.value == color.value;
-                        return GestureDetector(
-                          onTap: () {
-                            setStateLocal(() {
-                              selectedColor = color;
-                            });
+                      // Description field
+                      TextFormField(
+                        controller: descriptionController,
+                        decoration: InputDecoration(
+                          labelText: timeEntriesProvider.translate(
+                            'description',
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        maxLines: 3,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Color selection
+                      Text(
+                        timeEntriesProvider.translate('selectColor'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 8,
+                        children:
+                            _colorOptions.map((color) {
+                              final isSelected =
+                                  selectedColor.value == color.value;
+                              return GestureDetector(
+                                onTap: () {
+                                  setStateLocal(() {
+                                    selectedColor = color;
+                                  });
+                                },
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border:
+                                        isSelected
+                                            ? Border.all(
+                                              color: Colors.white,
+                                              width: 2,
+                                            )
+                                            : null,
+                                    boxShadow:
+                                        isSelected
+                                            ? [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.2,
+                                                ),
+                                                blurRadius: 4,
+                                                spreadRadius: 0.5,
+                                              ),
+                                            ]
+                                            : null,
+                                  ),
+                                  child:
+                                      isSelected
+                                          ? const Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                            size: 16,
+                                          )
+                                          : null,
+                                ),
+                              );
+                            }).toList(),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Shared job toggle
+                      if (jobsProvider.isPaidUser) ...[
+                        SwitchListTile(
+                          title: Text(
+                            timeEntriesProvider.translate('sharedJob'),
+                          ),
+                          subtitle: Text(
+                            timeEntriesProvider.translate(
+                              'sharedJobDescription',
+                            ),
+                          ),
+                          value: isShared,
+                          onChanged:
+                              (value) => setStateLocal(() => isShared = value),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: theme.dividerColor),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
+
+                        // Public job toggle (only visible if shared is enabled)
+                        if (isShared)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: SwitchListTile(
+                              title: Text(
+                                timeEntriesProvider.translate('publicJob'),
+                              ),
+                              subtitle: Text(
+                                timeEntriesProvider.translate(
+                                  'publicJobDescription',
+                                ),
+                              ),
+                              value: isPublic,
+                              onChanged:
+                                  (value) =>
+                                      setStateLocal(() => isPublic = value),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: theme.dividerColor),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                      ],
+
+                      const SizedBox(height: 32),
+
+                      // Create button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (_addJobFormKey.currentState?.validate() ??
+                                false) {
+                              jobsProvider.addJob(
+                                nameController.text,
+                                selectedColor,
+                                descriptionController.text.isEmpty
+                                    ? null
+                                    : descriptionController.text,
+                              );
+
+                              // Show success message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    timeEntriesProvider.translate('jobAdded'),
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+
+                              // Clear form
+                              nameController.clear();
+                              descriptionController.clear();
+                              setStateLocal(() {
+                                selectedColor = Colors.blue;
+                                isShared = false;
+                                isPublic = true;
+                              });
+                            }
                           },
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                              border:
-                                  isSelected
-                                      ? Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      )
-                                      : null,
-                              boxShadow:
-                                  isSelected
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 4,
-                                          spreadRadius: 0.5,
-                                        ),
-                                      ]
-                                      : null,
-                            ),
-                            child:
-                                isSelected
-                                    ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 16,
-                                    )
-                                    : null,
+                          child: Text(
+                            timeEntriesProvider.translate('createJob'),
                           ),
-                        );
-                      }).toList(),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Shared job toggle
-                if (jobsProvider.isPaidUser) ...[
-                  SwitchListTile(
-                    title: Text(timeEntriesProvider.translate('sharedJob')),
-                    subtitle: Text(
-                      timeEntriesProvider.translate('sharedJobDescription'),
-                    ),
-                    value: isShared,
-                    onChanged: (value) => setStateLocal(() => isShared = value),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: theme.dividerColor),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                  ),
-
-                  // Public job toggle (only visible if shared is enabled)
-                  if (isShared)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: SwitchListTile(
-                        title: Text(timeEntriesProvider.translate('publicJob')),
-                        subtitle: Text(
-                          timeEntriesProvider.translate('publicJobDescription'),
-                        ),
-                        value: isPublic,
-                        onChanged:
-                            (value) => setStateLocal(() => isPublic = value),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: theme.dividerColor),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
                         ),
                       ),
-                    ),
-                ],
-
-                const SizedBox(height: 32),
-
-                // Create button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_addJobFormKey.currentState!.validate()) {
-                        jobsProvider.addJob(
-                          _nameController.text,
-                          _selectedColor,
-                          _descriptionController.text.isEmpty
-                              ? null
-                              : _descriptionController.text,
-                        );
-
-                        // Show success message
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              timeEntriesProvider.translate('jobAdded'),
-                            ),
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                          ),
-                        );
-
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: Text(
-                      timeEntriesProvider.translate('createJob'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ],

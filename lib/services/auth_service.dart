@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
 import 'package:timagatt/providers/time_entries_provider.dart';
+import 'package:timagatt/providers/jobs_provider.dart';
+import 'package:timagatt/models/time_entry.dart';
 
 class AuthService {
   // Use a singleton pattern to ensure only one instance exists
@@ -62,6 +64,52 @@ class AuthService {
       // Initialize user data
       final provider = Provider.of<TimeEntriesProvider>(context, listen: false);
       await provider.initializeNewUser();
+
+      // Clear any existing jobs
+      final jobsProvider = Provider.of<JobsProvider>(context, listen: false);
+      jobsProvider.clearAllJobs(); // Clear any existing jobs
+
+      // Create first job
+      await jobsProvider.addJob(
+        'Verkefni A',
+        Colors.blue,
+        'Skráðu tíma sem þú vinnur að persónulegum verkefnum',
+      );
+
+      // Create second job
+      await jobsProvider.addJob(
+        'Verkefni B',
+        Colors.green,
+        'Haltu inni til að eyða verki!',
+      );
+
+      // Get the first job (Verkefni A) to create a time entry for it
+      final jobA = jobsProvider.jobs.firstWhere(
+        (job) => job.name == 'Verkefni A',
+      );
+
+      // Create a dummy time entry for job A
+      final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
+        context,
+        listen: false,
+      );
+      final now = DateTime.now();
+      final sixHoursAgo = now.subtract(const Duration(hours: 6));
+
+      final dummyEntry = TimeEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        jobId: jobA.id,
+        jobName: jobA.name,
+        jobColor: jobA.color,
+        clockInTime: sixHoursAgo,
+        clockOutTime: now,
+        duration: const Duration(hours: 6),
+        description: 'Haltu inni til að eyða tímaskráningu!',
+        userId: userCredential.user!.uid,
+        date: sixHoursAgo,
+      );
+
+      await timeEntriesProvider.addTimeEntry(dummyEntry);
 
       return userCredential;
     } catch (e) {

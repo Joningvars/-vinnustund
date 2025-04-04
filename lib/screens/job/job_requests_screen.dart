@@ -8,10 +8,12 @@ import 'package:timagatt/services/database_service.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 
 class JobRequestsScreen extends StatefulWidget {
-  const JobRequestsScreen({Key? key}) : super(key: key);
+  final bool showAppBar;
+
+  const JobRequestsScreen({Key? key, this.showAppBar = true}) : super(key: key);
 
   @override
-  _JobRequestsScreenState createState() => _JobRequestsScreenState();
+  State<JobRequestsScreen> createState() => _JobRequestsScreenState();
 }
 
 class _JobRequestsScreenState extends State<JobRequestsScreen> {
@@ -88,14 +90,20 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
+    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
 
     return Scaffold(
-      appBar: CustomAppBar(
-        title: settingsProvider.translate('pendingRequests'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadRequests),
-        ],
-      ),
+      appBar:
+          widget.showAppBar
+              ? CustomAppBar(
+                title: settingsProvider.translate('requests'),
+                showBackButton: true,
+                showRefreshButton: true,
+                onRefreshPressed: () {
+                  sharedJobsProvider.loadPendingRequests();
+                },
+              )
+              : null,
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
