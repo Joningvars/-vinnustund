@@ -28,6 +28,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'dart:async';
+import 'package:timagatt/widgets/dialogs/invite_user_dialog.dart';
 
 class JobOverviewScreen extends StatefulWidget {
   final Job job;
@@ -700,76 +701,10 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
                 showDialog(
                   context: context,
                   builder:
-                      (context) => AlertDialog(
-                        title: Text(settingsProvider.translate('inviteUser')),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextField(
-                              controller: _emailController,
-                              decoration: InputDecoration(
-                                labelText: settingsProvider.translate('email'),
-                                hintText: settingsProvider.translate(
-                                  'enterEmail',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text(
-                              settingsProvider.translate('cancel'),
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () async {
-                              final email = _emailController.text.trim();
-                              if (email.isNotEmpty) {
-                                try {
-                                  await sharedJobsProvider.sendJobInvitation(
-                                    widget.job.id,
-                                    email,
-                                  );
-                                  if (mounted) {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          settingsProvider.translate(
-                                            'invitationSent',
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          settingsProvider.translate('error'),
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                }
-                              }
-                            },
-                            child: Text(
-                              settingsProvider.translate('invite'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      (context) => InviteUserDialog(
+                        jobId: widget.job.id,
+                        connectionCode: widget.job.connectionCode,
+                        emailController: _emailController,
                       ),
                 );
               },
@@ -1277,76 +1212,13 @@ class _JobOverviewScreenState extends State<JobOverviewScreen>
   }
 
   Future<void> _showInviteUserDialog(BuildContext context) async {
-    final settingsProvider = Provider.of<SettingsProvider>(
-      context,
-      listen: false,
-    );
-    final sharedJobsProvider = Provider.of<SharedJobsProvider>(
-      context,
-      listen: false,
-    );
-    final TextEditingController emailController = TextEditingController();
-
-    final result = await showDialog<bool>(
+    showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: Text(settingsProvider.translate('inviteUser')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: emailController,
-                  decoration: InputDecoration(
-                    labelText: settingsProvider.translate('email'),
-                    hintText: settingsProvider.translate('enterEmail'),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(settingsProvider.translate('cancel')),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final email = emailController.text.trim();
-                  if (email.isNotEmpty) {
-                    try {
-                      // Create a notification for the user instead of directly adding them
-                      await sharedJobsProvider.sendJobInvitation(
-                        widget.job.id,
-                        email,
-                      );
-                      if (mounted) {
-                        Navigator.pop(context, true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              settingsProvider.translate('invitationSent'),
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${settingsProvider.translate('error')}: ${e.toString()}',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  }
-                },
-                child: Text(settingsProvider.translate('invite')),
-              ),
-            ],
+          (context) => InviteUserDialog(
+            jobId: widget.job.id,
+            connectionCode: widget.job.connectionCode,
+            emailController: _emailController,
           ),
     );
   }
