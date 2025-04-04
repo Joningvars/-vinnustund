@@ -279,6 +279,11 @@ class SettingsProvider extends BaseProvider {
       'creator': 'Creator',
       'invitationSent': 'Invitation sent successfully',
       'invitationFailed': 'Failed to send invitation',
+      'wantsToJoinJob': '{name} wants to join this job',
+      'invitedYouToJob': '{name} invited you to join this job',
+      'someoneWantsToJoin': 'Someone wants to join this job',
+      'accepted': 'Accepted',
+      'rejected': 'Rejected',
     },
     'is': {
       'home': 'Heim',
@@ -554,6 +559,11 @@ class SettingsProvider extends BaseProvider {
       'creator': 'Stofnandi',
       'invitationSent': 'Boðskort sent',
       'invitationFailed': 'Villa við að senda boðskort',
+      'wantsToJoinJob': '{name} vill tengjast verkinu',
+      'invitedYouToJob': '{name} bauð þér að tengjast verkinu',
+      'someoneWantsToJoin': 'Einhver vill tengjast verkinu',
+      'accepted': 'Samþykkt',
+      'rejected': 'Hafnað',
     },
   };
 

@@ -159,12 +159,13 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   Widget _buildJobRequestsList() {
     print('🔄 Building job requests list');
     print('📝 Notifications count: ${_notifications.length}');
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     if (_notifications.isEmpty) {
       print('❌ No notifications found');
       return Center(
         child: Text(
-          Provider.of<SettingsProvider>(context).translate('noNotifications'),
+          settingsProvider.translate('noNotifications'),
           style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
         ),
       );
@@ -195,16 +196,23 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               subtitle:
                   notification['requesterName'] != null
                       ? Text(
-                        '${notification['requesterName']} wants to join this job',
+                        settingsProvider
+                            .translate('wantsToJoinJob')
+                            .replaceAll(
+                              '{name}',
+                              notification['requesterName'],
+                            ),
                         style: TextStyle(color: Colors.grey[700]),
                       )
                       : notification['senderName'] != null
                       ? Text(
-                        '${notification['senderName']} invited you to join this job',
+                        settingsProvider
+                            .translate('invitedYouToJob')
+                            .replaceAll('{name}', notification['senderName']),
                         style: TextStyle(color: Colors.grey[700]),
                       )
                       : Text(
-                        'Someone wants to join this job',
+                        settingsProvider.translate('someoneWantsToJoin'),
                         style: TextStyle(color: Colors.grey[700]),
                       ),
               trailing:
@@ -293,7 +301,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          status == 'accepted' ? 'Accepted' : 'Rejected',
+                          status == 'accepted'
+                              ? settingsProvider.translate('accepted')
+                              : settingsProvider.translate('rejected'),
                           style: TextStyle(
                             color:
                                 status == 'accepted'
