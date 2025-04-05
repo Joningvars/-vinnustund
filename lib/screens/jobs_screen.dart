@@ -698,7 +698,6 @@ class _JobsScreenState extends State<JobsScreen>
 
   Widget _buildSharedJobsTab(BuildContext context) {
     final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     print(
@@ -1252,92 +1251,5 @@ class _JobsScreenState extends State<JobsScreen>
         });
       }
     }
-  }
-}
-
-class SharedJobsTab extends StatefulWidget {
-  const SharedJobsTab({Key? key}) : super(key: key);
-
-  @override
-  State<SharedJobsTab> createState() => _SharedJobsTabState();
-}
-
-class _SharedJobsTabState extends State<SharedJobsTab>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    // Load shared jobs when the tab is initialized
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final sharedJobsProvider = Provider.of<SharedJobsProvider>(
-        context,
-        listen: false,
-      );
-      // Set up the real-time listener for shared jobs
-      sharedJobsProvider.listenToSharedJobs();
-    });
-  }
-
-  @override
-  void dispose() {
-    // Clean up any listeners if needed
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context); // Required by AutomaticKeepAliveClientMixin
-
-    final sharedJobsProvider = Provider.of<SharedJobsProvider>(context);
-    final timeEntriesProvider = Provider.of<TimeEntriesProvider>(context);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-
-    print(
-      '🔄 Building shared jobs tab with ${sharedJobsProvider.sharedJobs.length} jobs',
-    );
-
-    if (sharedJobsProvider.sharedJobs.isEmpty) {
-      return Center(
-        child: Text(
-          settingsProvider.translate('noSharedJobs'),
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: sharedJobsProvider.sharedJobs.length,
-      itemBuilder: (context, index) {
-        final job = sharedJobsProvider.sharedJobs[index];
-        print('🔍 Processing shared job: ${job.name} (ID: ${job.id})');
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: job.color,
-              child: Text(
-                job.name.substring(0, 1).toUpperCase(),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            title: Text(job.name),
-            subtitle: Text(
-              job.isPublic
-                  ? settingsProvider.translate('publicJob')
-                  : settingsProvider.translate('privateJob'),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              context.push('/job-overview', extra: job);
-            },
-          ),
-        );
-      },
-    );
   }
 }

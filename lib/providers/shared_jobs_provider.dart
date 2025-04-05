@@ -492,66 +492,65 @@ class SharedJobsProvider extends BaseProvider {
   }
 
   Future<Job?> createSharedJob(Job job, BuildContext context) async {
+    if (!isAuthenticated) {
+      print('❌ Cannot create shared job: Not authenticated');
+      return null;
+    }
+
     try {
-      print('🔄 Creating shared job: ${job.name}');
+      // Generate a unique connection code
+      final code = _generateConnectionCode();
+      print('🔑 Generated connection code: $code');
 
-      // Generate a connection code if not provided
-      if (job.connectionCode == null) {
-        final connectionCode = _generateConnectionCode();
-        job = job.copyWith(
-          id: connectionCode, // Use connection code as ID
-          connectionCode: connectionCode,
-          creatorId: currentUserId,
-        );
-      }
-
-      print('📝 Job details:');
-      print('- Name: ${job.name}');
-      print('- Connection Code: ${job.connectionCode}');
-      print('- Creator ID: ${job.creatorId}');
-      print('- Is Public: ${job.isPublic}');
-
-      // Create the shared job document in Firestore
-      final sharedJobData = {
-        'id': job.connectionCode, // Use connection code as ID
+      // Create the job in Firestore
+      final jobData = {
         'name': job.name,
         'color': job.color.value,
-        'creatorId': job.creatorId,
-        'connectionCode': job.connectionCode,
-        'isShared': true,
         'isPublic': job.isPublic,
-        'connectedUsers': [currentUserId],
+        'creatorId': currentUserId,
         'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'connectedUsers': [currentUserId],
       };
 
-      // Save to sharedJobs collection
+      print('📝 Creating shared job with data: $jobData');
+
       await FirebaseFirestore.instance
           .collection('sharedJobs')
-          .doc(job.connectionCode)
-          .set(sharedJobData);
+          .doc(code)
+          .set(jobData);
 
-      // Save to user's jobs collection
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .collection('jobs')
-          .doc(job.id)
-          .set(job.toJson());
+      print('✅ Shared job created successfully with code: $code');
 
-      print('✅ Job created successfully in Firestore');
+      // Create the job object with the connection code
+      final createdJob = Job(
+        id: code,
+        name: job.name,
+        color: job.color,
+        isShared: true,
+        isPublic: job.isPublic,
+        connectionCode: code,
+        creatorId: currentUserId,
+        connectedUsers: [currentUserId!],
+      );
 
-      // Add only to sharedJobs list
-      sharedJobs.add(job);
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_settingsProvider!.translate('sharedJobCreated')),
+          backgroundColor: Colors.green,
+        ),
+      );
 
-      // Notify listeners
-      notifyListeners();
-
-      print('✅ Job added to sharedJobs list');
-      return job;
+      return createdJob;
     } catch (e) {
       print('❌ Error creating shared job: $e');
-      throw e;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_settingsProvider!.translate('errorCreatingSharedJob')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
     }
   }
 
