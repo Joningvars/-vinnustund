@@ -1130,6 +1130,9 @@ class _JobsScreenState extends State<JobsScreen>
                                     isShared = false;
                                     isPublic = true;
                                   });
+
+                                  // Navigate to shared jobs tab
+                                  _tabController.animateTo(1);
                                 }
                               } else {
                                 // Use JobsProvider for regular jobs
@@ -1161,6 +1164,9 @@ class _JobsScreenState extends State<JobsScreen>
                                   isShared = false;
                                   isPublic = true;
                                 });
+
+                                // Navigate to my jobs tab
+                                _tabController.animateTo(0);
                               }
                             }
                           },

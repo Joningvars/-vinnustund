@@ -45,8 +45,7 @@ class SettingsProvider extends BaseProvider {
       'hoursbyJob': 'Hours by Job',
       'today': 'Today',
       'workDescription': 'Work Description',
-      'workDescriptionHint':
-          'Please provide a brief description of the work completed',
+      'workDescriptionHint': 'Job descriptionr',
       'cancel': 'Cancel',
       'createJob': 'Create Job',
       'jobName': 'Job Name',
