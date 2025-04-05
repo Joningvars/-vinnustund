@@ -33,6 +33,7 @@ import 'package:timagatt/providers/expenses_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/services/database_service.dart';
 import 'package:go_router/go_router.dart';
+import 'package:timagatt/services/notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -48,8 +49,8 @@ final router = GoRouter(
           (context, state) => CustomTransitionPage<void>(
             key: state.pageKey,
             child: const OnboardingScreen(),
-            transitionDuration: const Duration(milliseconds: 300),
-            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionDuration: const Duration(milliseconds: 200),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
             transitionsBuilder: (
               context,
               animation,
@@ -72,8 +73,8 @@ final router = GoRouter(
           (context, state) => CustomTransitionPage<void>(
             key: state.pageKey,
             child: const LoginScreen(),
-            transitionDuration: const Duration(milliseconds: 300),
-            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionDuration: const Duration(milliseconds: 200),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
             transitionsBuilder: (
               context,
               animation,
@@ -356,17 +357,20 @@ void main() async {
   final timeEntriesProvider = TimeEntriesProvider();
   final jobsProvider = JobsProvider();
   final sharedJobsProvider = SharedJobsProvider();
+  final notificationService = NotificationService();
 
   // Initialize providers
   await settingsProvider.initializeApp();
   await timeEntriesProvider.initializeApp();
   await jobsProvider.initializeApp();
   await sharedJobsProvider.initializeApp();
+  await notificationService.initialize();
 
   // Connect the providers
   sharedJobsProvider.setSettingsProvider(settingsProvider);
   timeEntriesProvider.setSettingsProvider(settingsProvider);
   timeEntriesProvider.setJobsProvider(jobsProvider);
+  sharedJobsProvider.setNotificationService(notificationService);
 
   // Add this debug print
   print('🔄 Providers initialized and connected');
@@ -530,7 +534,7 @@ class _TimeClockScreenState extends State<TimeClockScreen>
     if (_pageController.page?.round() != settingsProvider.selectedTabIndex) {
       _pageController.animateToPage(
         settingsProvider.selectedTabIndex,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
       );
     }

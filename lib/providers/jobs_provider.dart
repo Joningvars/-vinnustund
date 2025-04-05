@@ -257,7 +257,12 @@ class JobsProvider extends BaseProvider {
         return null; // Return null to indicate a request was sent
       } else {
         // For public jobs, join immediately
-        final job = await _sharedJobsProvider?.joinJobByCode(connectionCode);
+        await _sharedJobsProvider?.joinJobByCode(connectionCode);
+
+        // Get the job after joining
+        final job = await _sharedJobsProvider?.getSharedJobByCode(
+          connectionCode,
+        );
 
         // Add to local jobs list
         if (job != null) {

@@ -175,9 +175,11 @@ class HomeScreen extends StatelessWidget {
                                 onPressed: () {
                                   // Navigate to the history tab (index 2)
                                   timeEntriesProvider.setSelectedTabIndex(2);
+                                  context.go('/history');
                                 },
                                 child: Text(
                                   timeEntriesProvider.translate('viewAll'),
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],

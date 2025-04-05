@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
-import 'package:timagatt/providers/jobs_provider.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
-import 'package:timagatt/screens/job/job_requests_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:timagatt/screens/job_overview_screen.dart';
-import 'package:timagatt/models/job.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({Key? key}) : super(key: key);
@@ -42,32 +38,31 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Future<void> _loadNotifications() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
+    print('🔄 Loading notifications...');
     try {
-      print('🔄 Loading notifications...');
-      final snapshot =
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('❌ No authenticated user');
+        return;
+      }
+
+      // Query the root notifications collection
+      final rootSnapshot =
           await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser.uid)
               .collection('notifications')
-              .orderBy('createdAt', descending: true)
+              .where('userId', isEqualTo: user.uid)
+              .where('status', isEqualTo: 'pending')
               .get();
 
-      print('📝 Found ${snapshot.docs.length} notifications');
+      print('📝 Found ${rootSnapshot.docs.length} notifications');
+      _notifications = rootSnapshot.docs.map((doc) => doc.data()).toList();
 
-      if (mounted) {
-        setState(() {
-          _notifications =
-              snapshot.docs.map((doc) {
-                final data = doc.data();
-                data['id'] = doc.id;
-                print('📌 Notification data: $data');
-                return data;
-              }).toList();
-        });
+      print('📋 Notifications data: $_notifications');
+      if (_notifications.isEmpty) {
+        print('❌ No notifications found');
       }
+
+      setState(() {});
     } catch (e) {
       print('❌ Error loading notifications: $e');
     }
@@ -111,17 +106,24 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   if (_pendingRequestCount > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.only(
+                        left: 6,
+                        right: 6,
+                        top: 8,
+                        bottom: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
                       ),
-                      child: Text(
-                        _pendingRequestCount.toString(),
-                        style: TextStyle(
-                          color: theme.colorScheme.onPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                      child: Center(
+                        child: Text(
+                          _pendingRequestCount.toString(),
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -159,6 +161,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   Widget _buildJobRequestsList() {
     print('🔄 Building job requests list');
     print('📝 Notifications count: ${_notifications.length}');
+    print('📋 Notifications data: $_notifications');
+
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     if (_notifications.isEmpty) {
@@ -178,147 +182,117 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         final notification = _notifications[index];
         print('🔍 Processing notification: $notification');
 
-        final type = notification['type'];
-        final status = notification['status'];
-        print('📌 Type: $type, Status: $status');
+        final data = notification['data'] ?? {};
+        final type = data['type'] ?? 'unknown';
+        final jobId = data['jobId'] ?? '';
+        final jobName = notification['body']?.split('"')[1] ?? 'Unknown Job';
+        final senderName = data['senderName'] ?? 'Someone';
 
-        // Handle both job_invitation and joinRequest types
-        if (type == 'job_invitation' || type == 'joinRequest') {
-          print('✅ Building notification card');
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.blue.shade50,
-                child: Icon(Icons.work_outline, color: Colors.blue.shade700),
-              ),
-              title: Text(notification['jobName'] ?? 'Unknown Job'),
-              subtitle:
-                  notification['requesterName'] != null
-                      ? Text(
-                        settingsProvider
-                            .translate('wantsToJoinJob')
-                            .replaceAll(
-                              '{name}',
-                              notification['requesterName'],
-                            ),
-                        style: TextStyle(color: Colors.grey[700]),
-                      )
-                      : notification['senderName'] != null
-                      ? Text(
-                        settingsProvider
-                            .translate('invitedYouToJob')
-                            .replaceAll('{name}', notification['senderName']),
-                        style: TextStyle(color: Colors.grey[700]),
-                      )
-                      : Text(
-                        settingsProvider.translate('someoneWantsToJoin'),
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
-              trailing:
-                  status == 'pending'
-                      ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.check_circle_outline),
-                            color: Colors.green,
-                            onPressed: () async {
-                              print('✅ Accepting invitation/request');
-                              final sharedJobsProvider =
-                                  Provider.of<SharedJobsProvider>(
-                                    context,
-                                    listen: false,
-                                  );
+        print(
+          '📌 Type: $type, Job: $jobName, JobId: $jobId, Sender: $senderName',
+        );
 
-                              await sharedJobsProvider.handleJobInvitation(
-                                notification['id'],
-                                true,
-                              );
-
-                              // Update the notification status locally
-                              setState(() {
-                                notification['status'] = 'accepted';
-                              });
-
-                              // Remove the notification after a delay
-                              Future.delayed(Duration(seconds: 2), () {
-                                if (mounted) {
-                                  setState(() {
-                                    _notifications.removeWhere(
-                                      (n) => n['id'] == notification['id'],
-                                    );
-                                  });
-                                }
-                              });
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.cancel_outlined),
-                            color: Colors.red,
-                            onPressed: () async {
-                              print('❌ Rejecting invitation/request');
-                              final sharedJobsProvider =
-                                  Provider.of<SharedJobsProvider>(
-                                    context,
-                                    listen: false,
-                                  );
-
-                              await sharedJobsProvider.handleJobInvitation(
-                                notification['id'],
-                                false,
-                              );
-
-                              // Update the notification status locally
-                              setState(() {
-                                notification['status'] = 'rejected';
-                              });
-
-                              // Remove the notification after a delay
-                              Future.delayed(Duration(seconds: 2), () {
-                                if (mounted) {
-                                  setState(() {
-                                    _notifications.removeWhere(
-                                      (n) => n['id'] == notification['id'],
-                                    );
-                                  });
-                                }
-                              });
-                            },
-                          ),
-                        ],
-                      )
-                      : Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              status == 'accepted'
-                                  ? Colors.green.withOpacity(0.1)
-                                  : Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          status == 'accepted'
-                              ? settingsProvider.translate('accepted')
-                              : settingsProvider.translate('rejected'),
-                          style: TextStyle(
-                            color:
-                                status == 'accepted'
-                                    ? Colors.green
-                                    : Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-            ),
-          );
+        String notificationText;
+        if (type == 'job_invitation') {
+          notificationText = settingsProvider
+              .translate('invitedYouToJob')
+              .replaceAll('{name}', senderName)
+              .replaceAll('{job}', jobName);
+        } else {
+          notificationText = settingsProvider
+              .translate('wantsToJoinJob')
+              .replaceAll('{name}', senderName)
+              .replaceAll('{job}', jobName);
         }
 
-        print('⚠️ Unhandled notification type: $type');
-        return const SizedBox.shrink();
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.blue.shade50,
+              child: Icon(Icons.work_outline, color: Colors.blue.shade700),
+            ),
+            title: Text(jobName),
+            subtitle: Text(
+              notificationText,
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+            trailing:
+                !(notification['read'] ?? false)
+                    ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline),
+                          color: Colors.green,
+                          onPressed: () async {
+                            print('✅ Accepting invitation/request');
+                            final sharedJobsProvider =
+                                Provider.of<SharedJobsProvider>(
+                                  context,
+                                  listen: false,
+                                );
+
+                            await sharedJobsProvider.handleJobInvitation(
+                              notification['id'],
+                              true,
+                            );
+
+                            // Update the notification status locally
+                            setState(() {
+                              notification['read'] = true;
+                            });
+
+                            // Remove the notification after a delay
+                            Future.delayed(const Duration(seconds: 2), () {
+                              if (mounted) {
+                                setState(() {
+                                  _notifications.removeWhere(
+                                    (n) => n['id'] == notification['id'],
+                                  );
+                                });
+                              }
+                            });
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.cancel_outlined),
+                          color: Colors.red,
+                          onPressed: () async {
+                            print('❌ Rejecting invitation/request');
+                            final sharedJobsProvider =
+                                Provider.of<SharedJobsProvider>(
+                                  context,
+                                  listen: false,
+                                );
+
+                            await sharedJobsProvider.handleJobInvitation(
+                              notification['id'],
+                              false,
+                            );
+
+                            // Update the notification status locally
+                            setState(() {
+                              notification['read'] = true;
+                            });
+
+                            // Remove the notification after a delay
+                            Future.delayed(const Duration(seconds: 2), () {
+                              if (mounted) {
+                                setState(() {
+                                  _notifications.removeWhere(
+                                    (n) => n['id'] == notification['id'],
+                                  );
+                                });
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    )
+                    : null,
+          ),
+        );
       },
     );
   }

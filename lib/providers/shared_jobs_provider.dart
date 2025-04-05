@@ -11,6 +11,7 @@ import 'package:timagatt/providers/settings_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timagatt/models/time_entry.dart';
 import 'package:timagatt/services/database_service.dart';
+import 'package:timagatt/services/notification_service.dart';
 
 class SharedJobsProvider extends BaseProvider {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,6 +19,7 @@ class SharedJobsProvider extends BaseProvider {
   final DatabaseService _databaseService = DatabaseService(
     uid: FirebaseAuth.instance.currentUser?.uid ?? '',
   );
+  NotificationService? _notificationService;
   bool _isInitialized = false;
   int _pendingRequestCount = 0;
   Map<String, String> _userNames = {};
@@ -243,12 +245,10 @@ class SharedJobsProvider extends BaseProvider {
           .set(job);
 
       // 5. Update the shared job's connected users list
-      List<String> connectedUsers = List<String>.from(
-        sharedJobData['connectedUsers'] ?? [],
-      );
+      List<String> connectedUsers = sharedJobData['connectedUsers'];
 
       if (!connectedUsers.contains(request['requesterId'])) {
-        final requesterId = request['requesterId'] as String;
+        final requesterId = request['requesterId'];
         connectedUsers.add(requesterId);
         await FirebaseFirestore.instance
             .collection('sharedJobs')
@@ -277,124 +277,82 @@ class SharedJobsProvider extends BaseProvider {
     }
   }
 
-  Future<Job?> joinJobByCode(String code) async {
+  Future<void> joinJobByCode(String code) async {
+    print('🔄 Joining job with code: $code');
     try {
-      print(' Attempting to join job with code: $code');
-      if (code.isEmpty) {
-        throw Exception('Please enter a connection code');
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
       }
 
-      // Check if the shared job exists
-      final sharedJobDoc =
+      // Find the job with the given code
+      final jobQuery =
           await FirebaseFirestore.instance
               .collection('sharedJobs')
-              .doc(code)
+              .where('connectionCode', isEqualTo: code)
               .get();
 
-      if (!sharedJobDoc.exists) {
-        print('❌ Job not found with code: $code');
-        throw Exception('Job not found with this code');
+      if (jobQuery.docs.isEmpty) {
+        throw Exception('Job not found');
       }
 
-      final jobData = sharedJobDoc.data()!;
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      final jobDoc = jobQuery.docs.first;
+      final jobData = jobDoc.data();
+      final creatorId = jobData['creatorId'];
+      final jobName = jobData['name'] ?? 'Unknown Job';
 
-      if (currentUserId == null) {
-        print('❌ No authenticated user found');
-        throw Exception('You must be logged in to join a job');
+      // Check if user is already connected
+      final connectedUsers = List<String>.from(jobData['connectedUsers'] ?? []);
+      if (connectedUsers.contains(currentUser.uid)) {
+        throw Exception('Already connected to this job');
       }
 
-      // Ensure we have a consistent ID field
-      final String jobId = jobData['id'] ?? jobData['jobId'] ?? '';
-      if (jobId.isEmpty) {
-        print('❌ Invalid job data: missing ID');
-        throw Exception('Invalid job data');
-      }
-
-      // Check if user is already connected to this job
-      final List<String> connectedUsers =
-          jobData['connectedUsers'] != null
-              ? List<String>.from(jobData['connectedUsers'])
-              : [];
-
-      if (connectedUsers.contains(currentUserId)) {
-        print('ℹ️ User already connected to this job');
-        throw Exception('You are already connected to this job');
-      }
-
-      // Check if the job is public or private
-      final bool isPublic = jobData['isPublic'] ?? true;
-
-      if (isPublic) {
-        // For public jobs, add user directly to connectedUsers
-        print('✅ Job is public, adding user directly');
-
-        // Update the shared job document
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(code)
-            .update({
-              'connectedUsers': FieldValue.arrayUnion([currentUserId]),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-
-        // Create a job object for the user
-        final job = Job(
-          id: jobId,
-          name: jobData['name'] ?? 'Unnamed Job',
-          color: Color(jobData['color'] ?? Colors.blue.value),
-          description: jobData['description'],
-          isShared: true,
-          isPublic: isPublic,
-          connectionCode: code,
-          creatorId: jobData['creatorId'],
-          connectedUsers: [...connectedUsers, currentUserId],
-          updatedAt: DateTime.now(),
-        );
-
-        // Add the job to the user's collection
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserId)
-            .collection('jobs')
-            .doc(jobId)
-            .set(job.toJson());
-
-        // Also add to local jobs list for immediate UI update
-        jobs.add(job);
-        notifyListeners();
-
-        print('✅ Successfully joined public job');
-        return job;
-      } else {
-        // For private jobs, add user to pendingRequests
-        print('🔒 Job is private, adding user to pending requests');
-
-        // Check if user is already in pendingRequests
-        final List<String> pendingRequests =
-            jobData['pendingRequests'] != null
-                ? List<String>.from(jobData['pendingRequests'])
-                : [];
-
-        if (!pendingRequests.contains(currentUserId)) {
-          // Add user to pendingRequests
+      // Get user's name from their profile
+      final userDoc =
           await FirebaseFirestore.instance
-              .collection('sharedJobs')
-              .doc(code)
-              .update({
-                'pendingRequests': FieldValue.arrayUnion([currentUserId]),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+      final userName =
+          userDoc.data()?['name'] ?? currentUser.displayName ?? 'Unknown User';
 
-          print('✅ Successfully added to pendingRequests');
-        } else {
-          print('ℹ️ User already in pendingRequests list');
-        }
+      // Add to pending requests
+      await FirebaseFirestore.instance
+          .collection('sharedJobs')
+          .doc(code)
+          .update({
+            'pendingRequests': FieldValue.arrayUnion([currentUser.uid]),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
-        return null; // Return null since we haven't joined yet
-      }
+      // Create notification in root collection
+      final notificationRef =
+          FirebaseFirestore.instance.collection('notifications').doc();
+
+      print('📝 Creating notification for creator: $creatorId');
+      await notificationRef.set({
+        'id': notificationRef.id,
+        'userId':
+            creatorId, // The job creator who will receive the notification
+        'senderId': currentUser.uid, // The user requesting to join
+        'senderName': userName,
+        'type': 'joinRequest',
+        'jobId': code,
+        'jobName': jobName,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'read': false,
+        'data': {
+          'type': 'joinRequest',
+          'jobId': code,
+          'jobName': jobName,
+          'senderName': userName,
+        },
+      });
+
+      print('✅ Join request and notification created successfully');
     } catch (e) {
-      print('❌ Error joining job by code: $e');
+      print('❌ Error joining job: $e');
       throw e;
     }
   }
@@ -1165,32 +1123,31 @@ class SharedJobsProvider extends BaseProvider {
       if (isPublic) {
         print('✅ Job is public, adding user directly');
         // Add user to connected users in shared job
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(code)
-            .update({
-              'connectedUsers': FieldValue.arrayUnion([user.uid]),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
+        await jobDoc.reference.update({
+          'connectedUsers': FieldValue.arrayUnion([user.uid]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
 
-        // Add job to user's jobs collection
+        // Create job in user's collection
+        final job = Job(
+          id: code,
+          name: jobData['name'] ?? 'Shared Job',
+          color: Color(jobData['color'] ?? Colors.blue.value),
+          isShared: true,
+          isPublic: true,
+          connectionCode: code,
+          creatorId: jobData['creatorId'],
+          connectedUsers: [...connectedUsers, user.uid],
+        );
+
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .collection('jobs')
             .doc(code)
-            .set({
-              'id': code,
-              'name': jobData['name'] ?? 'Shared Job',
-              'color': jobData['color'] ?? Colors.blue.value,
-              'isShared': true,
-              'isPublic': true,
-              'connectionCode': code,
-              'creatorId': jobData['creatorId'],
-              'connectedUsers': FieldValue.arrayUnion([user.uid]),
-              'createdAt': jobData['createdAt'],
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            .set(job.toJson());
+
+        print('✅ User added directly to public job');
 
         // Reload shared jobs
         await loadSharedJobs();
@@ -1216,34 +1173,33 @@ class SharedJobsProvider extends BaseProvider {
             userDoc.data()?['name'] ?? user.displayName ?? 'Unknown User';
 
         // Create join request
-        await FirebaseFirestore.instance
-            .collection('sharedJobs')
-            .doc(code)
-            .update({
-              'pendingRequests': FieldValue.arrayUnion([user.uid]),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
+        await jobDoc.reference.update({
+          'pendingRequests': FieldValue.arrayUnion([user.uid]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
 
-        // Create notification for job creator
+        // Create notification in root collection
         final notificationRef =
-            FirebaseFirestore.instance
-                .collection('users')
-                .doc(creatorId)
-                .collection('notifications')
-                .doc();
+            FirebaseFirestore.instance.collection('notifications').doc();
 
+        print('📝 Creating notification for creator: $creatorId');
         await notificationRef.set({
           'id': notificationRef.id,
-          'type':
-              'joinRequest', // Changed to match the type we're listening for
+          'userId': creatorId,
+          'type': 'joinRequest',
           'jobId': code,
           'jobName': jobData['name'],
-          'jobConnectionCode': code,
-          'requesterId': user.uid,
-          'requesterName': userName, // Make sure we're using the user's name
+          'senderName': userName,
+          'senderId': user.uid,
           'createdAt': FieldValue.serverTimestamp(),
           'status': 'pending',
           'read': false,
+          'data': {
+            'type': 'joinRequest',
+            'jobId': code,
+            'jobName': jobData['name'],
+            'senderName': userName,
+          },
         });
 
         print('✅ Join request and notification created successfully');
@@ -1490,6 +1446,10 @@ class SharedJobsProvider extends BaseProvider {
 
       await loadPendingRequests();
       _setupSharedJobsListener();
+
+      // Set up periodic cleanup
+      Timer.periodic(Duration(days: 1), (_) => cleanupOldNotifications());
+
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
@@ -1544,7 +1504,6 @@ class SharedJobsProvider extends BaseProvider {
         print('❌ No authenticated user found');
         throw Exception('User not authenticated');
       }
-      print('👤 Current user: ${currentUser.uid}');
 
       // Get the job details
       print('📝 Fetching job details...');
@@ -1553,7 +1512,9 @@ class SharedJobsProvider extends BaseProvider {
         print('❌ Job not found');
         throw Exception('Job not found');
       }
-      print('✅ Job found: ${jobDoc.data()}');
+
+      final jobData = jobDoc.data()!;
+      final connectionCode = jobId; // The jobId is actually the connection code
 
       // Find user by email
       print('🔍 Looking up user by email: $targetEmail');
@@ -1572,48 +1533,77 @@ class SharedJobsProvider extends BaseProvider {
       print('✅ Target user found: ${targetUser.id}');
 
       // Check if user is already connected
-      final connectedUsers =
-          jobDoc.data()?['connectedUsers'] as List<dynamic>? ?? [];
+      final connectedUsers = List<String>.from(jobData['connectedUsers'] ?? []);
       if (connectedUsers.contains(targetUser.id)) {
         print('❌ User already connected to job');
         throw Exception('User already connected to this job');
       }
 
-      // Create notification for target user
-      print('📝 Creating notification for target user');
-      final notificationRef =
-          _firestore
-              .collection('users')
-              .doc(targetUser.id)
-              .collection('notifications')
-              .doc();
+      // Get current user's name
+      final currentUserDoc =
+          await _firestore.collection('users').doc(currentUser.uid).get();
+      final senderName =
+          currentUserDoc.data()?['name'] ??
+          currentUser.displayName ??
+          'Unknown User';
+
+      // Add to pending requests
+      print('📝 Adding user to pending requests');
+      await _firestore.collection('sharedJobs').doc(connectionCode).update({
+        'pendingRequests': FieldValue.arrayUnion([targetUser.id]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Send FCM notification using NotificationService
+      if (_notificationService != null) {
+        print('📨 Sending FCM notification to user: ${targetUser.id}');
+        await _notificationService!.sendNotification(
+          userId: targetUser.id,
+          title: 'Job Invitation',
+          body:
+              '$senderName invited you to join "${jobData['name'] ?? 'Unknown Job'}"',
+          data: {
+            'type': 'job_invitation',
+            'jobId': connectionCode,
+            'jobName': jobData['name'] ?? 'Unknown Job',
+            'senderName': senderName,
+            'senderId': currentUser.uid,
+          },
+        );
+        print('✅ FCM notification sent');
+      } else {
+        print('⚠️ NotificationService not initialized');
+      }
+
+      // Create notification in root collection
+      print('📝 Creating notification in root collection');
+      final notificationRef = _firestore.collection('notifications').doc();
 
       await notificationRef.set({
-        'jobId': jobId,
-        'jobName': jobDoc.data()?['name'] ?? 'Unknown Job',
-        'jobConnectionCode': jobId,
-        'senderId': currentUser.uid,
-        'senderName': currentUser.displayName ?? 'Unknown User',
-        'recipientId': targetUser.id,
-        'timestamp': FieldValue.serverTimestamp(),
-        'status': 'pending',
+        'id': notificationRef.id,
+        'userId': targetUser.id,
         'type': 'job_invitation',
+        'jobId': connectionCode,
+        'jobName': jobData['name'] ?? 'Unknown Job',
+        'senderName': senderName,
+        'senderId': currentUser.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'read': false,
+        'data': {
+          'type': 'job_invitation',
+          'jobId': connectionCode,
+          'jobName': jobData['name'] ?? 'Unknown Job',
+          'senderName': senderName,
+          'senderId': currentUser.uid,
+        },
       });
-      print('✅ Notification created');
 
-      // Add to pending requests regardless of job type
-      print('📝 Adding user to pending requests');
-      await _firestore.collection('sharedJobs').doc(jobId).update({
-        'pendingRequests': FieldValue.arrayUnion([targetUser.id]),
-      });
-      print('✅ User added to pending requests');
-
+      print('✅ Job invitation sent successfully');
       notifyListeners();
-      print('✅ Listeners notified');
     } catch (e) {
       print('❌ Error sending job invitation: $e');
-      print('❌ Stack trace: ${StackTrace.current}');
-      rethrow;
+      throw e;
     }
   }
 
@@ -1634,128 +1624,106 @@ class SharedJobsProvider extends BaseProvider {
 
   Future<void> handleJobInvitation(String notificationId, bool accept) async {
     try {
-      print('🔄 Handling job invitation: $notificationId, accept: $accept');
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) {
-        throw Exception('User not authenticated');
-      }
+      print(
+        '🔄 Starting handleJobInvitation for notification: $notificationId',
+      );
 
       // Get the notification document
       final notificationDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser.uid)
+          await _firestore
               .collection('notifications')
               .doc(notificationId)
               .get();
 
       if (!notificationDoc.exists) {
-        throw Exception('Notification not found');
+        print('❌ Notification not found');
+        return;
       }
 
-      final notificationData = notificationDoc.data()!;
-      final jobConnectionCode = notificationData['jobConnectionCode'];
-      final requesterId = notificationData['requesterId'];
+      final notification = notificationDoc.data()!;
+      print('📝 Processing notification:');
+      print('  - jobId: ${notification['jobId']}');
+      print('  - currentUser: ${_auth.currentUser?.uid}');
+      print('  - senderId: ${notification['senderId']}');
 
-      print('📝 Processing notification for job: ${jobConnectionCode}');
-      print('👤 Requester ID: ${requesterId}');
+      final jobId = notification['jobId'] as String;
+      final currentUser = _auth.currentUser?.uid;
+      final senderId = notification['senderId'] as String;
 
-      // Get the job document first
-      final jobDoc =
-          await FirebaseFirestore.instance
-              .collection('sharedJobs')
-              .doc(jobConnectionCode)
-              .get();
+      if (currentUser == null) {
+        print('❌ No authenticated user found');
+        return;
+      }
 
+      // Get the job document
+      final jobDoc = await _firestore.collection('sharedJobs').doc(jobId).get();
       if (!jobDoc.exists) {
-        throw Exception('Job not found');
+        print('❌ Job not found');
+        return;
       }
-
-      final jobData = jobDoc.data()!;
-
-      // Update notification status first
-      await notificationDoc.reference.update({
-        'status': accept ? 'accepted' : 'rejected',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
 
       if (accept) {
-        // If there's a requesterId, this is a join request
-        if (requesterId != null) {
-          print('✅ This is a join request. Adding requester to connectedUsers');
-
-          // For join requests, add the requester to connectedUsers
-          await jobDoc.reference.update({
-            'connectedUsers': FieldValue.arrayUnion([requesterId]),
-            'pendingRequests': FieldValue.arrayRemove([requesterId]),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-
-          // Create job in requester's collection
-          final job = Job(
-            id: jobConnectionCode,
-            name: jobData['name'] ?? 'Unknown Job',
-            color: Color(jobData['color'] ?? Colors.blue.value),
-            isShared: true,
-            isPublic: jobData['isPublic'] ?? false,
-            connectionCode: jobConnectionCode,
-            creatorId: jobData['creatorId'],
-            connectedUsers: List<String>.from(jobData['connectedUsers'] ?? [])
-              ..add(requesterId),
-          );
-
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(requesterId)
-              .collection('jobs')
-              .doc(jobConnectionCode)
-              .set(job.toJson());
-
-          print('✅ Added job to requester\'s collection');
-        } else {
-          // This is an invitation to current user
-          print(
-            '✅ This is an invitation. Adding current user to connectedUsers',
-          );
-
-          await jobDoc.reference.update({
-            'connectedUsers': FieldValue.arrayUnion([currentUser.uid]),
-            'pendingRequests': FieldValue.arrayRemove([currentUser.uid]),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-
-          // Create job in current user's collection
-          final job = Job(
-            id: jobConnectionCode,
-            name: jobData['name'] ?? 'Unknown Job',
-            color: Color(jobData['color'] ?? Colors.blue.value),
-            isShared: true,
-            isPublic: jobData['isPublic'] ?? false,
-            connectionCode: jobConnectionCode,
-            creatorId: jobData['creatorId'],
-            connectedUsers: List<String>.from(jobData['connectedUsers'] ?? [])
-              ..add(currentUser.uid),
-          );
-
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser.uid)
-              .collection('jobs')
-              .doc(jobConnectionCode)
-              .set(job.toJson());
-
-          print('✅ Added job to current user\'s collection');
-        }
-
-        // Refresh the jobs list and notifications immediately
-        await Future.wait([loadSharedJobs(), getPendingRequestCount()]);
+        print('✅ Accepting invitation/request');
+        // Add the user to connectedUsers and remove from pendingRequests
+        await jobDoc.reference.update({
+          'connectedUsers': FieldValue.arrayUnion([senderId]),
+          'pendingRequests': FieldValue.arrayRemove([senderId]),
+        });
+        print('📝 Updating job document');
+      } else {
+        print('❌ Rejecting invitation/request');
+        // Just remove from pendingRequests
+        await jobDoc.reference.update({
+          'pendingRequests': FieldValue.arrayRemove([senderId]),
+        });
+        print('📝 Removing from pending requests');
       }
 
-      notifyListeners();
-      print('✅ Successfully handled job invitation/request');
+      // Update notification status and mark as read
+      await notificationDoc.reference.update({
+        'status': accept ? 'accepted' : 'rejected',
+        'read': true,
+        if (notification['data'] != null)
+          'data.status': accept ? 'accepted' : 'rejected',
+      });
+      print('✅ Notification status updated');
+
+      // Delete the notification after handling
+      await notificationDoc.reference.delete();
+      print('✅ Notification deleted');
     } catch (e) {
       print('❌ Error handling job invitation: $e');
       throw e;
+    }
+  }
+
+  // Add this method to clean up old notifications
+  Future<void> cleanupOldNotifications() async {
+    try {
+      print('🧹 Starting notification cleanup');
+
+      // Get notifications older than 7 days
+      final cutoffDate = DateTime.now().subtract(Duration(days: 7));
+
+      final oldNotifications =
+          await FirebaseFirestore.instance
+              .collection('notifications')
+              .where('createdAt', isLessThan: cutoffDate)
+              .where('status', isEqualTo: 'pending')
+              .get();
+
+      print(
+        '📝 Found ${oldNotifications.docs.length} old notifications to clean up',
+      );
+
+      // Delete old notifications
+      for (var doc in oldNotifications.docs) {
+        await doc.reference.delete();
+      }
+
+      print('✅ Cleanup completed');
+    } catch (e) {
+      print('❌ Error cleaning up notifications: $e');
     }
   }
 
@@ -1768,11 +1736,10 @@ class SharedJobsProvider extends BaseProvider {
     // Cancel existing subscription if any
     _notificationsSubscription?.cancel();
 
-    // Listen to notifications collection
+    // Listen to root notifications collection
     _notificationsSubscription = _firestore
-        .collection('users')
-        .doc(user.uid)
         .collection('notifications')
+        .where('userId', isEqualTo: user.uid)
         .where('status', isEqualTo: 'pending')
         .where('type', whereIn: ['job_invitation', 'joinRequest'])
         .snapshots()
@@ -1792,5 +1759,64 @@ class SharedJobsProvider extends BaseProvider {
             print('❌ Error in notifications listener: $error');
           },
         );
+  }
+
+  void setNotificationService(NotificationService service) {
+    _notificationService = service;
+  }
+
+  Future<void> _addUserToJob(String jobId, String userId) async {
+    print('🔄 Adding user $userId to job $jobId');
+    try {
+      // Get the job document
+      final jobDoc =
+          await FirebaseFirestore.instance
+              .collection('sharedJobs')
+              .doc(jobId)
+              .get();
+
+      if (!jobDoc.exists) {
+        print('❌ Job not found');
+        return;
+      }
+
+      final jobData = jobDoc.data()!;
+
+      // Update the job document
+      await jobDoc.reference.update({
+        'connectedUsers': FieldValue.arrayUnion([userId]),
+        'pendingRequests': FieldValue.arrayRemove([userId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create job in user's collection
+      final job = Job(
+        id: jobId,
+        name: jobData['name'] ?? 'Unknown Job',
+        color: Color(jobData['color'] ?? Colors.blue.value),
+        isShared: true,
+        isPublic: jobData['isPublic'] ?? false,
+        connectionCode: jobId,
+        creatorId: jobData['creatorId'],
+        connectedUsers: List<String>.from(jobData['connectedUsers'] ?? [])
+          ..add(userId),
+      );
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('jobs')
+          .doc(jobId)
+          .set(job.toJson());
+
+      print('✅ Added job to user\'s collection');
+
+      // Refresh the jobs list and notifications
+      await Future.wait([loadSharedJobs(), getPendingRequestCount()]);
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error adding user to job: $e');
+      throw Exception('Failed to add user to job: $e');
+    }
   }
 }
