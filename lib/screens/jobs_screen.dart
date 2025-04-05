@@ -72,13 +72,10 @@ class _JobsScreenState extends State<JobsScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Get the initial tab from route arguments
-    final arguments =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (arguments != null && arguments.containsKey('initialTab')) {
-      final initialTab = arguments['initialTab'] as int;
-      // Set the tab controller to the initial tab
-      _tabController.animateTo(initialTab);
+    // Get the initial tab from route extra parameter
+    final extra = GoRouterState.of(context).extra;
+    if (extra != null && extra is int) {
+      _tabController.animateTo(extra);
     }
   }
 

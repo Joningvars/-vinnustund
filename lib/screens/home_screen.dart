@@ -14,6 +14,7 @@ import 'package:timagatt/widgets/add_job_button.dart';
 import 'package:timagatt/widgets/common/styled_dropdown.dart';
 import 'package:timagatt/widgets/common/custom_app_bar.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -279,16 +280,30 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: Text(
-            settingsProvider.translate('selectJob'),
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              settingsProvider.translate('selectJob'),
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
+            TextButton.icon(
+              onPressed: () {
+                // Navigate to jobs screen and select the create job tab (index 2)
+                context.go('/jobs', extra: 2);
+                settingsProvider.setSelectedTabIndex(3);
+              },
+              icon: const Icon(Icons.add_circle_outline),
+              label: Text(
+                settingsProvider.translate('addJob'),
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
         StyledDropdown<Job>(
           value:

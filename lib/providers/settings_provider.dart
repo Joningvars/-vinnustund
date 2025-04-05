@@ -480,7 +480,7 @@ class SettingsProvider extends BaseProvider {
       'jobUpdated': 'Verki uppfært',
       'deleteJobConfirmation': 'Ertu viss um að þú viljir eyða þessu verki?',
       'myJobs': 'Mín verk',
-      'addJob': 'Bæta verk',
+      'addJob': 'Bæta verki',
       'join': 'Tengjast',
       'createJobDescription': 'Búðu til fyrsta verki til að byrja',
       'editJobDescription': 'Breyta verkinu',

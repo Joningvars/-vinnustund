@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:timagatt/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:timagatt/screens/notifications_screen.dart';
-import 'package:timagatt/utils/navigation.dart';
 import 'package:timagatt/providers/shared_jobs_provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -42,7 +40,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
     final theme = Theme.of(context);
 
     List<Widget> appBarActions = [];
