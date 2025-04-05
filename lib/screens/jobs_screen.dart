@@ -123,7 +123,7 @@ class _JobsScreenState extends State<JobsScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).cardTheme.color,
       builder: (context) => _buildJobForm(context),
     );
   }
@@ -143,97 +143,103 @@ class _JobsScreenState extends State<JobsScreen>
           topRight: Radius.circular(20),
         ),
       ),
-      child: Form(
-        key: formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _editingJob == null
-                      ? timeEntriesProvider.translate('addJob')
-                      : timeEntriesProvider.translate('editJob'),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _editingJob == null
+                        ? timeEntriesProvider.translate('addJob')
+                        : timeEntriesProvider.translate('editJob'),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            // Job name field
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: timeEntriesProvider.translate('jobName'),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return timeEntriesProvider.translate('jobNameRequired');
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
 
-            // Job description field
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: timeEntriesProvider.translate('description'),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 16),
-
-            // Color picker
-            Text(
-              timeEntriesProvider.translate('jobColor'),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _buildColorPicker(),
-            const SizedBox(height: 24),
-
-            // Save button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
+              // Job name field
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: timeEntriesProvider.translate('jobName'),
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: _saveJob,
-                child: Text(
-                  timeEntriesProvider.translate('save'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return timeEntriesProvider.translate('jobNameRequired');
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Job description field
+              TextFormField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: timeEntriesProvider.translate('description'),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+
+              // Color picker
+              Text(
+                timeEntriesProvider.translate('jobColor'),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildColorPicker(),
+              const SizedBox(height: 24),
+
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: _saveJob,
+                  child: Text(
+                    timeEntriesProvider.translate('save'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16), // Add extra padding at the bottom
+            ],
+          ),
         ),
       ),
     );
@@ -517,22 +523,6 @@ class _JobsScreenState extends State<JobsScreen>
     );
   }
 
-  void _editJob(Job job) {
-    setState(() {
-      _editingJob = job;
-      _nameController.text = job.name;
-      _descriptionController.text = job.description ?? '';
-      _selectedColor = job.color;
-    });
-
-    _showAddJobDialog();
-  }
-
-  void _navigateToTab(int tabIndex) {
-    _tabController.animateTo(tabIndex);
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     final jobsProvider = Provider.of<JobsProvider>(context);
@@ -669,7 +659,7 @@ class _JobsScreenState extends State<JobsScreen>
                   if (job.creatorId == FirebaseAuth.instance.currentUser?.uid)
                     IconButton(
                       icon: const Icon(Icons.edit),
-                      onPressed: () => _editJob(job),
+                      onPressed: () => _showEditJobDialog(job),
                       tooltip: jobsProvider.translate('editJob'),
                     ),
                   const Icon(Icons.chevron_right),
@@ -680,14 +670,10 @@ class _JobsScreenState extends State<JobsScreen>
                   context,
                   listen: false,
                 );
-                final timeEntriesProvider = Provider.of<TimeEntriesProvider>(
-                  context,
-                  listen: false,
-                );
                 settingsProvider.setSelectedTabIndex(
                   2,
-                ); // Switch to history tab
-                timeEntriesProvider.selectedJob = job; // Set the selected job
+                ); // Switch to history tab// Set the selected job
+                context.go('/history');
               },
             ),
           ),
